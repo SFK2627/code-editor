@@ -1514,6 +1514,9 @@ function applyPublishedStudentLoginTheme(value = loginReminderSettings) {
     delete document.body.dataset.studentAppAppearance;
     delete document.body.dataset.studentAppChoice;
   }
+  // The entire-app scope also styles secondary student surfaces. Never style admin or sandbox iframe.
+  document.querySelectorAll('#studentAccountSettingsOverlay,#codeInboxOverlay,#codeSendOverlay,#studentComplianceOverlay,#givenActivityViewerOverlay,#lessonPdfOverlay')
+   .forEach(el=>{if(settings.applyThemeToEntireApp){el.dataset.studentAppTheme=settings.theme;el.dataset.studentAppAppearance=resolveEntireStudentAppAppearance(settings)}else{delete el.dataset.studentAppTheme;delete el.dataset.studentAppAppearance}});
   // Student theme controls are available only if permitted by the teacher.
   // When the whole-app design is disabled, retain the original app toggles.
   const lockStudentSwitches = settings.applyThemeToEntireApp && !settings.allowStudentAppAppearanceChoice;
@@ -2828,7 +2831,7 @@ async function navigateFromLoginLackingReminder(destination = 'home') {
   try {
     if (target === 'status') {
       if (!document.body.classList.contains('student-home-active') && studentDashboard?.classList.contains('hidden')) {
-        await showStudentHome({ suppressStatusReminder: true });
+        await showStudentHome({ suppressStatusReminder: true, skipVisitReminder: true });
       }
       openStudentComplianceModal();
       return;
@@ -2845,7 +2848,7 @@ async function navigateFromLoginLackingReminder(destination = 'home') {
       if (typeof window.openCodeExplorer === 'function') {
         await window.openCodeExplorer();
       } else {
-        await showStudentHome({ suppressStatusReminder: true });
+        await showStudentHome({ suppressStatusReminder: true, skipVisitReminder: true });
       }
       return;
     }
@@ -2856,13 +2859,13 @@ async function navigateFromLoginLackingReminder(destination = 'home') {
       if (studentDashboard?.classList.contains('hidden') ||
           !document.body.classList.contains('student-dashboard-active') ||
           document.body.classList.contains('student-home-active')) {
-        await showStudentDashboard({ suppressStatusReminder: true, deferRefresh: true });
+        await showStudentDashboard({ suppressStatusReminder: true, skipVisitReminder: true, deferRefresh: true });
       }
       syncStudentHomeMusicRoute();
       return;
     }
     // X, Escape and the primary action all land on Student Home.
-    await showStudentHome({ suppressStatusReminder: true });
+    await showStudentHome({ suppressStatusReminder: true, skipVisitReminder: true });
     syncStudentHomeMusicRoute();
   } catch (error) {
     console.warn('Could not open the selected student destination.', error);
@@ -2872,14 +2875,14 @@ async function navigateFromLoginLackingReminder(destination = 'home') {
       syncStudentHomeMusicRoute();
       try {
         if (studentDashboard?.classList.contains('hidden')) {
-          await showStudentDashboard({ suppressStatusReminder: true, deferRefresh: true });
+          await showStudentDashboard({ suppressStatusReminder: true, skipVisitReminder: true, deferRefresh: true });
         }
       } catch (projectError) {
         console.warn('Could not reopen My Projects.', projectError);
       }
       return;
     }
-    try { await showStudentHome({ suppressStatusReminder: true }); } finally {
+    try { await showStudentHome({ suppressStatusReminder: true, skipVisitReminder: true }); } finally {
       studentHomeMusic.handoffPending = false;
       syncStudentHomeMusicRoute();
     }
@@ -3064,6 +3067,11 @@ function renderLoginReminderMissingGroups(tasks, settings) {
   </div><div class="login-reminder-requirements-groups">${sections}</div>`;
 }
 
+document.getElementById('loginReminderProgressToggle')?.addEventListener('click',()=>{
+ const btn=document.getElementById('loginReminderProgressToggle'),panel=document.getElementById('loginReminderProgressBreakdown');
+ if(!btn||!panel)return;
+ const expanding=panel.classList.contains('hidden');panel.classList.toggle('hidden',!expanding);btn.setAttribute('aria-expanded',String(expanding));
+});
 function renderLoginLackingReminder(record = null, options = {}) {
   if (!loginLackingReminderOverlay) return false;
   const settings = normalizeLoginReminderSettings(options.settings || loginReminderSettings);
@@ -3081,11 +3089,29 @@ function renderLoginLackingReminder(record = null, options = {}) {
     ? 'unavailable'
     : (options.state || (sanitized ? (missingCount > 0 ? 'missing' : 'complete') : 'unavailable'));
 
+  // Interactive progress uses only current published task evidence; never
+  // invent an academic grade or substitute the official teacher score.
+  const progressWidget=document.getElementById('loginReminderProgressWidget');
+  const visibleTasks=Array.isArray(sanitized?.tasks)?sanitized.tasks:[];
+  if(progressWidget){
+    const total=visibleTasks.length;
+    progressWidget.classList.toggle('hidden',!total);
+    if(total){
+      const done=visibleTasks.filter(t=>normalizeComplianceStatus(t.status)==='complete').length;
+      const percent=Math.round(done/total*100);
+      const fill=document.getElementById('loginReminderProgressFill');
+      if(fill)fill.style.width=percent+'%';
+      const track=progressWidget.querySelector('[role="progressbar"]');if(track)track.setAttribute('aria-valuenow',String(percent));
+      const value=document.getElementById('loginReminderProgressValue');if(value)value.textContent=percent+'%';
+      const breakdown=document.getElementById('loginReminderProgressBreakdown');if(breakdown){breakdown.textContent=`${done} of ${total} published tasks completed · ${total-done} remaining`;breakdown.classList.add('hidden')}
+      const toggle=document.getElementById('loginReminderProgressToggle');if(toggle)toggle.setAttribute('aria-expanded','false');
+    }
+  }
   loginLackingReminderOverlay.dataset.state = state;
   loginLackingReminderOverlay.dataset.theme = settings.theme;
   loginLackingReminderOverlay.dataset.appearance = isPreview
     ? resolveStudentLoginAppearance(settings.modalAppearance)
-    : resolveStudentSurfaceAppearance(settings.modalAppearance, settings);
+    : (settings.applyThemeToEntireApp ? resolveEntireStudentAppAppearance(settings) : resolveStudentSurfaceAppearance(settings.modalAppearance, settings));
   loginLackingReminderOverlay.dataset.animation = settings.animation;
   loginLackingReminderOverlay.dataset.preview = isPreview ? 'true' : 'false';
   // Always start with the legend collapsed for a compact student popup.
@@ -3205,18 +3231,31 @@ async function getLoginReminderComplianceRecord() {
   }
 }
 
+function studentReminderPreferenceKey(){return `g8code.reminder.everyVisit.v1.${appSession.student?.uid||'guest'}`;}
+function reminderOnEveryVisit(){try{return localStorage.getItem(studentReminderPreferenceKey())==='true'}catch{return false}}
 async function showLoginLackingReminderAfterLogin(options = {}) {
   // Student status reminder is displayed after login and on My Projects visits.
   // The old pending flag is still cleared for compatibility with the login flow,
   // but it no longer prevents the reminder from appearing when students return
   // to My Projects from the editor, Lesson Viewer, or another student screen.
+  const isFreshLogin=loginReminderPendingAfterPasswordLogin;
   loginReminderPendingAfterPasswordLogin = false;
+  // Default: fresh password login only. Student may opt into every Home / Projects visit.
+  if(!options.preview && !isFreshLogin && !reminderOnEveryVisit())return false;
 
   if (appSession.mode !== 'student' || !appSession.student) return false;
   if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) return false;
   const dismissRoute = options.dismissRoute === 'projects' ||
     (options.dismissRoute !== 'home' && document.body.classList.contains('student-dashboard-active') &&
       !document.body.classList.contains('student-home-active')) ? 'projects' : 'home';
+  const openingStudentUid = appSession.student.uid;
+  const visitStillCurrent = () => appSession.mode === 'student' &&
+    appSession.student?.uid === openingStudentUid &&
+    (dismissRoute === 'home'
+      ? (document.body.classList.contains('student-home-active') && !studentHomeScreen?.classList.contains('hidden'))
+      : (document.body.classList.contains('student-dashboard-active') &&
+          !document.body.classList.contains('student-home-active') &&
+          !studentDashboard?.classList.contains('hidden')));
 
   // Let the selected screen paint first so the reminder never blocks route setup.
   await new Promise(resolve => window.setTimeout(resolve, 120));
@@ -3237,7 +3276,8 @@ async function showLoginLackingReminderAfterLogin(options = {}) {
   }
 
   const settings = normalizeLoginReminderSettings(loginReminderSettings);
-  if (!settings.enabled) return false;
+  if (!settings.enabled || !visitStillCurrent()) return false;
+  if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) return false;
   if (loginLackingReminderOverlay) loginLackingReminderOverlay.dataset.dismissRoute = dismissRoute;
 
   // Start analyzing the first reminder track before the modal finishes opening.
@@ -3264,6 +3304,7 @@ async function showLoginLackingReminderAfterLogin(options = {}) {
 
   // If no record is currently in memory, use the cached/fallback lookup.
   const result = await getLoginReminderComplianceRecord();
+  if (!visitStillCurrent()) return false;
   const shown = renderLoginLackingReminder(result.record, { state: result.state, settings });
   if (shown) refreshLoginReminderRecitationPoints().catch(() => {});
   return shown;
@@ -10076,7 +10117,13 @@ async function showStudentHome(options = {}) {
   hideGuestHome();
   if (!appSession.student) { openStudentLogin(); return; }
   const alreadyHome = document.body.classList.contains('student-home-active') && !studentHomeScreen?.classList.contains('hidden');
-  if (alreadyHome && options.suppressStatusReminder) { closeLoginLackingReminder(); renderStudentHome(); return; }
+  // Re-rendering the already-open Home is not a new visit. Do not close an
+  // existing reminder when the student opted into seeing it on every visit.
+  if (alreadyHome && options.suppressStatusReminder) {
+    if (!reminderOnEveryVisit() || options.skipVisitReminder === true) closeLoginLackingReminder();
+    renderStudentHome();
+    return;
+  }
   // Preserve dirty editor/wireframe recovery before navigating directly Home.
   if (appSession.currentProjectId && options.skipProjectFlush !== true) {
     try {
@@ -10119,7 +10166,10 @@ async function showStudentHome(options = {}) {
     renderStudentHome();
   }
   if (!document.body.classList.contains('student-home-active')) return;
-  if (options.suppressStatusReminder) closeLoginLackingReminder();
+  // Navigation callers historically suppress the post-login popup. That
+  // suppression applies only to the default 'fresh login' behavior: the
+  // student's explicit 'Show every visit' preference takes priority on entry.
+  if (options.skipVisitReminder === true || (options.suppressStatusReminder && !reminderOnEveryVisit())) closeLoginLackingReminder();
   else showLoginLackingReminderAfterLogin({ dismissRoute: 'home' }).catch(error => console.warn('Could not open student status reminder.', error));
 }
 
@@ -10127,6 +10177,10 @@ async function showStudentHome(options = {}) {
 // changes, so an unattended device cannot silently replace an account password.
 const shSettings = document.getElementById('studentAccountSettingsOverlay');
 const shSettingsForm = document.getElementById('shSettingsPasswordForm');
+document.getElementById('shSettingsReminderEveryVisit')?.addEventListener('change',event=>{
+ if(!appSession.student?.uid)return;
+ try{localStorage.setItem(studentReminderPreferenceKey(),event.target.checked?'true':'false')}catch(err){console.warn('Could not store reminder preference',err)}
+});
 let shSettingsPreviousFocus = null;
 let shSettingsWorking = false;
 function resetStudentAccountPasswordFields() {
@@ -10165,6 +10219,8 @@ function openStudentAccountSettings() {
     return;
   }
   shSettingsPreviousFocus = document.activeElement;
+  const frequency = document.getElementById('shSettingsReminderEveryVisit');
+  if(frequency)frequency.checked=reminderOnEveryVisit();
   const profile = appSession.student;
   const put = (id, value) => { const node = document.getElementById(id); if (node) node.textContent = value; };
   put('shSettingsStudentName', profile.name || 'Student');
@@ -10347,7 +10403,11 @@ async function showStudentDashboard(options = {}) {
     document.body.classList.contains('lesson-viewer-active') ||
     document.body.classList.contains('given-activities-active')
   );
-  const suppressStatusReminder = options.suppressStatusReminder === true || returningFromLessonOrActivities;
+  // A quiet internal return must not override the student's explicit
+  // every-visit preference when opening the My Projects page.
+  const suppressStatusReminder = options.skipVisitReminder === true || (
+    (options.suppressStatusReminder === true || returningFromLessonOrActivities) && !reminderOnEveryVisit()
+  );
   const deferRefresh = options.deferRefresh === true;
   hideEntryGate();
   hideStudentHome();
@@ -47719,6 +47779,13 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       roster = null;
     }
 
+    // Verify account registration instead of treating any arbitrary Student ID
+    // as delivered. Older accounts may lack a route, but MUST have an active
+    // roster record with an Auth UID to be considered registered.
+    const loginRoute=await loadStudentLoginRoute(normalized);
+    const registered=Boolean((loginRoute?.authEmail && loginRoute?.accountStatus!=='disabled' && loginRoute?.activated!==false) ||
+     (roster?.authUid && roster?.accountStatus!=='disabled'));
+    if(!registered)throw new Error('No active registered account found for that Student ID. Code was not sent.');
     if (roster?.accountStatus === 'disabled') {
       throw new Error('This student account is disabled.');
     }
@@ -47862,15 +47929,17 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       }
 
       const sentToLabel = receiver.name || receiver.studentId;
-      setCodeTransferStatus(codeSendStatus, `Sent ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'} to ${sentToLabel}.`, 'success');
-      setStatus(`Code sent to ${sentToLabel}`);
-      window.setTimeout(closeCodeSendDialog, 850);
+      setCodeTransferStatus(codeSendStatus, `✓ Transfer saved to ${sentToLabel}’s Code Inbox. Reference: ${transferId}`, 'success');
+      setStatus(`Code transfer saved to ${sentToLabel}’s inbox.`);
+      await appAlert(`Your transfer was saved to ${sentToLabel}’s Code Inbox.\nReference: ${transferId}\nThe receiver can open it from their account.`,{title:'Code Sent',icon:'✓'});
+      closeCodeSendDialog();
     } catch (error) {
       console.error('Could not send code transfer.', error);
       const message = isFirestorePermissionError(error)
         ? 'Firestore Rules are blocking Code Transfer. Publish the updated Code Inbox rules, then try again.'
         : (error?.message || 'Could not send the selected code.');
       setCodeTransferStatus(codeSendStatus, message, 'error');
+      await appAlert(message,{title:'Code Not Sent',icon:'⚠',danger:true});
     } finally {
       confirmCodeSendBtn.disabled = false;
     }
@@ -47966,11 +48035,112 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     }
   }
 
+  // V2.29: replies are legitimate message-only transfers (fileCount: 0).
+  // Firestore rules must allow this specific shape. Do not fake success on denial.
+  async function sendCodeInboxReply(transfer, meta) {
+    const receiverId = String(transfer?.senderStudentId || meta?.senderStudentId || '').trim();
+    const panel = codeInboxDetail?.querySelector('#codeInboxReplyPanel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    if (!receiverId) {
+      panel.innerHTML = '<p class="code-inbox-reply-feedback error" role="alert">Sender Student ID unavailable. Cannot reply to this transfer.</p>';
+      return;
+    }
+    panel.innerHTML = `
+      <div class="code-inbox-reply-title"><span aria-hidden="true">↩</span><div><strong>Reply to ${escapeHTML(receiverId)}</strong><small>Send a message to the sender’s G8Code Code Inbox</small></div></div>
+      <label class="code-inbox-reply-label" for="codeInboxReplyMessage">Your message</label>
+      <textarea id="codeInboxReplyMessage" rows="3" maxlength="1200" placeholder="Write your reply…"></textarea>
+      <div class="code-inbox-reply-actions"><button type="button" class="primary-btn" id="codeInboxReplySubmit">Verify & Send Reply</button><button type="button" class="ghost-btn" id="codeInboxReplyCancel">Cancel</button></div>
+      <p id="codeInboxReplyStatus" class="code-inbox-reply-feedback" role="status" aria-live="polite">No reply has been sent yet.</p>`;
+    const output = panel.querySelector('#codeInboxReplyStatus');
+    const button = panel.querySelector('#codeInboxReplySubmit');
+    const messageInput = panel.querySelector('#codeInboxReplyMessage');
+    const updateFeedback = (message, kind = '') => {
+      output.className = 'code-inbox-reply-feedback' + (kind ? ` ${kind}` : '');
+      output.textContent = message;
+    };
+    panel.querySelector('#codeInboxReplyCancel')?.addEventListener('click', () => panel.classList.add('hidden'));
+    messageInput?.focus();
+    button?.addEventListener('click', async () => {
+      const message = String(messageInput.value || '').trim();
+      if (!message) { updateFeedback('Write a message first.', 'error'); messageInput.focus(); return; }
+      if (button.disabled) return;
+      button.disabled = true;
+      button.textContent = 'Verifying…';
+      let sent = false;
+      updateFeedback('Verifying sender account…', 'pending');
+      try {
+        if (!await initFirebaseSync() || getFirebaseActiveUser()?.uid !== appSession.student?.uid) {
+          throw Error('Your session has changed. Sign in again before replying.');
+        }
+        const recipient = await resolveCodeTransferRecipient(receiverId);
+        if (!recipient?.studentIdKey) throw Error('Sender account could not be verified. Nothing was sent.');
+        updateFeedback('Recipient verified: ' + (recipient.name || recipient.studentId) + '. Confirm to send.', 'verified');
+        const confirmed = await appConfirm(`Reply to ${recipient.name || recipient.studentId} (${recipient.studentId})?`, {
+          title: 'Confirm Reply', confirmText: 'Send Reply', icon: '↩'
+        });
+        if (!confirmed) { updateFeedback('Reply cancelled. Nothing was sent.'); return; }
+        updateFeedback('Sending your reply…', 'pending');
+        button.textContent = 'Sending…';
+        const from = appSession.student || {};
+        const transferId = createId().replace(/[^a-zA-Z0-9_-]/g, '-');
+        const now = Date.now();
+        const {writeBatch, serverTimestamp} = firebaseSync.modules;
+        if (typeof writeBatch !== 'function') throw Error('Secure transfer is unavailable. Nothing was sent.');
+        const body = {
+          schemaVersion: CODE_TRANSFER_SCHEMA_VERSION,
+          senderUid: getFirebaseActiveUser().uid,
+          senderStudentId: normalizeStudentId(from.studentId || from.studentIdNormalized || ''),
+          senderName: from.name || 'Student', senderSection: from.section || '',
+          receiverUid: recipient.uid || '', receiverStudentId: recipient.studentId,
+          receiverStudentIdAuthKey: recipient.studentIdKey,
+          projectId: appSession.currentProjectId || '',
+          projectName: 'Reply: ' + String(transfer.projectName || 'Code'),
+          activityId: '', activityTitle: '',
+          fileCount: 0, fileNames: [], totalBytes: 0,
+          message: message.slice(0, 1200), files: [],
+          replyToTransferId: transfer.id || meta?.id || '',
+          createdAt: serverTimestamp(), createdAtMs: now
+        };
+        const inbox = {
+          schemaVersion: CODE_TRANSFER_SCHEMA_VERSION,
+          transferId, senderUid: body.senderUid, senderStudentId: body.senderStudentId,
+          senderName: body.senderName, senderSection: body.senderSection,
+          receiverUid: body.receiverUid, receiverStudentId: body.receiverStudentId,
+          receiverStudentIdAuthKey: body.receiverStudentIdAuthKey,
+          projectName: body.projectName, fileCount: 0, fileNames: [], totalBytes: 0,
+          message: body.message, status: 'unread',
+          createdAt: serverTimestamp(), createdAtMs: now
+        };
+        const batch = writeBatch(firebaseSync.db);
+        batch.set(getCodeTransferDocRef(transferId), body);
+        batch.set(getCodeInboxDocRef(recipient.studentIdKey, transferId), inbox);
+        await batch.commit();
+        // Only a committed two-document batch counts as "Sent".
+        sent = true;
+        updateFeedback('✓ Reply saved to ' + (recipient.name || recipient.studentId) + '’s Code Inbox. Reference: ' + transferId, 'success');
+        setCodeTransferStatus(codeInboxStatus, '✓ Reply saved to ' + recipient.studentId + '’s Code Inbox.', 'success');
+        button.textContent = '✓ Sent';
+        messageInput.readOnly = true;
+      } catch (error) {
+        console.error('Code Inbox reply failed', error);
+        const reason = isFirestorePermissionError(error)
+          ? 'Firestore rejected this reply. Current rules may block message-only transfers (fileCount: 0). Nothing was sent. Ask your teacher to publish the Code Inbox reply rules update.'
+          : (error?.message || 'Could not send reply. Nothing was sent.');
+        updateFeedback(reason, 'error');
+        setCodeTransferStatus(codeInboxStatus, reason, 'error');
+        // Keep the typed message intact for retry after rules are fixed.
+      } finally {
+        if (!sent) { button.disabled = false; button.textContent = 'Verify & Send Reply'; }
+      }
+    });
+  }
   function renderCodeInboxTransferDetail(transfer, meta) {
     if (!codeInboxDetail) return;
     const files = Array.isArray(transfer?.files) ? transfer.files : [];
     if (!files.length) {
-      codeInboxDetail.innerHTML = '<div class="code-inbox-empty-detail"><span>⚠️</span><strong>No source files found in this transfer.</strong></div>';
+      codeInboxDetail.innerHTML = `<div class="code-inbox-detail-head"><h3>${escapeHTML(transfer.projectName||'Message')}</h3><p>From ${escapeHTML(transfer.senderName||meta?.senderName||'Student')}</p></div><div class="code-inbox-message studio-inbox-message">${escapeHTML(transfer.message||meta?.message||'No files attached')}</div><button type="button" class="ghost-btn" id="replyReceivedCodeBtn">↩ Reply to sender</button><div id="codeInboxReplyPanel" class="code-inbox-reply-panel hidden"></div>`;
+      codeInboxDetail.querySelector('#replyReceivedCodeBtn')?.addEventListener('click',()=>sendCodeInboxReply(transfer,meta));
       return;
     }
     codeTransferState.selectedFileIndex = Math.min(codeTransferState.selectedFileIndex, files.length - 1);
@@ -47988,8 +48158,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           ${transfer.activityTitle ? `<span><strong>Activity:</strong> ${escapeHTML(transfer.activityTitle)}</span>` : ''}
         </div>
       </div>
-      ${message ? `<div class="code-inbox-message">${escapeHTML(message)}</div>` : ''}
-      <div class="code-inbox-file-tabs">
+      ${message ? `<div class="code-inbox-message studio-inbox-message">${escapeHTML(message)}</div>` : ''}
+      <div class="code-inbox-reply-bar"><button type="button" id="replyReceivedCodeBtn" class="ghost-btn">↩ Reply to sender</button><span>Send a message directly to the sender’s Code Inbox</span></div><div id="codeInboxReplyPanel" class="code-inbox-reply-panel hidden"></div>
+      <div class="code-inbox-file-tabs" role="tablist" aria-label="Received project files">
         ${files.map((file, index) => `<button class="ghost-btn code-inbox-file-tab ${index === codeTransferState.selectedFileIndex ? 'active' : ''}" type="button" data-code-transfer-file-tab="${index}">${escapeHTML(file.name || `File ${index + 1}`)}</button>`).join('')}
       </div>
       <div class="code-inbox-code-toolbar">
@@ -47999,6 +48170,11 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       <pre id="receivedCodePreview" class="code-inbox-code-preview" tabindex="0"><code>${escapeHTML(String(currentFile.content || ''))}</code></pre>
     `;
 
+    codeInboxDetail.querySelector('#replyReceivedCodeBtn')?.addEventListener('click',()=>{
+      const studentId=String(transfer.senderStudentId||meta?.senderStudentId||'').trim();
+      if(!studentId){setStatus('Sender Student ID is unavailable for reply.');return;}
+      sendCodeInboxReply(transfer,meta);
+    });
     codeInboxDetail.querySelectorAll('[data-code-transfer-file-tab]').forEach(button => {
       button.addEventListener('click', () => {
         codeTransferState.selectedFileIndex = Number(button.dataset.codeTransferFileTab || 0);

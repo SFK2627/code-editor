@@ -1,0 +1,56 @@
+/* G8Code v2.29 — Student Code Inbox shares the visual language of Studio V2.
+   Scoped to #codeInboxOverlay so other modals and editor tools stay untouched. */
+#codeInboxOverlay { --inbox-blue:var(--theme-accent,#376fbe); --inbox-line:var(--border-color,#cbd5e1); --inbox-surface:var(--panel-bg,#fff); --inbox-ink:var(--text-color,#243246); --inbox-muted:var(--muted-color,#66758c); }
+#codeInboxOverlay .code-inbox-card { width:min(1120px,calc(100vw - 28px)); height:min(88dvh,840px); max-height:calc(100dvh - 24px); padding:0; display:flex;flex-direction:column; overflow:hidden; border:1px solid color-mix(in srgb,var(--inbox-blue) 28%,var(--inbox-line)); border-radius:19px; color:var(--inbox-ink);background:var(--inbox-surface); }
+#codeInboxOverlay .code-inbox-head { position:relative;flex:none;display:flex;align-items:center;gap:14px;min-height:95px;margin:0;padding:19px 86px 18px 23px;background:linear-gradient(120deg,color-mix(in srgb,var(--inbox-blue) 11%,var(--inbox-surface)),var(--inbox-surface));border-bottom:1px solid var(--inbox-line); }
+#codeInboxOverlay .code-inbox-head>div {min-width:0;flex:1;}
+#codeInboxOverlay .code-inbox-head .section-kicker { font-size:10px;letter-spacing:.12em;font-weight:800;color:var(--inbox-blue);margin:0 0 5px;}
+#codeInboxOverlay .code-inbox-head h2 {margin:0 0 4px;font-size:clamp(18px,2vw,23px);line-height:1.2;color:var(--inbox-ink);}
+#codeInboxOverlay .code-inbox-head .muted-text {font-size:12px;line-height:1.5;color:var(--inbox-muted);}
+#codeInboxOverlay .code-transfer-icon {width:48px;height:48px;flex:none;background:color-mix(in srgb,var(--inbox-blue) 14%,var(--inbox-surface));border:1px solid var(--inbox-line);border-radius:13px;}
+#codeInboxOverlay .code-transfer-close { position:absolute;top:18px;right:18px;z-index:5;float:none;border-radius:10px;background:var(--inbox-surface);border:1px solid var(--inbox-line);color:var(--inbox-ink);box-shadow:none; }
+#codeInboxOverlay .code-inbox-refresh-btn {white-space:nowrap;margin-left:0;margin-right:0;border-radius:10px;border:1px solid var(--inbox-line);background:var(--inbox-surface);color:var(--inbox-ink);font-size:12px;font-weight:750;}
+#codeInboxOverlay #codeInboxStatus {flex:none;min-height:0;margin:0;padding:0 22px;font-size:12px;color:var(--inbox-muted);}
+#codeInboxOverlay #codeInboxStatus:not(:empty) {padding:9px 22px;border-bottom:1px solid var(--inbox-line);background:color-mix(in srgb,var(--inbox-blue) 7%,var(--inbox-surface));}
+#codeInboxOverlay #codeInboxStatus.error {color:#bb2332;background:color-mix(in srgb,#dc2626 9%,var(--inbox-surface));}
+#codeInboxOverlay #codeInboxStatus.success {color:#15803d;background:color-mix(in srgb,#16a34a 8%,var(--inbox-surface));}
+#codeInboxOverlay .code-inbox-layout {display:grid;grid-template-columns:minmax(230px,.38fr) minmax(0,1fr);gap:0;flex:1;min-height:0;overflow:hidden;}
+#codeInboxOverlay .code-inbox-list-panel,#codeInboxOverlay .code-inbox-detail {min-height:0;min-width:0;border:0;border-radius:0;background:var(--inbox-surface);}
+#codeInboxOverlay .code-inbox-list-panel {border-right:1px solid var(--inbox-line);background:color-mix(in srgb,var(--inbox-blue) 3%,var(--inbox-surface));}
+#codeInboxOverlay .code-inbox-list {display:flex;flex-direction:column;gap:8px;height:100%;max-height:none;overflow-y:auto;overscroll-behavior:contain;padding:14px 12px;}
+#codeInboxOverlay .code-inbox-item {flex:none;display:grid;gap:5px;min-width:0;padding:13px 14px;border:1px solid var(--inbox-line);border-radius:12px;background:var(--inbox-surface);color:var(--inbox-ink);box-shadow:none;transition:border-color .15s,background .15s;}
+#codeInboxOverlay .code-inbox-item:hover,#codeInboxOverlay .code-inbox-item.active {border-color:var(--inbox-blue);background:color-mix(in srgb,var(--inbox-blue) 9%,var(--inbox-surface));box-shadow:inset 3px 0 0 var(--inbox-blue);}
+#codeInboxOverlay .code-inbox-item.unread {border-left:3px solid var(--inbox-blue);background:color-mix(in srgb,var(--inbox-blue) 7%,var(--inbox-surface));}
+#codeInboxOverlay .code-inbox-item small,#codeInboxOverlay .code-inbox-detail-meta {color:var(--inbox-muted);}
+#codeInboxOverlay .code-inbox-detail {overflow-y:auto;overscroll-behavior:contain;max-height:none;padding:20px 23px;}
+#codeInboxOverlay .code-inbox-detail-head {margin-bottom:15px;padding-bottom:12px;border-bottom:1px solid var(--inbox-line);}
+#codeInboxOverlay .code-inbox-detail-head h3 {font-size:19px;color:var(--inbox-ink);}
+#codeInboxOverlay .code-inbox-message {border-left:3px solid var(--inbox-blue);border-radius:10px;background:color-mix(in srgb,var(--inbox-blue) 8%,var(--inbox-surface));color:var(--inbox-ink);padding:13px 15px;line-height:1.5;overflow-wrap:anywhere;}
+#codeInboxOverlay .code-inbox-reply-bar {display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:9px 0 13px;border-bottom:1px solid var(--inbox-line);margin-bottom:13px;}
+#codeInboxOverlay .code-inbox-reply-bar>span {font-size:11px;color:var(--inbox-muted);}
+#codeInboxOverlay #replyReceivedCodeBtn,#codeInboxOverlay .code-inbox-code-toolbar button,#codeInboxOverlay .code-inbox-reply-actions button {border:1px solid var(--inbox-line);border-radius:10px;min-height:36px;padding:8px 13px;font-size:12px;font-weight:800;}
+#codeInboxOverlay .code-inbox-reply-panel {display:grid;gap:10px;margin:12px 0 18px;padding:15px;border-radius:14px;background:color-mix(in srgb,var(--inbox-blue) 5%,var(--inbox-surface));border:1px solid var(--inbox-line);}
+#codeInboxOverlay .code-inbox-reply-panel.hidden {display:none!important;}
+#codeInboxOverlay .code-inbox-reply-title {display:flex;align-items:center;gap:10px;}
+#codeInboxOverlay .code-inbox-reply-title>span {display:grid;place-items:center;width:34px;height:34px;flex:none;border-radius:9px;background:color-mix(in srgb,var(--inbox-blue) 12%,var(--inbox-surface));}
+#codeInboxOverlay .code-inbox-reply-title>div {display:grid;gap:2px;min-width:0;}
+#codeInboxOverlay .code-inbox-reply-title strong {font-size:14px;}
+#codeInboxOverlay .code-inbox-reply-title small {font-size:11px;color:var(--inbox-muted);}
+#codeInboxOverlay .code-inbox-reply-label {font-size:12px;font-weight:800;}
+#codeInboxOverlay #codeInboxReplyMessage {width:100%;min-height:90px;resize:vertical;border:1px solid var(--inbox-line);border-radius:10px;background:var(--inbox-surface);color:var(--inbox-ink);padding:12px;font:inherit;}
+#codeInboxOverlay #codeInboxReplyMessage:focus {outline:2px solid color-mix(in srgb,var(--inbox-blue) 44%,transparent);outline-offset:2px;}
+#codeInboxOverlay .code-inbox-reply-actions {display:flex;flex-wrap:wrap;gap:9px;align-items:center;}
+#codeInboxOverlay .code-inbox-reply-actions .primary-btn {background:var(--inbox-blue);color:#fff;border-color:var(--inbox-blue);}
+#codeInboxOverlay .code-inbox-reply-actions button:disabled {opacity:.65;cursor:not-allowed;}
+#codeInboxOverlay .code-inbox-reply-feedback {margin:0;padding:10px 12px;border-radius:9px;background:var(--inbox-surface);color:var(--inbox-muted);font-size:12px;line-height:1.5;overflow-wrap:anywhere;}
+#codeInboxOverlay .code-inbox-reply-feedback.pending {border-left:3px solid #b7791f;background:color-mix(in srgb,#eab308 8%,var(--inbox-surface));}
+#codeInboxOverlay .code-inbox-reply-feedback.verified,#codeInboxOverlay .code-inbox-reply-feedback.success {border-left:3px solid #16a34a;background:color-mix(in srgb,#16a34a 8%,var(--inbox-surface));color:var(--inbox-ink);}
+#codeInboxOverlay .code-inbox-reply-feedback.error {border-left:3px solid #dc2626;background:color-mix(in srgb,#dc2626 9%,var(--inbox-surface));color:#c02237;}
+#codeInboxOverlay .code-inbox-file-tabs {display:flex;gap:6px;flex-wrap:wrap;padding:3px 0;margin-bottom:11px;}
+#codeInboxOverlay .code-inbox-file-tab {border-radius:9px;background:color-mix(in srgb,var(--inbox-blue) 5%,var(--inbox-surface));border:1px solid var(--inbox-line);color:var(--inbox-ink);font-size:12px;font-weight:800;min-height:35px;}
+#codeInboxOverlay .code-inbox-file-tab.active {color:var(--inbox-blue);border-color:var(--inbox-blue);background:color-mix(in srgb,var(--inbox-blue) 11%,var(--inbox-surface));box-shadow:none;}
+#codeInboxOverlay .code-inbox-code-toolbar {display:flex;gap:12px;flex-wrap:wrap;padding:12px;border-radius:10px 10px 0 0;background:color-mix(in srgb,var(--inbox-blue) 8%,var(--inbox-surface));border:1px solid var(--inbox-line);margin:0;}
+#codeInboxOverlay .code-inbox-code-preview {border-radius:0 0 10px 10px;border-top:0;background:#101c2f;color:#e3eeff;max-height:400px;min-height:190px;}
+html[data-theme="dark"] #codeInboxOverlay,html[data-appearance="dark"] #codeInboxOverlay {--inbox-ink:#f5f8ff;--inbox-muted:#a8b7d0;--inbox-line:rgba(148,163,184,.3);--inbox-surface:#16243a;}
+@media(max-width:720px) {#codeInboxOverlay {padding:0;align-items:end;}#codeInboxOverlay .code-inbox-card {width:100%;height:min(95dvh,900px);max-height:95dvh;border-radius:19px 19px 0 0;}#codeInboxOverlay .code-inbox-head {padding:16px 64px 14px 15px;min-height:0;gap:9px;}#codeInboxOverlay .code-transfer-icon {width:37px;height:37px;font-size:19px;}#codeInboxOverlay .code-inbox-head h2 {font-size:18px;}#codeInboxOverlay .code-inbox-head .muted-text {font-size:11px;}#codeInboxOverlay .code-inbox-refresh-btn {font-size:11px;padding:8px;}#codeInboxOverlay .code-transfer-close {top:13px;right:12px;width:34px;height:34px;}#codeInboxOverlay .code-inbox-layout {grid-template-columns:1fr;grid-template-rows:minmax(0,max-content) minmax(0,1fr);}#codeInboxOverlay .code-inbox-list-panel {border-right:0;border-bottom:1px solid var(--inbox-line);}#codeInboxOverlay .code-inbox-list {padding:9px;gap:7px;height:auto;max-height:min(28dvh,220px);}#codeInboxOverlay .code-inbox-item {padding:9px 11px;}#codeInboxOverlay .code-inbox-detail {padding:13px 14px;}#codeInboxOverlay .code-inbox-code-preview {max-height:32dvh;min-height:140px;}#codeInboxOverlay #codeInboxStatus:not(:empty) {padding:8px 14px;}}
+@media(prefers-reduced-motion:reduce){#codeInboxOverlay .code-inbox-item {transition:none;}}

@@ -2,11 +2,19 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id), qs=(sel,root=document)=>root.querySelector(sel), all=(sel,root=document)=>[...root.querySelectorAll(sel)];
 const GROUP={html:'pages',css:'cssFiles',js:'jsFiles'},ACTIVE={html:'activeHtmlPage',css:'activeCssFile',js:'activeJsFile'},DEFAULT={html:'index.html',css:'style.css',js:'script.js'};
-const START={pages:{'index.html':'<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>My First Webpage</title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <main>\n    <h1>Hello, G8Code! 👋</h1>\n    <p>Start building something great.</p>\n    <button id="hello">Click me</button>\n  </main>\n  <script src="script.js"><\\/script>\n</body>\n</html>'.replace('<\\/script>','</script>')},cssFiles:{'style.css':'body {\n  font-family: system-ui, sans-serif;\n  margin: 0; padding: 2rem;\n  color: #183451;\n  background: #f6f9ff;\n}\nmain { max-width: 700px; margin: auto; }\nbutton { padding: 10px 16px; background: #2464c4; color: white; border: 0; border-radius: 8px; }'},jsFiles:{'script.js':'document.getElementById("hello")?.addEventListener("click", () => {\n  alert("Your JavaScript works!");\n});'},activeHtmlPage:'index.html',activeCssFile:'style.css',activeJsFile:'script.js'};
+const BASIC_HTML='<!DOCTYPE html>\n<html>\n  <head>\n    <title>Page Title</title>\n  </head>\n  <body>\n\n    <h1>My First Heading</h1>\n    <p>My first paragraph.</p>\n\n  </body>\n</html>';
+const blankProject=()=>({pages:{'index.html':''},cssFiles:{'style.css':''},jsFiles:{'script.js':''},activeHtmlPage:'index.html',activeCssFile:'style.css',activeJsFile:'script.js'});
+const START=blankProject();
+// Show the ordinary starter immediately while published assistance settings load.
+// When the Admin has disabled starter code, initializeFreshStudio() clears all files.
+START.pages['index.html']=BASIC_HTML;
+function studioFreshCode(){const code=blankProject();if(state.root?.studentAssistanceSettings?.starterCodeEnabled!==false)code.pages['index.html']=BASIC_HTML;return code}
+function initializeFreshStudio(){if(studioStudentLoginBusy||state.projectId||state.dirty||state.project||STUDIO_PARAMS.has('join')||STUDIO_PARAMS.has('project'))return;state.code=studioFreshCode();state.previewPage='index.html';switchFile('html','index.html');runPreview();}
+
 const PREF='g8code.studio.v2.pref', DRAFT='g8code.studio.v2.guest.draft';
 const STUDIO_ROUTE_KEY='g8code.officialStudio.return.v1';
 const STUDIO_PARAMS=new URLSearchParams(location.search);
-const STUDIO_FORCE_GUEST=STUDIO_PARAMS.get('mode')==='guest';
+let STUDIO_FORCE_GUEST=STUDIO_PARAMS.get('mode')==='guest';
 const fromJSON=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}};
 const prefs=fromJSON(PREF,{});
 const state={lang:'html',layout:prefs.layout||'split',mobileTab:'code',device:prefs.device||(matchMedia('(max-width:700px)').matches?'phone':matchMedia('(max-width:920px)').matches?'tablet':'desktop'),appearance:prefs.appearance||'light',autoRun:prefs.autoRun!==false,font:clamp(Number(prefs.font)||13,9,32),previewZoom:'fit',filesOpen:typeof prefs.filesOpen==='boolean'?prefs.filesOpen:matchMedia('(min-width:1200px)').matches,dirty:false,saving:false,guest:true,auth:null,profile:null,root:{},activities:[],given:[],projects:[],project:null,projectId:'',name:'My First Webpage',code:structuredClone(START),previewPage:'index.html',collab:null,collabUnsubs:[],rtcTimer:null,unsavedSince:0};
@@ -23,7 +31,14 @@ function fileName(lang=state.lang){return state.code[ACTIVE[lang]]}
 function fileContent(lang=state.lang){return fileMap(lang)[fileName(lang)]||''}
 function validFileName(value,type){let s=String(value||'').trim().replace(/\\/g,'/'); if(s.includes('/')||s.includes('..')||!s.match(/^[\w-]{1,52}\.(html|css|js)$/i))return null;return fileType(s)===type?s:null}
 function normalizeCode(code){const src=code&&typeof code==='object'?code:{}; const out={};for(const lang of ['html','css','js']){const mapKey=GROUP[lang],activeKey=ACTIVE[lang],source=src[mapKey]&&typeof src[mapKey]==='object'&&!Array.isArray(src[mapKey])?src[mapKey]:null; const map={};for(const [name,value] of Object.entries(source||{})){if(validFileName(name,lang)&&typeof value==='string')map[name]=value}if(!Object.keys(map).length && (lang==='html'||!source)){const legacyName=lang==='html'?'index.html':DEFAULT[lang];map[legacyName]=typeof src[lang]==='string'?src[lang]:''}out[mapKey]=map;let active=src[activeKey]||Object.keys(map)[0];if(!(active in map))active=Object.keys(map)[0];out[activeKey]=active}return out}
-function normalizeProject(raw){if(raw&&raw.codeByActivity){const key=raw.selectedActivityId&&raw.codeByActivity[raw.selectedActivityId]?raw.selectedActivityId:(raw.codeByActivity.scratch?'scratch':Object.keys(raw.codeByActivity)[0]);return normalizeCode(raw.codeByActivity[key]||{})}return normalizeCode(raw||START)}
+function normalizeProject(raw){
+ if(raw?.codeByActivity && typeof raw.codeByActivity==='object'){
+  const entries=raw.codeByActivity,key=(raw.selectedActivityId&&entries[raw.selectedActivityId]?raw.selectedActivityId:(entries.scratch?'scratch':Object.keys(entries)[0]));
+  const code=entries[key];if(code&&typeof code==='object')return normalizeCode(code);
+ }
+ // Original G8Code projects can also carry current code directly.
+ return normalizeCode(raw&&typeof raw==='object'?raw:blankProject());
+}
 function setDirty(){state.dirty=true;state.changeRevision=(state.changeRevision||0)+1;state.unsavedSince=Date.now();status(state.guest?'● Unsaved local draft':'● Unsaved changes');safeLocalDraft();if(state.autoRun)scheduleRun();if(!state.collab&&!state.guest&&state.root?.studentAssistanceSettings?.enabled!==false&&state.root?.studentAssistanceSettings?.autoSave!==false){clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>saveProject({quiet:true}),15000)}}
 function safeLocalDraft(){try{const key=state.guest?DRAFT:`${DRAFT}.${state.auth?.uid||'auth'}`;sessionStorage.setItem(key,JSON.stringify({name:state.name,code:state.code,projectId:state.projectId,practiceCheck:state.lastPracticeCheck||null,dirty:state.dirty,updated:Date.now()}))}catch{}}
 function switchFile(lang,name){if(!fileMap(lang)?.hasOwnProperty(name))return;state.lang=lang;state.code[ACTIVE[lang]]=name;input.value=fileContent();$('activeFileLabel').textContent=name;all('#languageTabs button').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));renderFiles();refreshLineNumbers();refreshCursor();input.focus();renderCollabCursors();scheduleCollabCursor();}
@@ -338,6 +353,7 @@ window.addEventListener('message',event=>{
  }
 });
 function updateCanvas(){
+ const landscape=$('focusLandscape');if(landscape)landscape.classList.toggle('hidden',!(matchMedia('(max-width:920px)').matches && state.device==='desktop' && document.body.dataset.immersive==='preview'));
  const d=state.device,deviceSizes={phone:[390,844],tablet:[768,1024],desktop:[1366,768]},[width,height]=deviceSizes[d];
  const area=$('previewViewport');if(!area)return;
  const canvas=$('deviceCanvas'),surface=$('previewScrollSurface');
@@ -416,7 +432,7 @@ async function enterStudioFullscreen(kind='code'){
  // Do NOT invoke the native Fullscreen API for a student's webpage.
  if(kind==='preview')requestAnimationFrame(()=>requestAnimationFrame(ensurePreviewRendered));
 }
-function exitStudioFullscreen(){
+function exitStudioFullscreen(){try{screen.orientation?.unlock?.()}catch{}
  if(!document.body.dataset.immersive)return;
  delete document.body.dataset.immersive;
  const previous=studioImmersivePrevious;
@@ -469,13 +485,13 @@ function clamp(n,a,b){return Math.max(a,Math.min(b,n))}
 function installResize(){const divider=$('splitHandle');let active=false;divider.addEventListener('pointerdown',e=>{if(matchMedia('(max-width:700px)').matches||['editor','preview'].includes(state.layout))return;active=true;divider.setPointerCapture(e.pointerId);e.preventDefault()});divider.addEventListener('pointermove',e=>{if(!active)return;const el=$('workPanels'),r=el.getBoundingClientRect(),stacked=state.layout==='stacked';const v=stacked?100*(e.clientY-r.top)/r.height:100*(e.clientX-r.left)/r.width;el.parentElement.style.setProperty(stacked?'--stack':'--split',clamp(v,25,75)+'%');updateCanvas()});const stop=()=>{if(active){active=false;storePrefs()}};divider.addEventListener('pointerup',stop);divider.addEventListener('pointercancel',stop);divider.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();const stack=state.layout==='stacked',key=stack?'--stack':'--split';const current=parseFloat($('workspace').style.getPropertyValue(key))||(stack?55:54);$('workspace').style.setProperty(key,clamp(current+(e.key==='ArrowRight'||e.key==='ArrowDown'?5:-5),25,75)+'%');storePrefs();updateCanvas()});}
 function openDialog(heading,content,buttons=[],kicker='G8CODE STUDIO'){$('dialogTitle').textContent=heading;$('dialogKicker').textContent=kicker;$('dialogContent').replaceChildren();if(typeof content==='string')$('dialogContent').innerHTML=content;else if(content)$('dialogContent').append(content);$('dialogFooter').replaceChildren();for(const b of buttons){const el=document.createElement('button');el.type='button';el.className=b.kind||'secondary';el.textContent=b.label;el.addEventListener('click',b.action);$('dialogFooter').append(el)}$('dialog').classList.remove('hidden');$('scrim').classList.remove('hidden');lastFocused=document.activeElement;setTimeout(()=>$('dialog').querySelector('input,button,select')?.focus(),30)}
 function closeDialog(){if(dialogResolve){const cb=dialogResolve;dialogResolve=null;cb(null)}$('dialog').classList.add('hidden');$('scrim').classList.add('hidden');lastFocused?.focus?.()}
-function promptText(heading,initial='',label='Name'){return new Promise(resolve=>{openDialog(heading,`<label for="modalText">${escapeHTML(label)}</label><input id="modalText" value="${escapeHTML(initial)}" maxlength="90">`,[{label:'Cancel',action:()=>closeDialog()},{label:'Apply',kind:'primary',action:()=>{const val=$('modalText').value.trim();dialogResolve=null;closeDialog();resolve(val)}}]);dialogResolve=resolve;$('modalText')?.addEventListener('keydown',e=>{if(e.key==='Enter')$('dialogFooter .primary')?.click()})})}
+function promptText(heading,initial='',label='Name'){return new Promise(resolve=>{openDialog(heading,`<label for="modalText">${escapeHTML(label)}</label><input id="modalText" value="${escapeHTML(initial)}" maxlength="90">`,[{label:'Cancel',action:()=>closeDialog()},{label:'Apply',kind:'primary',action:()=>{const val=$('modalText').value.trim();dialogResolve=null;closeDialog();resolve(val)}}]);dialogResolve=resolve;$('modalText')?.addEventListener('keydown',e=>{if(e.key==='Enter')qs('#dialogFooter .primary')?.click()})})}
 function confirmAction(msg,label='Continue',kind='primary'){return new Promise(resolve=>{openDialog('Please confirm',`<p>${escapeHTML(msg)}</p>`,[{label:'Cancel',action:()=>closeDialog()},{label,kind,action:()=>{dialogResolve=null;closeDialog();resolve(true)}}]);dialogResolve=()=>resolve(false)})}
 function requireAccount(thing){if(!state.auth||state.guest){toast(`${thing} requires a logged-in student account. Open G8Code and log in first.`,'error');return false}return true}
 function docRef(...segments){return db.collection(rootPath()[0]).doc(rootPath()[1]).collection(segments[0]).doc(segments[1])}
 function projectsRef(){return docRef('students',state.auth.uid).collection('projects')}
 function profileRef(){return docRef('students',state.auth.uid)}
-async function cloudRoot(){if(!db)return;try{const snap=await db.collection(rootPath()[0]).doc(rootPath()[1]).get();state.root=snap.data()||{};state.activities=Array.isArray(state.root.activities)?state.root.activities:[];state.given=Array.isArray(state.root.givenActivities)?state.root.givenActivities:[];applyAdminTheme();refreshSettings();}catch(err){console.warn('Studio settings unavailable:',err);toast('Published activities/settings unavailable. Editor remains usable.')}}
+async function cloudRoot(){if(!db)return;try{const snap=await db.collection(rootPath()[0]).doc(rootPath()[1]).get();state.root=snap.data()||{};state.activities=Array.isArray(state.root.activities)?state.root.activities:[];state.given=Array.isArray(state.root.givenActivities)?state.root.givenActivities:[];applyAdminTheme();refreshSettings();initializeFreshStudio();}catch(err){console.warn('Studio settings unavailable:',err);toast('Published activities/settings unavailable. Editor remains usable.')}}
 const STUDIO_THEME_ACCENTS={'campus-journal':'#b58a45','mission-control':'#16869e','honors-night':'#b18b39','blueprint-lab':'#3578cc',bauhaus:'#ca5941',minimalism:'#72849f',maximalism:'#a04fd4',futuristic:'#2b85cc','vector-art':'#ed6a4f','collage-art':'#b04d91',retro:'#b67743','synthwave-80s':'#ae58d5',cyberpunk:'#aa4cf4','pop-art':'#e15d37',glassmorphism:'#5186b8','clay-style':'#bf7f78','pixel-art':'#7066c8',editorial:'#8d4e5c',y2k:'#c175a8','swiss-design':'#d94343','surreal-design':'#806ac4',bohemian:'#a57555','victorian-style':'#9a7549',graffiti:'#d96245',aurora:'#398f91',handwritten:'#aa8350',classic:'#2e6bb4',christmas:'#bd454c','spider-comic':'#c43f47',halloween:'#bd6b35',valentine:'#ce5a87',graduation:'#b79545',galaxy:'#6a5bc7','cyber-neon':'#7553df',ocean:'#267a9c',sakura:'#bb729e','retro-arcade':'#a04fd8',birthday:'#d66f6f',fiesta:'#ce733f',forest:'#43875d'};
 const STUDIO_THEME_SYMBOLS={christmas:'❄',bauhaus:'◒','blueprint-lab':'⌗',halloween:'✦',valentine:'♥',galaxy:'✧',ocean:'≈',sakura:'✿',forest:'❧','cyber-neon':'⌁','retro-arcade':'▣',birthday:'✶',fiesta:'✹',graduation:'★',classic:'✦'};
 function applyAdminTheme(){
@@ -508,17 +524,130 @@ function watchStudioAdminSettings(){
    state.root=data;
    state.activities=Array.isArray(data.activities)?data.activities:[];
    state.given=Array.isArray(data.givenActivities)?data.givenActivities:[];
-   applyAdminTheme();refreshSettings();
+   applyAdminTheme();refreshSettings();initializeFreshStudio();
   },err=>console.warn('Studio admin theme/settings live updates unavailable:',err));
  }catch(err){console.warn('Studio settings watcher:',err)}
 }
-async function initFirebase(){const firebase=window.firebase;if(!firebase?.initializeApp||!window.MCS_FIREBASE_CONFIG){status('Guest · Firebase SDK unavailable');return}try{const app=firebase.apps.length?firebase.app():firebase.initializeApp(window.MCS_FIREBASE_CONFIG);db=firebase.firestore(app);auth=firebase.auth(app);auth.onAuthStateChanged(async user=>{if(!user&&state.collab)stopCollab();state.auth=user;state.guest=!user||STUDIO_FORCE_GUEST;state.profile=null;$('authPill').textContent=user&&!STUDIO_FORCE_GUEST?'Student connected':'Guest mode';if(user&&!STUDIO_FORCE_GUEST){try{const snap=await profileRef().get();if(snap.exists){state.profile=snap.data()||{};$('authPill').textContent=state.profile.name||state.profile.firstName||'Student connected';status('● Connected to G8Code');}else{status('Signed in · no student profile');toast('Your Firebase account has no student profile. Open G8Code for verification.','error')}}catch(err){status('Signed in · profile unavailable');console.warn(err)}await cloudRoot();watchStudioAdminSettings();const parameter=new URLSearchParams(location.search);if(parameter.get('project'))await loadProject(parameter.get('project'));else restoreStudentRecovery(user.uid);if(parameter.get('join')&&state.profile&&!studioJoinHandoffStarted){studioJoinHandoffStarted=true;await joinCollab(parameter.get('join'));}}else{if(studioAdminSettingsUnsub){studioAdminSettingsUnsub();studioAdminSettingsUnsub=null}status('● Guest practice · local only');await cloudRoot();if(STUDIO_PARAMS.get('return')==='admin'&&STUDIO_FORCE_GUEST){try{const saved=JSON.parse(sessionStorage.getItem(DRAFT)||'null');if(saved?.code&&Date.now()-Number(saved.updated||0)<86400000){state.code=normalizeCode(saved.code);state.projectId='';state.project=null;state.lastPracticeCheck=saved.practiceCheck||null;title(saved.name||'Guest draft');state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);state.dirty=!!saved.dirty;runPreview();status('✓ Guest draft restored after Admin');}}catch(e){console.warn('Guest Admin-return draft could not be restored',e)}}if(STUDIO_PARAMS.get('project')&&!STUDIO_FORCE_GUEST){toast('Sign in to open your saved G8Code project.','error');setTimeout(openAccount,180)}}renderResultQuick();});}catch(err){console.error(err);status('Guest practice · cloud unavailable');toast('Firebase could not connect. Local practice remains available.','error')}}
-function openAccount(){if(!auth){toast('Firebase is not ready. Guest editing is still available.','error');return}if(auth.currentUser&&!state.guest){openDialog('Student account',`<p><strong>${escapeHTML(state.profile?.name||auth.currentUser.email||'Student')}</strong></p><p class="subtext">This is the authenticated G8Code session. Saving existing code projects uses the same account and Firestore project collection.</p>`,[{label:'Guest practice',action:()=>{state.guest=true;$('authPill').textContent='Guest practice';closeDialog();toast('Switched to local guest practice')}},{label:'Close',kind:'primary',action:closeDialog}]);return}
-openDialog('Sign in to G8Code',`<p class="subtext">For existing students only. Use the Student ID and password from your original G8Code account. New account activation and password recovery remain in the main app.</p><label for="signInStudentId">Student ID</label><input id="signInStudentId" placeholder="e.g. 23-003746" autocomplete="username"><label for="signInPassword">Password</label><input id="signInPassword" type="password" placeholder="Your G8Code password" autocomplete="current-password"><p class="subtext"><a href="index.html">First login or forgot your password? Open the main G8Code page.</a></p><p class="subtext" id="signinMessage" role="status"></p>`,[{label:'Cancel',action:closeDialog},{label:'Sign in',kind:'primary',action:signInStudent}])}
-async function signInStudent(){const raw=$('signInStudentId')?.value||'',pass=$('signInPassword')?.value||'',key=raw.toLowerCase().replace(/[^a-z0-9]/g,'');if(!key||!pass){$('signinMessage').textContent='Enter your Student ID and password.';return}if(!auth||!db){$('signinMessage').textContent='Firebase connection unavailable.';return}const btn=$('dialogFooter .primary');btn.disabled=true;$('signinMessage').textContent='Signing in securely…';try{let email=`sid-${key}@students.mcsian.app`;try{const route=await db.collection(rootPath()[0]).doc(rootPath()[1]).collection('studentLoginRoutes').doc(key).get();const mapped=String(route.data()?.authEmail||'').trim().toLowerCase();if(mapped&&mapped.endsWith('@students.mcsian.app'))email=mapped}catch(e){console.warn('Login routing lookup unavailable',e)}await auth.signInWithEmailAndPassword(email,pass);state.guest=false;closeDialog();toast('Student account connected');}catch(e){$('signinMessage').textContent=e.code==='auth/invalid-credential'||e.code==='auth/wrong-password'?'Student ID or password not recognized. Try the main G8Code login if needed.':String(e.message||'Sign in failed')}finally{btn.disabled=false}}
+async function initFirebase(){const firebase=window.firebase;if(!firebase?.initializeApp||!window.MCS_FIREBASE_CONFIG){status('Guest · Firebase SDK unavailable');return}try{const app=firebase.apps.length?firebase.app():firebase.initializeApp(window.MCS_FIREBASE_CONFIG);db=firebase.firestore(app);auth=firebase.auth(app);auth.onAuthStateChanged(async user=>{if(!user&&state.collab)stopCollab();state.auth=user;state.guest=!user||STUDIO_FORCE_GUEST;state.profile=null;$('authPill').textContent=user&&!STUDIO_FORCE_GUEST?'Student connected':'Guest mode';document.body.classList.toggle('studio-guest-mode',!user||STUDIO_FORCE_GUEST);if(user&&!STUDIO_FORCE_GUEST){try{const snap=await profileRef().get();if(snap.exists){state.profile=snap.data()||{};$('authPill').textContent=state.profile.name||state.profile.firstName||'Student connected';status('● Connected to G8Code');}else{status('Signed in · no student profile');toast('Your Firebase account has no student profile. Open G8Code for verification.','error')}}catch(err){status('Signed in · profile unavailable');console.warn(err)}await cloudRoot();watchStudioAdminSettings();const parameter=new URLSearchParams(location.search);if(parameter.get('project'))await loadProject(parameter.get('project'));else if(!state.dirty)restoreStudentRecovery(user.uid);if(parameter.get('join')&&state.profile&&!studioJoinHandoffStarted){studioJoinHandoffStarted=true;await joinCollab(parameter.get('join'));}}else{if(studioAdminSettingsUnsub){studioAdminSettingsUnsub();studioAdminSettingsUnsub=null}status('● Guest practice · local only');await cloudRoot();if(STUDIO_PARAMS.get('return')==='admin'&&STUDIO_FORCE_GUEST){try{const saved=JSON.parse(sessionStorage.getItem(DRAFT)||'null');if(saved?.code&&Date.now()-Number(saved.updated||0)<86400000){state.code=normalizeCode(saved.code);state.projectId='';state.project=null;state.lastPracticeCheck=saved.practiceCheck||null;title(saved.name||'Guest draft');state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);state.dirty=!!saved.dirty;runPreview();status('✓ Guest draft restored after Admin');}}catch(e){console.warn('Guest Admin-return draft could not be restored',e)}}if(STUDIO_PARAMS.get('project')&&!STUDIO_FORCE_GUEST){toast('Sign in to open your saved G8Code project.','error');setTimeout(openAccount,180)}}renderResultQuick();});}catch(err){console.error(err);status('Guest practice · cloud unavailable');toast('Firebase could not connect. Local practice remains available.','error')}}
+// Guest sign-in uses the same trusted Student ID -> Firebase account lookup as the main app.
+// No passwords are persisted, and no new Auth account is created from the Studio modal.
+let studioGuestSaveAfterLogin=false;
+let studioStudentLoginBusy=false;
+function studioStudentKey(value){return String(value||'').trim().replace(/\s+/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'').toLowerCase()}
+function studioStudentId(value){return String(value||'').trim().replace(/\s+/g,'').toUpperCase()}
+function studioSameStudentId(a,b){return Boolean(studioStudentKey(a)&&studioStudentKey(a)===studioStudentKey(b))}
+function studioRootRef(){const [collection,id]=rootPath();return db.collection(collection).doc(id)}
+async function resolveStudioStudentLoginTarget(studentId){
+ const key=studioStudentKey(studentId);
+ if(!key)throw Error('Enter a valid Student ID.');
+ let route=null;
+ try{const snap=await studioRootRef().collection('studentLoginRoutes').doc(key).get();if(snap.exists)route=snap.data()||{}}
+ catch(e){console.info('Studio: Student Login Route unavailable; checking exact Student Roster record.',e)}
+ if(String(route?.accountStatus||'').toLowerCase()==='disabled')throw Error('This student account is disabled. Ask your teacher for help.');
+ if(String(route?.authEmail||'').includes('@'))return String(route.authEmail).trim().toLowerCase();
+ // Match the main G8Code login: consult only this Student ID's exact roster
+ // document when no usable Student Login Route exists. Never list the roster.
+ try{
+  const snap=await studioRootRef().collection('studentRoster').doc(studioStudentId(studentId)).get();
+  if(snap.exists){
+   const roster=snap.data()||{};
+   if(String(roster.accountStatus||'').toLowerCase()==='disabled')throw Error('This student account is disabled. Ask your teacher for help.');
+   if(String(roster.authEmail||'').includes('@'))return String(roster.authEmail).trim().toLowerCase();
+  }
+ }catch(e){if(/disabled/i.test(String(e.message||'')))throw e;console.info('Studio: exact Student Roster login hint unavailable; using standard Student ID email.',e)}
+ return `sid-${key}@students.mcsian.app`;
+}
+function guestLoginToSave(){
+ safeLocalDraft();studioGuestSaveAfterLogin=false;
+ openDialog('Log in to save your progress',`<p class="subtext">Sign in using your existing Student ID and password, then your current Guest code can be saved to My Projects.</p><p class="subtext">Your code stays in this editor if sign-in fails or you cancel.</p>`,[
+  {label:'Not now',action:()=>{studioGuestSaveAfterLogin=false;closeDialog()}},
+  {label:'Log in',kind:'primary',action:()=>{studioGuestSaveAfterLogin=true;openAccount()}}
+ ]);
+}
+function showStudioSaveSuccess(){const overlay=$('studioSaveSuccess');if(!overlay)return;overlay.classList.remove('hidden');clearTimeout(showStudioSaveSuccess.timer);showStudioSaveSuccess.timer=setTimeout(()=>overlay.classList.add('hidden'),1250)}
+function openAccount(){
+ if(!auth){toast('Firebase is not ready. Check your connection and try again.','error');return}
+ if(auth.currentUser&&!state.guest){
+  openDialog('Student account',`<p><strong>${escapeHTML(state.profile?.name||auth.currentUser.email||'Student')}</strong></p><p class="subtext">Your G8Code session is connected to My Projects.</p>`,[
+   {label:'Guest practice',action:()=>{state.guest=true;document.body.classList.add('studio-guest-mode');$('authPill').textContent='Guest practice';closeDialog();toast('Switched to local guest practice')}},
+   {label:'Close',kind:'primary',action:closeDialog}
+  ]);return;
+ }
+ openDialog('Sign in to G8Code',`<p class="subtext">Use your existing Student ID and password from G8Code. New account activation and password recovery remain in the main app.</p><label for="signInStudentId">Student ID</label><input id="signInStudentId" placeholder="e.g. 23-003746" autocomplete="username" inputmode="text"><label for="signInPassword">Password</label><input id="signInPassword" type="password" placeholder="Your G8Code password" autocomplete="current-password"><p class="subtext"><a href="index.html">First login or forgot your password? Open the main G8Code page.</a></p><p class="subtext" id="signinMessage" role="status" aria-live="polite"></p>`,[
+  {label:'Cancel',action:()=>{studioGuestSaveAfterLogin=false;closeDialog()}},
+  {label:'Sign in',kind:'primary',action:signInStudent}
+ ]);
+ for(const id of ['signInStudentId','signInPassword'])$(id)?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(!studioStudentLoginBusy)signInStudent()}});
+}
+function studioSignInErrorText(e){
+ const code=String(e?.code||'').toLowerCase();
+ if(code==='auth/invalid-credential'||code==='auth/wrong-password'||code==='auth/user-not-found')return 'Student ID or password not recognized. Check your credentials; if this is your first login, activate your account on the main G8Code page.';
+ if(code==='auth/network-request-failed'||code==='unavailable')return 'Could not connect to Firebase. Check your internet connection and try again.';
+ if(code==='auth/too-many-requests')return 'Too many attempts. Please wait before trying again.';
+ if(code==='permission-denied')return 'Student account could not be verified. Open the main G8Code login or ask your teacher for help.';
+ return String(e?.message||'Sign in failed. Please try again.');
+}
+async function signInStudent(){
+ if(studioStudentLoginBusy)return;
+ const raw=$('signInStudentId')?.value||'',pass=$('signInPassword')?.value||'',key=studioStudentKey(raw);
+ const message=$('signinMessage');
+ if(!key||!pass){if(message)message.textContent='Enter your Student ID and password.';return}
+ if(!auth||!db){if(message)message.textContent='Firebase connection unavailable. Check your internet connection.';return}
+ const btn=qs('#dialogFooter .primary');
+ studioStudentLoginBusy=true;if(btn){btn.disabled=true;btn.textContent='Signing in…'}
+ if(message)message.textContent='Finding your G8Code account…';
+ // Preserve the in-memory guest code through asynchronous auth/profile callbacks.
+ // A clean guest draft still counts as an unsaved new project after signing in.
+ const original={code:clone(state.code),name:state.name,practiceCheck:state.lastPracticeCheck||null,dirty:state.dirty};
+ const previousForcedGuest=STUDIO_FORCE_GUEST;
+ const autoSave=studioGuestSaveAfterLogin;
+ let credential=null;
+ try{
+  const email=await resolveStudioStudentLoginTarget(raw);
+  safeLocalDraft();
+  state.dirty=true; // prevents initializeFreshStudio/restoreStudentRecovery from replacing guest code
+  if(message)message.textContent='Signing in securely…';
+  STUDIO_FORCE_GUEST=false;
+  credential=await auth.signInWithEmailAndPassword(email,pass);
+  if(message)message.textContent='Verifying your student account…';
+  const snap=await studioRootRef().collection('students').doc(credential.user.uid).get();
+  const profile=snap.exists?snap.data()||{}:null;
+  if(!profile||!studioSameStudentId(profile.studentId||profile.studentIdNormalized,raw)){
+   const e=new Error('Your sign-in was accepted, but the student record needs verification. Use the main G8Code login so the account can be checked or repaired.');e.code='studio/profile-mismatch';throw e;
+  }
+  if(String(profile.accountStatus||'').toLowerCase()==='disabled')throw Error('This student account is disabled. Ask your teacher for help.');
+  const nextUrl=new URL(location.href);nextUrl.searchParams.delete('mode');
+  history.replaceState(null,'',nextUrl.pathname+nextUrl.search+nextUrl.hash);
+  // This is a NEW project from a Guest draft. Never overwrite a saved project.
+  state.auth=credential.user;state.profile=profile;state.guest=false;
+  state.project=null;state.projectId='';state.code=original.code;
+  state.lastPracticeCheck=original.practiceCheck;title(original.name);
+  state.dirty=true;state.unsavedSince=Date.now();
+  document.body.classList.remove('studio-guest-mode');
+  $('authPill').textContent=profile.name||profile.firstName||'Student connected';
+  switchFile(state.lang,fileName(state.lang));runPreview();
+  safeLocalDraft();studioGuestSaveAfterLogin=false;
+  closeDialog();status('● Signed in · guest code ready to save');
+  if(autoSave){
+   const saved=await saveProject();
+   if(saved){try{sessionStorage.removeItem(DRAFT)}catch{}}
+   if(!saved)toast('Signed in, but the project did not save. Your code is still here — tap Save to retry.','error');
+  }else toast('Student account connected. Your guest code is ready to save in My Projects.');
+ }catch(e){
+  console.warn('Studio sign-in failed:',e);
+  STUDIO_FORCE_GUEST=previousForcedGuest;
+  state.guest=true;state.code=original.code;state.project=null;state.projectId='';
+  state.lastPracticeCheck=original.practiceCheck;title(original.name);state.dirty=original.dirty;
+  document.body.classList.add('studio-guest-mode');
+  if(credential?.user){try{await auth.signOut()}catch(err){console.warn('Could not end unverified sign-in',err)}}
+  state.auth=null;state.profile=null;
+  if($('signinMessage'))$('signinMessage').textContent=studioSignInErrorText(e);
+  safeLocalDraft();
+ }finally{studioStudentLoginBusy=false;if(btn?.isConnected){btn.disabled=false;btn.textContent='Sign in'}}
+}
 async function listProjects(){if(!requireAccount('Project library'))return;openDialog('My G8Code Projects','<p class="subtext">Loading your saved code projects…</p>',[{label:'Close',action:closeDialog}]);try{const snap=await projectsRef().orderBy('updatedAt','desc').limit(70).get().catch(()=>projectsRef().limit(70).get());state.projects=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.projectType!=='wireframe');renderProjectsModal()}catch(err){$('dialogContent').innerHTML=`<p>${escapeHTML(err.message)}</p>`}}
 function renderProjectsModal(){const rows=state.projects.length?state.projects.map(p=>`<div class="record-row"><div class="record-title"><strong>${escapeHTML(p.name||'Untitled Project')}</strong><small>${escapeHTML(p.activityTitle||p.petaActivityTitle||'HTML · CSS · JS')} · ${p.lastResult?`Rubric score ${p.lastResult.score??'?'} / ${p.lastResult.possible??'?'}`:p.studioPracticeCheck?`Practice ${p.studioPracticeCheck.score??'?'}/${p.studioPracticeCheck.checkedMax??'?'} · not official`:'In progress'}</small></div><button data-project-open="${escapeHTML(p.id)}">Open</button></div>`).join(''):'<p class="subtext">No code projects found. Create your first project in Studio V2.</p>';$('dialogContent').innerHTML=`<div class="record-list">${rows}</div>`;$('dialogFooter').innerHTML='';const cancel=document.createElement('button');cancel.className='secondary';cancel.textContent='Close';cancel.onclick=closeDialog;const create=document.createElement('button');create.className='primary';create.textContent='New project';create.onclick=()=>{closeDialog();newProject()};$('dialogFooter').append(cancel,create)}
-async function loadProject(id){if(!requireAccount('Open project'))return;try{status('Loading project…');const doc=await projectsRef().doc(id).get();if(!doc.exists)throw Error('Project does not exist.');const project={id,...doc.data()};if(project.projectType==='wireframe')throw Error('This is a Wireframe project. Open it in the original G8Code app.');if(state.dirty&&!await confirmAction('Unsaved changes will be replaced. Open this project?','Open project'))return;state.project=project;state.projectId=id;state.lastPracticeCheck=project.studioPracticeCheck||null;state.lastAutoResult=null;state.code=normalizeProject(project);state.previewPage=state.code.activeHtmlPage;state.lang='html';title(project.name);switchFile('html',state.code.activeHtmlPage);state.dirty=false;status('● Project loaded');renderResultQuick();closeDialog();runPreview();const linkedPeta=String(STUDIO_PARAMS.get('peta')||project.petaActivityId||'');if(linkedPeta){const activity=state.given.find(a=>String(a.id)===linkedPeta);if(activity)showReferenceDock(activity);}toast('Opened '+state.name)}catch(err){status('Open failed');toast(err.message||'Cannot load project','error')}}
+async function loadProject(id){if(!requireAccount('Open project'))return false;const startup=STUDIO_PARAMS.get('project')===id; if(startup)document.body.classList.add('studio-loading-project');try{status('Loading selected project…');const doc=await projectsRef().doc(id).get();if(!doc.exists)throw Error('Project does not exist.');const project={id,...doc.data()};if(project.projectType==='wireframe')throw Error('This is a Wireframe project. Open it in the original G8Code app.');if(state.dirty&&!startup&&!await confirmAction('Unsaved changes will be replaced. Open this project?','Open project'))return false;state.project=project;state.projectId=id;state.lastPracticeCheck=project.studioPracticeCheck||null;state.lastAutoResult=null;state.code=normalizeProject(project);state.previewPage=state.code.activeHtmlPage;state.lang='html';title(project.name);switchFile('html',state.code.activeHtmlPage);state.dirty=false;status('● Project loaded');renderResultQuick();closeDialog();runPreview();const linkedPeta=String(STUDIO_PARAMS.get('peta')||project.petaActivityId||'');if(linkedPeta){const activity=state.given.find(a=>String(a.id)===linkedPeta);if(activity)showReferenceDock(activity);}toast('Opened '+state.name);return true}catch(err){status('Open failed');toast(err.message||'Cannot load project','error');if(startup)openDialog('Project could not load',`<p>${escapeHTML(err.message||'Please check your connection and open the project again.')}</p>`,[{label:'My Projects',action:()=>goToStudioDestination('projects')},{label:'Retry',kind:'primary',action:()=>{closeDialog();loadProject(id)}}]);return false}finally{if(startup)document.body.classList.remove('studio-loading-project')}}
 function currentSavePayload(){const current=state.code;const key=state.project?.selectedActivityId||'scratch';const preserve={...((state.project?.codeByActivity)||{})};preserve[key]={...clone(current),html:current.pages[current.activeHtmlPage]||'',css:current.cssFiles[current.activeCssFile]||'',js:current.jsFiles[current.activeJsFile]||''};return {projectType:'code',name:state.name||'Untitled Project',nameLower:(state.name||'Untitled Project').toLowerCase(),status:state.project?.status||'in-progress',codeByActivity:preserve,selectedActivityId:state.project?.selectedActivityId||'',activityTitle:state.project?.activityTitle||'',petaActivityId:state.project?.petaActivityId||'',petaActivityTitle:state.project?.petaActivityTitle||'',isPetaProject:state.project?.isPetaProject===true,fileNames:{html:current.activeHtmlPage,css:current.activeCssFile,js:current.activeJsFile},runCount:state.project?.runCount||0,...(state.lastPracticeCheck?{studioPracticeCheck:clone(state.lastPracticeCheck)}:{}),...(state.lastAutoResult?{lastResult:clone(state.lastAutoResult),status:state.lastAutoResult.passed?'passed':'checked'}:{})}}
 // Studio V2 and the original G8Code app intentionally share the same project
 // collection AND My Projects index/cache format. Do not create a V2-only library.
@@ -589,11 +718,7 @@ async function invalidateLegacyProjectIndex(uid, projectId, projectName){
 }
 async function saveProject({quiet=false}={}){
  title($('projectTitle').value.trim()||state.name);
- if(state.guest){
-  safeLocalDraft();state.dirty=false;status('● Saved in this tab only');
-  if(!quiet)toast('Guest draft saved locally only. Sign in to show it in My Projects.');
-  return false;
- }
+ if(state.guest){safeLocalDraft();if(!quiet)guestLoginToSave();return false;}
  if(!state.auth||!state.profile){toast('Student account must be verified before saving to My Projects.','error');return false}
  if(state.saving){if(!quiet)toast('Project save already in progress.');return false}
  state.saving=true;
@@ -628,6 +753,7 @@ async function saveProject({quiet=false}={}){
    status(state.dirty?'✓ Previous changes saved · new edits pending':'✓ Cloud saved · My Projects refresh pending');
    if(!quiet)toast('Project saved in G8Code. Reopen My Projects to refresh its list.');
   }else if(!quiet)toast('Saved! Your project is now in G8Code My Projects.');
+  if(!quiet && !state.dirty && state.root?.studentAssistanceSettings?.enabled!==false && state.root?.studentAssistanceSettings?.saveSuccessOverlay!==false)showStudioSaveSuccess();
   if(!indexSync)console.warn('My Projects index will revalidate on its next cloud refresh.');
   return true;
  }catch(err){
@@ -646,8 +772,9 @@ async function goToStudioDestination(route){
  if(!['home','projects','activities','lessons','explorer','logout','admin'].includes(route)||studioLeaving)return;
  $('navMenu').classList.add('hidden');$('menuBtn').setAttribute('aria-expanded','false');
  const label=studioTargetLabel(route);
- // Preserve the current editor if the user cancels. Confirm even when autosave
- // already completed, as explicitly requested for every Go to Page option.
+ if(state.guest){if(route==='admin'){await finishStudioNavigation(route);return;}guestLoginToSave();return;}
+ if(!state.dirty&&!state.saving){await finishStudioNavigation(route);return;}
+ // Prompt only for unsaved edits; already-saved sessions navigate immediately.
  openDialog('Save before leaving?', `<p>You are going to <strong>${escapeHTML(label)}</strong>.</p><p class="subtext">Would you like to save your current code first?</p><p id="studioLeaveFeedback" class="subtext" role="status">${state.dirty?'● Unsaved edits detected.':'● Current code has no pending edits.'}</p>`, [
   {label:'Cancel · Stay Here',action:()=>{closeDialog();$('dialog').classList.remove('studio-leave-dialog')}},
   {label:"Don't Save & Continue",action:()=>{closeDialog();$('dialog').classList.remove('studio-leave-dialog');clearUnsavedStudioRecovery();finishStudioNavigation(route)}},
@@ -698,7 +825,7 @@ async function finishStudioNavigation(route){
 }
 function restoreStudentRecovery(uid){try{const draft=JSON.parse(sessionStorage.getItem(`${DRAFT}.${uid}`)||'null');if(!draft?.dirty||!draft.code||Date.now()-Number(draft.updated||0)>24*60*60*1000)return;state.projectId=draft.projectId||'';state.project=null;state.code=normalizeCode(draft.code);state.lastPracticeCheck=draft.practiceCheck||null;title(draft.name||'Recovered draft');state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);state.dirty=true;status('● Recovered unsaved work · save to cloud');runPreview();toast('Recovered an unsaved draft from this browser tab. Save it when ready.')}catch(e){console.warn('Recovery skipped',e)}}
 function renderResultQuick(){const r=state.project?.lastResult;$('resultQuick').textContent=r?`Score: ${Number(r.score||0)}/${Number(r.possible||0)}`:'No recorded score loaded'}
-async function newProject(){if(state.collab){toast('Leave live collaboration before starting another project.','error');return;}if(state.dirty&&!await confirmAction('Create a new project and replace the current unsaved work?','Create new'))return;state.project=null;state.projectId='';state.lastPracticeCheck=null;state.lastAutoResult=null;state.code=clone(START);state.previewPage='index.html';title('Untitled Webpage');state.lang='html';switchFile('html','index.html');state.dirty=false;status('● New draft · not saved');renderResultQuick();runPreview()}
+async function newProject(){if(state.collab){toast('Leave live collaboration before starting another project.','error');return;}if(state.dirty&&!await confirmAction('Create a new project and replace the current unsaved work?','Create new'))return;state.project=null;state.projectId='';state.lastPracticeCheck=null;state.lastAutoResult=null;state.code=studioFreshCode();state.previewPage='index.html';title('Untitled Webpage');state.lang='html';switchFile('html','index.html');state.dirty=false;status('● New draft · not saved');renderResultQuick();runPreview()}
 function makeNativeZip(files){const enc=new TextEncoder();const local=[],central=[];let offset=0;const crcTable=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let j=0;j<8;j++)c=c&1?0xedb88320^(c>>>1):c>>>1;crcTable[n]=c>>>0}const crc32=bytes=>{let crc=0xffffffff;for(const b of bytes)crc=crcTable[(crc^b)&255]^(crc>>>8);return (crc^0xffffffff)>>>0};for(const [name,source] of Object.entries(files)){const nb=enc.encode(name),data=enc.encode(String(source)),crc=crc32(data);if(nb.length>65535)throw Error('File name too long');const a=new Uint8Array(30+nb.length),av=new DataView(a.buffer);av.setUint32(0,0x04034b50,true);av.setUint16(4,20,true);av.setUint16(6,0x0800,true);av.setUint16(8,0,true);av.setUint32(14,crc,true);av.setUint32(18,data.length,true);av.setUint32(22,data.length,true);av.setUint16(26,nb.length,true);a.set(nb,30);local.push(a,data);const c=new Uint8Array(46+nb.length),cv=new DataView(c.buffer);cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x0800,true);cv.setUint16(10,0,true);cv.setUint32(16,crc,true);cv.setUint32(20,data.length,true);cv.setUint32(24,data.length,true);cv.setUint16(28,nb.length,true);cv.setUint32(42,offset,true);c.set(nb,46);central.push(c);offset+=a.length+data.length}if(central.length>65535)throw Error('Too many files');const centralSize=central.reduce((s,b)=>s+b.length,0),end=new Uint8Array(22),v=new DataView(end.buffer);v.setUint32(0,0x06054b50,true);v.setUint16(8,central.length,true);v.setUint16(10,central.length,true);v.setUint32(12,centralSize,true);v.setUint32(16,offset,true);return new Blob([...local,...central,end],{type:'application/zip'})}
 async function exportZip(){const files=getProjectFiles();try{const blob=makeNativeZip(files);downloadBlob(blob,`${state.name.toLowerCase().replace(/[^a-z0-9-]+/g,'-')||'g8code-project'}.zip`);toast('ZIP downloaded · '+Object.keys(files).length+' files')}catch(err){toast('Export failed: '+err.message,'error')}}
 function downloadBlob(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
@@ -780,7 +907,7 @@ async function openRubrics(){
   setDirty();
   if(!state.guest && state.auth && state.profile){
    const saved=await saveProject({quiet:true});
-   if(saved){renderResultQuick();toast('Automatic rubric score saved to the same G8Code project and available in My Projects.');}
+   if(saved){state.projects=state.projects.filter(p=>p.id!==state.projectId).concat([{...state.project,id:state.projectId}]);renderResultQuick();toast('Rubric result saved · My Projects updated');}
    else toast('Automatic result is visible locally, but cloud save failed. Save again to sync My Projects.','error');
   }else{safeLocalDraft();toast('Guest result calculated locally. Sign in to save the result to My Projects.');}
  });render();
@@ -1205,9 +1332,132 @@ async function joinCollab(prefilledCode=''){if(!requireAccount('Live collaborati
 async function joinCollabListeners(code,isHost,data){stopCollab();state.collab={code,isHost,hostUid:data.hostUid,access:data.allowEdit===false?'view':(data.access||'edit'),sessionData:data,peers:{...(data.members||{})},liveStatus:isHost?'Room created':'Connecting to host…',ready:isHost};renderCollabPresence();await ensureLiveEngine().start(code,isHost,data)}
 async function publishCollab(){/* No Firestore writes for typing. WebRTC CRDT handles live changes. */}
 function openSessionActions(){const s=state.collab;if(!s)return;openDialog('Live collaboration',`<div id="studioCollabRoster">${collabMemberMarkup()}</div>${s.isHost?`<label class="studio-collab-access-label" for="studioCollabAccess"><strong>Access</strong><select id="studioCollabAccess"><option value="edit" ${s.access==='edit'?'selected':''}>Can edit together</option><option value="view" ${s.access==='view'?'selected':''}>View only</option></select></label>`:''}<p class="subtext">Classmates' changes appear live, without a review/approval step. A direct WebRTC connection is required.</p>`,[{label:s.isHost?'Stop sharing':'Leave session',action:async()=>{closeDialog();await leaveCollabSession()}},{label:'Close',action:closeDialog}])}
-async function sendCode(){if(!state.projectId){toast('Save or open a cloud project before sending code.','error');return}const id=await promptText('Send Code','','Receiver Student ID');if(!id)return;const key=id.toLowerCase().replace(/[^a-z0-9]/g,'');if(!key||key===studentKey()){toast('Enter another valid Student ID','error');return}const files=Object.entries(getProjectFiles()).slice(0,20).map(([name,content])=>({name,language:fileType(name),content,bytes:new TextEncoder().encode(content).length}));const size=files.reduce((s,f)=>s+f.bytes,0);if(size>850000){toast('Files are too large for code transfer. Download ZIP instead.','error');return}const transferId='v2-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8),now=Date.now(),uid=state.auth.uid,from=state.profile||{};const payload={schemaVersion:1,senderUid:uid,senderStudentId:from.studentId||'',senderName:from.name||'Student',senderSection:from.section||'',receiverUid:'',receiverStudentId:id,receiverStudentIdAuthKey:key,projectId:state.projectId,projectName:state.name,activityId:state.project?.selectedActivityId||'',activityTitle:state.project?.activityTitle||'',fileCount:files.length,fileNames:files.map(f=>f.name),totalBytes:size,message:'Sent from G8Code Studio V2',files,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtMs:now};const summary={schemaVersion:1,transferId,senderUid:uid,senderStudentId:payload.senderStudentId,senderName:payload.senderName,senderSection:payload.senderSection,receiverUid:'',receiverStudentId:id,receiverStudentIdAuthKey:key,projectName:state.name,activityTitle:payload.activityTitle,fileCount:files.length,fileNames:payload.fileNames,totalBytes:size,message:payload.message,status:'unread',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtMs:now};try{const batch=db.batch();batch.set(transferRef(transferId),payload);batch.set(inboxRef(key).doc(transferId),summary);await batch.commit();toast('Code sent to Student ID '+id)}catch(err){toast('Code send failed: '+err.message,'error')}}
-async function openInbox(){if(!studentKey()){toast('Your Student ID is unavailable. Log in through G8Code first.','error');return}openDialog('Received Code',`<p class="subtext">Loading your G8Code inbox…</p>`,[{label:'Close',action:closeDialog}]);try{const snap=await inboxRef().limit(35).get();$('dialogContent').innerHTML=`<div class="record-list">${snap.docs.length?snap.docs.map(d=>{const t=d.data();return `<div class="record-row"><div class="record-title"><strong>${escapeHTML(t.projectName||'Shared code')}</strong><small>From ${escapeHTML(t.senderName||'Student')} · ${escapeHTML(t.fileCount||0)} files</small></div><button data-inbox="${escapeHTML(d.id)}">Open</button></div>`}).join(''):'<p class="subtext">Your inbox is empty.</p>'}</div>`}catch(err){$('dialogContent').textContent='Inbox unavailable: '+err.message}}
-async function viewInbox(id){try{const snap=await transferRef(id).get();if(!snap.exists)throw Error('Transfer was not found.');const transfer=snap.data();const incoming=Array.isArray(transfer.files)?transfer.files:[];openDialog(transfer.projectName||'Shared Code',`<p class="subtext">From: ${escapeHTML(transfer.senderName||'Student')} · ${incoming.length} files. Receiving these files will not overwrite existing files without asking.</p><div class="record-list">${incoming.map(f=>`<div class="record-row"><div class="record-title"><strong>${escapeHTML(f.name)}</strong><small>${escapeHTML(f.language)} · ${escapeHTML(f.bytes||0)} bytes</small></div></div>`).join('')}</div>`,[{label:'Back to inbox',action:openInbox},{label:'Import files',kind:'primary',action:async()=>{if(!await confirmAction('Import these files? Matching filenames will be replaced.','Import'))return;for(const file of incoming){const lang=fileType(file.name);if(lang&&validFileName(file.name,lang))fileMap(lang)[file.name]=String(file.content||'')}renderFiles();switchFile('html',fileName('html'));setDirty();runPreview();toast('Imported '+incoming.length+' shared files');try{await inboxRef().doc(id).set({status:'read'},{merge:true})}catch{}closeDialog()}}])}catch(e){toast(e.message,'error')}}
+// V2.28: visible, explicit transfer lifecycle. A successful click is NOT evidence
+// of delivery: only a committed server write earns the "saved to inbox" state.
+function studioTransferFailure(error, context='send'){
+ const code=String(error?.code||'').toLowerCase(),message=String(error?.message||'');
+ if(/permission-denied|permission denied|missing or insufficient permissions/i.test(code+' '+message))return `Firestore permission denied while trying to ${context}. Ask your teacher to review the Code Transfer Firestore rules. Nothing was confirmed sent.`;
+ if(/unavailable|network|failed to fetch|offline|deadline-exceeded/i.test(code+' '+message))return 'Cannot reach Firebase right now. Check your connection and try again. Nothing was confirmed sent.';
+ if(/resource-exhausted|quota/i.test(code+' '+message))return 'Transfer quota or storage limit reached. Nothing was confirmed sent.';
+ return message||`Could not ${context}. Nothing was confirmed sent.`;
+}
+function studioTransferKey(value){return String(value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'').toLowerCase()}
+async function verifyStudioTransferRecipient(value){
+ if(!db||!state.auth?.uid||state.guest)throw Error('Sign in to G8Code again before sending code.');
+ const studentId=String(value||'').trim().replace(/\s+/g,'').toUpperCase(),key=studioTransferKey(studentId);
+ if(!key||key.length<4)throw Error('Enter a valid receiver Student ID.');
+ if(key===studentKey())throw Error('You cannot send code to your own Student ID.');
+ const root=db.collection(rootPath()[0]).doc(rootPath()[1]);
+ let route=null,roster=null,permissionIssue=false;
+ // A direct document GET does not require permission to list the entire roster.
+ try{const r=await root.collection('studentLoginRoutes').doc(key).get({source:'server'});if(r.exists)route=r.data()||{}}
+ catch(err){permissionIssue=permissionIssue||/permission-denied/i.test(err?.code||'');console.info('Studio transfer: login route lookup unavailable',err)}
+ try{const r=await root.collection('studentRoster').doc(studentId).get({source:'server'});if(r.exists)roster=r.data()||{}}
+ catch(err){permissionIssue=permissionIssue||/permission-denied/i.test(err?.code||'');console.info('Studio transfer: roster lookup unavailable',err)}
+ const routeId=route?.studentId||route?.studentIdNormalized||studentId;
+ const rosterId=roster?.studentId||roster?.studentIdNormalized||studentId;
+ if(route&&studioTransferKey(routeId)!==key)throw Error('Student ID verification mismatch. Nothing was sent.');
+ if(roster&&studioTransferKey(rosterId)!==key)throw Error('Student ID verification mismatch. Nothing was sent.');
+ if(route?.accountStatus==='disabled'||roster?.accountStatus==='disabled')throw Error('This student account is disabled. Nothing was sent.');
+ if(route?.activated===false&&!roster?.authUid)throw Error('This student account has not been activated. Nothing was sent.');
+ const registered=Boolean((route?.authEmail&&route?.activated!==false)||(roster?.authUid&&roster?.accountStatus!=='disabled'));
+ if(!registered)throw Error(permissionIssue?'Cannot verify this Student ID because Firebase rules blocked the lookup. Ask the Admin to check student directory permissions; nothing was sent.':'No active registered G8Code account found for that Student ID. Nothing was sent.');
+ return {studentId:String(roster?.studentId||route?.studentId||studentId).trim(),key,uid:String(roster?.authUid||route?.authUid||''),name:String(roster?.name||route?.name||'').trim(),section:String(roster?.section||'').trim()};
+}
+async function sendCode(replyTo=''){
+ if(!requireAccount('Send Code'))return;
+ const reply=typeof replyTo==='object'&&replyTo!==null?replyTo:{studentId:String(replyTo||'')};
+ if(!state.projectId&&!reply.studentId){toast('Save the project first before sending files.','error');return}
+ const allFiles=getProjectFiles(),names=Object.keys(allFiles),replyMode=Boolean(reply.studentId);
+ const markup=`<div id="studioSendFeedback" class="studio-transfer-feedback" role="status" aria-live="polite" data-state="idle"><strong>Ready to verify</strong><span>Enter an existing Student ID. You will see a confirmation before anything is sent.</span></div>
+  <label for="studioSendRecipient">Receiver Student ID<input id="studioSendRecipient" autocomplete="off" value="${escapeHTML(reply.studentId||'')}" placeholder="e.g. 23-003746"></label>
+  <label for="studioSendMessage">Message (optional)<textarea id="studioSendMessage" rows="3" maxlength="1200" placeholder="Add a note to your classmate"></textarea></label>
+  <strong class="studio-transfer-list-label">Select files to send</strong>
+  <label class="studio-transfer-select"><input type="checkbox" id="studioSendSelectAll" ${names.length&&!replyMode?'checked':''}> Select all files</label>
+  <div class="studio-transfer-file-list">${names.map(n=>`<label class="studio-transfer-select"><input type="checkbox" data-send-file="${escapeHTML(n)}" ${replyMode?'':'checked'}> ${escapeHTML(n)}</label>`).join('')}</div>
+  <div class="studio-transfer-confirm hidden" id="studioSendConfirm"><strong id="studioVerifiedReceiver"></strong><p id="studioTransferSummary"></p><small>Press Confirm &amp; Send only if these details are correct.</small></div>`;
+ let verified=null,verifiedSignature='',busy=false,finished=false;
+ const dialogLive=()=>!$('dialog').classList.contains('hidden')&&Boolean($('studioSendFeedback'));
+ const report=(phase,heading,detail)=>{
+  const box=$('studioSendFeedback');if(!box)return;
+  box.dataset.state=phase;box.innerHTML=`<strong>${escapeHTML(heading)}</strong><span>${escapeHTML(detail)}</span>`;
+  // Put all results in sight, not at the bottom of a long list of files.
+  $('dialogContent').scrollTop=0;
+ };
+ const primary=()=>qs('#dialogFooter .primary');
+ const snapshot=()=>{
+  const studentId=String($('studioSendRecipient')?.value||'').trim(),message=String($('studioSendMessage')?.value||'').trim();
+  const selected=all('[data-send-file]:checked').map(e=>e.dataset.sendFile);
+  if(!studioTransferKey(studentId))throw Error('Enter the receiver Student ID.');
+  if(!selected.length&&!message)throw Error('Select at least one file or write a message.');
+  if(selected.length>25)throw Error('Choose up to 25 files at a time.');
+  const files=selected.map(name=>({name,language:fileType(name),content:String(allFiles[name]||''),bytes:new TextEncoder().encode(String(allFiles[name]||'')).length}));
+  if(files.reduce((n,f)=>n+f.bytes,0)>850000)throw Error('Selected files are over 850 KB. Select fewer files.');
+  return {studentId,message,files,signature:JSON.stringify([studioTransferKey(studentId),message,selected])};
+ };
+ const resetVerification=()=>{if(busy||finished)return;verified=null;verifiedSignature='';$('studioSendConfirm')?.classList.add('hidden');if(primary())primary().textContent='Verify Student ID';report('idle','Ready to verify','Verify the receiver before sending your files or message.');};
+ openDialog(replyMode?'Reply with Code & Message':'Send Code & Message',markup,[
+  {label:'Cancel',action:()=>{if(!busy)closeDialog()}},
+  {label:'Verify Student ID',kind:'primary',action:async()=>{
+   if(busy||finished)return;
+   let item;try{item=snapshot()}catch(err){report('error','Check your information',err.message);return}
+   if(verified&&verifiedSignature===item.signature){
+    busy=true;primary().disabled=true;report('pending','Sending…','Saving the transfer and receiver inbox record to Firebase.');
+    try{
+     if(!auth?.currentUser||auth.currentUser.uid!==state.auth?.uid||state.guest)throw Error('Your student session has changed. Sign in again.');
+     const now=Date.now(),transferId='v2-'+now.toString(36)+'-'+crypto.getRandomValues(new Uint32Array(1))[0].toString(36),from=state.profile||{};
+     const payload={schemaVersion:1,senderUid:state.auth.uid,senderStudentId:from.studentId||from.studentIdNormalized||'',senderName:from.name||'Student',senderSection:from.section||'',receiverUid:verified.uid,receiverStudentId:verified.studentId,receiverStudentIdAuthKey:verified.key,projectId:state.projectId||'',projectName:state.name,activityId:state.project?.selectedActivityId||'',activityTitle:state.project?.activityTitle||'',fileCount:item.files.length,fileNames:item.files.map(f=>f.name),totalBytes:item.files.reduce((n,f)=>n+f.bytes,0),message:item.message,replyToTransferId:String(reply.transferId||''),files:item.files,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtMs:now};
+     const summary={schemaVersion:1,transferId,senderUid:payload.senderUid,senderStudentId:payload.senderStudentId,senderName:payload.senderName,senderSection:payload.senderSection,receiverUid:verified.uid,receiverStudentId:verified.studentId,receiverStudentIdAuthKey:verified.key,projectName:state.name,activityTitle:payload.activityTitle,fileCount:item.files.length,fileNames:payload.fileNames,totalBytes:payload.totalBytes,message:item.message,status:'unread',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtMs:now};
+     if(!db||typeof db.batch!=='function')throw Error('Firebase connection unavailable. Nothing was sent.');
+     const batch=db.batch();batch.set(transferRef(transferId),payload);batch.set(inboxRef(verified.key).doc(transferId),summary);
+     await batch.commit();
+     // Firestore accepted both records atomically; opening/reading is up to recipient.
+     finished=true;report('success','✓ Saved to receiver’s Code Inbox',`${item.files.length} file(s)${item.message?' and a message':''} sent to ${verified.name||verified.studentId} (${verified.studentId}). Transfer ID: ${transferId}.`);
+     toast('Code Inbox transfer saved successfully.');primary().textContent='Close';primary().disabled=false;primary().onclick=closeDialog;
+     // The initial addEventListener is still present: `finished` makes it inert.
+     $('studioSendConfirm')?.classList.add('hidden');
+    }catch(err){console.error('Studio transfer send error',err);report('error','Not sent',studioTransferFailure(err));toast('Send failed — see the message in the dialog.','error');verified=null;verifiedSignature='';$('studioSendConfirm')?.classList.add('hidden');primary().textContent='Retry Verification';}
+    finally{busy=false;if(!finished&&primary())primary().disabled=false}
+    return;
+   }
+   busy=true;primary().disabled=true;report('pending','Checking Student ID…','Checking the registered G8Code account. Nothing is being sent yet.');
+   try{
+    const recipient=await verifyStudioTransferRecipient(item.studentId);
+    if(!dialogLive())return;
+    if(snapshot().signature!==item.signature){report('warning','Details changed','Verify again to use your updated selection.');return}
+    verified=recipient;verifiedSignature=item.signature;
+    $('studioVerifiedReceiver').textContent=`Verified recipient: ${recipient.name||recipient.studentId} (${recipient.studentId})`;
+    $('studioTransferSummary').textContent=`${item.files.length} file(s)${item.message?' + message':''} from “${state.name}”.`;
+    $('studioSendConfirm').classList.remove('hidden');
+    report('verified','✓ Student ID verified',`Account found: ${recipient.name||recipient.studentId}. Review the details below, then press Confirm & Send.`);
+    primary().textContent='Confirm & Send';
+   }catch(err){console.error('Studio transfer recipient verification',err);verified=null;verifiedSignature='';report('error','Recipient not verified',studioTransferFailure(err,'verify the recipient'));}
+   finally{busy=false;if(primary())primary().disabled=false}
+  }}
+ ]);
+ $('studioSendSelectAll').onchange=e=>{all('[data-send-file]').forEach(x=>x.checked=e.target.checked);resetVerification()};
+ $('dialogContent').addEventListener('input',e=>{if(e.target.closest('#studioSendRecipient,#studioSendMessage,[data-send-file]'))resetVerification()},{signal:(()=>{studioTransferDraftController.abort();studioTransferDraftController=new AbortController();return studioTransferDraftController.signal})()});
+ $('dialogContent').addEventListener('change',e=>{if(e.target.matches('[data-send-file]'))resetVerification()},{signal:studioTransferDraftController.signal});
+}
+let studioTransferDraftController=new AbortController();
+async function openInbox(){if(!studentKey()){toast('Your Student ID is unavailable. Sign in again.','error');return}openDialog('Received Code',`<p class="subtext">Loading your inbox…</p>`,[{label:'Close',action:closeDialog}]);try{const snap=await inboxRef().limit(40).get();$('dialogContent').innerHTML=`<div class="record-list">${snap.docs.length?snap.docs.map(d=>{const t=d.data();return `<div class="record-row"><div class="record-title"><strong>${escapeHTML(t.projectName||'Shared code')}</strong><small>From ${escapeHTML(t.senderName||'Student')} · ${escapeHTML(t.fileCount||0)} files ${t.message?'· Message included':''}</small></div><button data-inbox="${escapeHTML(d.id)}">Open</button></div>`}).join(''):'<p class="subtext">Your inbox is empty.</p>'}</div>`}catch(err){$('dialogContent').textContent='Inbox unavailable: '+err.message}}
+async function viewInbox(id){try{
+ const snap=await transferRef(id).get();if(!snap.exists)throw Error('Transfer not found.');const transfer=snap.data();if(String(transfer.receiverStudentIdAuthKey||'')!==studentKey()&&String(transfer.receiverUid||'')!==state.auth?.uid)throw Error('This transfer belongs to a different Student ID.');
+ const incoming=Array.isArray(transfer.files)?transfer.files.filter(f=>validFileName(f.name,fileType(f.name))):[];
+ const text=`<p class="subtext">From: <strong>${escapeHTML(transfer.senderName||'Student')}</strong> (${escapeHTML(transfer.senderStudentId||'')}) · ${incoming.length} files</p>${transfer.message?`<blockquote class="studio-transfer-message">${escapeHTML(transfer.message)}</blockquote>`:''}<div class="studio-transfer-select-line"><label class="studio-transfer-select"><input id="studioImportAll" type="checkbox" checked> Select all files</label></div><div class="studio-transfer-file-list">${incoming.map((f,i)=>`<label class="studio-transfer-select"><input type="checkbox" data-import-file="${i}" checked><button type="button" data-preview-received="${i}" class="secondary">View ${escapeHTML(f.name)}</button></label>`).join('')}</div><div id="studioReceivedCodeViewer" class="studio-received-viewer">${incoming.length?'Choose View to inspect and copy a file.':'Message only — no source files attached.'}</div>`;
+ openDialog(transfer.projectName||'Received Code',text,[{label:'Back to Inbox',action:openInbox},{label:'Reply',action:()=>sendCode({studentId:transfer.senderStudentId||'',transferId:id})},{label:'Import Selected',kind:'primary',action:async()=>{
+  const choices=[...all('[data-import-file]:checked')].map(el=>incoming[Number(el.dataset.importFile)]).filter(Boolean);
+  if(!choices.length){toast('Select at least one file.','error');return}
+  if(!await confirmAction('Import '+choices.length+' selected file(s)? Matching names will be replaced.','Import'))return;
+  for(const file of choices){const lang=fileType(file.name);if(lang&&validFileName(file.name,lang))fileMap(lang)[file.name]=String(file.content||'')}
+  renderFiles();switchFile('html',fileName('html'));setDirty();runPreview();toast('Imported '+choices.length+' selected file(s)');try{await inboxRef().doc(id).set({status:'read'},{merge:true})}catch{}closeDialog()
+ }}]);
+ $('studioImportAll').onchange=e=>all('[data-import-file]').forEach(x=>x.checked=e.target.checked);
+ studioInboxPreviewController.abort();studioInboxPreviewController=new AbortController();
+ $('dialogContent').addEventListener('click',async function previewHandler(e){const button=e.target.closest('[data-preview-received]');if(!button)return;const file=incoming[Number(button.dataset.previewReceived)];if(!file)return;const viewer=$('studioReceivedCodeViewer');if(!viewer)return;viewer.innerHTML=`<div class="studio-received-toolbar"><strong>${escapeHTML(file.name)}</strong><button type="button" id="studioCopyReceived">Copy Code</button></div><pre><code>${escapeHTML(file.content||'')}</code></pre>`;$('studioCopyReceived').onclick=async()=>{try{await navigator.clipboard.writeText(file.content||'');toast('Copied '+file.name)}catch{toast('Select and copy the code manually','error')}};}, {once:false,signal:studioInboxPreviewController.signal});
+ }catch(e){toast(e.message,'error')}
+}
+let studioInboxPreviewController=new AbortController();
 // V2.7: numeric, four-level, source-based rubric grading follows the original
 // G8Code result schema and rubric point levels. Subjective design criteria use
 // measurable proxies, so these are automated judgments, not teacher verification.
@@ -1286,16 +1536,16 @@ function scoreCurrentProjectAgainstRubric(rubric){
    if(/list|bullet|number/.test(text))add('HTML lists',domHas('ul,ol'),/<(?:ul|ol)\b/i,htmlFiles);
    if(/table/.test(text))add('HTML table',domHas('table tr td,table tr th'),/<table\b/i,htmlFiles);
    if(/form|input/.test(text))add('Form elements',domHas('form,input,textarea,select'),/<(?:form|input)\b/i,htmlFiles);
-   if(/css|design|styl|appearance|visual|font|color|background|margin|padding|border|creativ|neatness/.test(text)){
+   if(/\b(?:css|style|styles|styling|design|visual|fonts?|colors?|background|margins?|paddings?|borders?|box-shadow|responsive)\b/.test([name,criterion.description||'',target].join(' ').toLowerCase())){
     add('Styling declarations',Math.min(1,cssProps.size/7),/[a-z-]+\s*:\s*[^;{}]+/i,cssFiles,2);
     add('Layout and visual styling',Math.min(1,([/\b(display|grid|flex|width|max-width|gap|margin|padding)\s*:/i,/\b(color|background|border|box-shadow)\s*:/i,/\b(font-family|font-size|font-weight|line-height|text-align)\s*:/i].filter(re=>re.test(css)).length)/3),/\b(?:display|background|font-size|padding|color)\s*:/i,cssFiles);
     if(/responsive|media quer|mobile/.test(text))add('Responsive styles',/@media\s*\(/i.test(css),/@media\s*\(/i,cssFiles,2);
    }
-   if(/javascript|\bjs\b|script|interactiv|function|event/.test(text)){
+   if(/\b(?:javascript|js|script(?:ing)?|interactive|interactivity|functions?|event handlers?|onclick|addEventListener)\b/.test([name,criterion.description||'',target].join(' ').toLowerCase())){
     add('JavaScript code',Math.min(1,js.replace(/\s/g,'').length/75),/function|const|let|addEventListener/i,jsFiles);
     add('Working interactive behavior',/(addEventListener\s*\(|\bonclick\s*=|textContent|classList|innerHTML)/i.test(js+html),/addEventListener\s*\(|textContent|classList|onclick/i,[...jsFiles,...htmlFiles],2);
    }
-   for(const word of ['mission','vision','identity','core values','environment','about','contact'])if(text.includes(word))add(`Required ${word} content`,visibleLower.includes(word),new RegExp(word.replace(/\s+/g,'\s+'),'i'),htmlFiles,2);
+   for(const word of ['mission','vision','identity','core values','environment','about','contact'])if(text.includes(word))add(`Required ${word} content`,visibleLower.includes(word),new RegExp(word.replace(/\s+/g,'\\s+'),'i'),htmlFiles,2);
    if(!checks.length){
     add('Meaningful HTML content',Math.min(1,bodyText.length/60),/<(?:h[1-6]|p|section|main)\b/i,htmlFiles,2);
     add('Organized HTML elements',Math.min(1,parsed.reduce((n,p)=>n+p.doc.body.querySelectorAll('*').length,0)/8),/<(?:div|section|p|main|h[1-6])\b/i,htmlFiles);
@@ -1415,8 +1665,8 @@ function openSuperStudio(){
 }
 function bindEvents(){
 $('codeInput').addEventListener('input',e=>{changeCode(e);scheduleCollabCursor()});input.addEventListener('scroll',()=>{$('lineNumbers').scrollTop=input.scrollTop;const hi=$('codeHighlight');hi.scrollTop=input.scrollTop;hi.scrollLeft=input.scrollLeft;renderCollabCursors()});input.addEventListener('click',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('keyup',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('select',()=>{renderHighlight();scheduleCollabCursor()});input.addEventListener('keydown',e=>{if(e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1);return;}if(e.key==='Tab'){if(input.readOnly){e.preventDefault();return}e.preventDefault();const start=input.selectionStart,end=input.selectionEnd;input.setRangeText('  ',start,end,'end');changeCode()}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}if(e.altKey&&!e.ctrlKey&&!e.metaKey&&e.target!==input&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1)}if(e.key==='Escape'){if(!$('dialog').classList.contains('hidden'))closeDialog();else if($('filesPanel').classList.contains('open'))toggleFiles(false);else if(document.body.dataset.immersive)exitStudioFullscreen();else $('navMenu').classList.add('hidden')}});
-$('projectTitle').addEventListener('change',()=>{title($('projectTitle').value);setDirty()});$('saveBtn').onclick=()=>saveProject();$('mobileSaveAction').onclick=()=>saveProject();$('authPill').onclick=openAccount;$('menuBtn').onclick=()=>{const m=$('navMenu');m.classList.toggle('hidden');$('menuBtn').setAttribute('aria-expanded',String(!m.classList.contains('hidden')))};$('navMenu').addEventListener('click',e=>{const button=e.target.closest('[data-studio-route]');if(button)goToStudioDestination(button.dataset.studioRoute)});$('studioAdminShortcut').addEventListener('click',()=>goToStudioDestination('admin'));
-$('toggleTheme').onclick=()=>setAppearance(state.appearance==='dark'?'light':'dark');all('.layout-picker button[data-layout]').forEach(b=>b.onclick=()=>{if(b.dataset.layout==='editor'){enterStudioFullscreen('code');return}setLayout(b.dataset.layout);if(matchMedia('(max-width:700px)').matches)setMobileTab(b.dataset.layout==='preview'?'preview':'code')});$('focusSwitch').onclick=switchStudioFullscreen;$('focusExit').onclick=exitStudioFullscreen;$('focusFiles').onclick=()=>toggleFiles(true);$('focusTools').onclick=()=>openTools();$('mobileFullPreview').onclick=()=>enterStudioFullscreen(state.mobileTab==='preview'?'preview':'code');$('filesScrim').onclick=()=>toggleFiles(false);$('resetLayout').onclick=()=>{ $('workspace').style.removeProperty('--split');$('workspace').style.removeProperty('--stack');setLayout('split');toast('Workspace layout reset')};$('focusBtn').onclick=()=>enterStudioFullscreen('code');$('fullscreenPreviewBtn').onclick=()=>enterStudioFullscreen('preview');$('checkCurrentBtn').onclick=openRubrics;$('filesBtn').onclick=()=>toggleFiles(matchMedia('(max-width:920px)').matches?true:document.body.classList.contains('files-closed'));$('closeFiles').onclick=()=>toggleFiles(false);$('mobileFilesAction').onclick=()=>toggleFiles(true);$('mobileResultsAction').onclick=openRubrics;$('mobileActivitiesAction').onclick=openActivities;$('mobileCollabAction').onclick=openCollab;$('studioCollabPill').onclick=openCollab;$('focusMembers').onclick=openCollab;$('fileExplorer').addEventListener('click',async e=>{const add=e.target.closest('[data-add]'),rename=e.target.closest('[data-rename]'),remove=e.target.closest('[data-delete]'),open=e.target.closest('[data-file]');if(add)await addOrRenameFile(add.dataset.add);else if(rename){e.preventDefault();e.stopPropagation();await addOrRenameFile(rename.dataset.lang,rename.dataset.rename)}else if(remove){e.preventDefault();e.stopPropagation();await deleteFile(remove.dataset.lang,remove.dataset.delete)}else if(open){switchFile(open.dataset.lang,open.dataset.file);if(matchMedia('(max-width:920px)').matches)toggleFiles(false)}});$('addFile').onclick=()=>openDialog('Add a project file','<div class="option-grid"><button data-add="html">＋ HTML page</button><button data-add="css">＋ CSS file</button><button data-add="js">＋ JavaScript file</button></div>',[{label:'Cancel',action:closeDialog}]);
+$('projectTitle').addEventListener('change',()=>{title($('projectTitle').value);setDirty()});$('saveBtn').onclick=()=>saveProject();$('mobileSaveAction').onclick=()=>saveProject();$('authPill').onclick=openAccount;$('menuBtn').onclick=()=>{const m=$('navMenu');m.classList.toggle('hidden');$('menuBtn').setAttribute('aria-expanded',String(!m.classList.contains('hidden')))};$('navMenu').addEventListener('click',e=>{const button=e.target.closest('[data-studio-route]');if(button)goToStudioDestination(button.dataset.studioRoute)});$('studioAdminShortcut').addEventListener('click',()=>goToStudioDestination('admin'));$('guestLoginMenu')?.addEventListener('click',guestLoginToSave);
+$('toggleTheme').onclick=()=>setAppearance(state.appearance==='dark'?'light':'dark');all('.layout-picker button[data-layout]').forEach(b=>b.onclick=()=>{if(b.dataset.layout==='editor'){enterStudioFullscreen('code');return}setLayout(b.dataset.layout);if(matchMedia('(max-width:700px)').matches)setMobileTab(b.dataset.layout==='preview'?'preview':'code')});$('focusSwitch').onclick=switchStudioFullscreen;$('focusExit').onclick=exitStudioFullscreen;$('focusLandscape').onclick=async()=>{if(state.device!=='desktop'||document.body.dataset.immersive!=='preview')return;try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();await screen.orientation.lock('landscape');toast('Desktop output in landscape');}catch(err){toast('Rotate your phone to landscape. Your browser may block forced rotation.','error')}requestAnimationFrame(updateCanvas)};$('focusFiles').onclick=()=>toggleFiles(true);$('focusTools').onclick=()=>openTools();$('mobileFullPreview').onclick=()=>enterStudioFullscreen(state.mobileTab==='preview'?'preview':'code');$('filesScrim').onclick=()=>toggleFiles(false);$('resetLayout').onclick=()=>{ $('workspace').style.removeProperty('--split');$('workspace').style.removeProperty('--stack');setLayout('split');toast('Workspace layout reset')};$('focusBtn').onclick=()=>enterStudioFullscreen('code');$('fullscreenPreviewBtn').onclick=()=>enterStudioFullscreen('preview');$('checkCurrentBtn').onclick=openRubrics;$('filesBtn').onclick=()=>toggleFiles(matchMedia('(max-width:920px)').matches?true:document.body.classList.contains('files-closed'));$('closeFiles').onclick=()=>toggleFiles(false);$('mobileFilesAction').onclick=()=>toggleFiles(true);$('mobileResultsAction').onclick=openRubrics;$('mobileActivitiesAction').onclick=openActivities;$('mobileCollabAction').onclick=openCollab;$('studioCollabPill').onclick=openCollab;$('focusMembers').onclick=openCollab;$('fileExplorer').addEventListener('click',async e=>{const add=e.target.closest('[data-add]'),rename=e.target.closest('[data-rename]'),remove=e.target.closest('[data-delete]'),open=e.target.closest('[data-file]');if(add)await addOrRenameFile(add.dataset.add);else if(rename){e.preventDefault();e.stopPropagation();await addOrRenameFile(rename.dataset.lang,rename.dataset.rename)}else if(remove){e.preventDefault();e.stopPropagation();await deleteFile(remove.dataset.lang,remove.dataset.delete)}else if(open){switchFile(open.dataset.lang,open.dataset.file);if(matchMedia('(max-width:920px)').matches)toggleFiles(false)}});$('addFile').onclick=()=>openDialog('Add a project file','<div class="option-grid"><button data-add="html">＋ HTML page</button><button data-add="css">＋ CSS file</button><button data-add="js">＋ JavaScript file</button></div>',[{label:'Cancel',action:closeDialog}]);
 all('#languageTabs button').forEach(b=>b.onclick=()=>{const lang=b.dataset.lang;if(!Object.keys(fileMap(lang)).length){addOrRenameFile(lang);return}switchFile(lang,fileName(lang))});$('renameFile').onclick=()=>addOrRenameFile(state.lang,fileName());$('deleteFile').onclick=()=>deleteFile();$('clearTab').onclick=clearTab;$('editorFocus').onclick=()=>enterStudioFullscreen('code');$('previewFocus').onclick=openPreviewLarge;$('openPreviewTab').onclick=openPreviewLarge;$('refreshBtn').onclick=runPreview;$('runBtn').onclick=()=>{runPreview();toast('Preview updated')};$('stackedRunBtn').onclick=()=>{runPreview();$('previewPanel').scrollIntoView({behavior:'smooth',block:'start'});toast('Output updated')};$('fontSmaller').onclick=()=>zoomEditorFont(-1);$('fontLarger').onclick=()=>zoomEditorFont(1);$('mobileRunAction').onclick=()=>{
   // On phones the Preview tab is display:none while Code is visible.
   // Loading srcdoc before showing it can produce a permanently blank iframe.
@@ -1463,6 +1713,6 @@ function toggleFiles(open){
  storePrefs();
 }
 async function restoreGuestDraft(){try{const draft=JSON.parse(sessionStorage.getItem(DRAFT)||'null');if(draft?.code){state.code=normalizeCode(draft.code);state.lastPracticeCheck=draft.practiceCheck||null;title(draft.name||state.name);state.dirty=true}}catch{}}
-async function boot(){if(STUDIO_FORCE_GUEST||!STUDIO_PARAMS.has('project'))await restoreGuestDraft();setAppearance(state.appearance);document.documentElement.style.setProperty('--font-size',state.font+'px');$('workspace').style.setProperty('--split',(prefs.split||54)+'%');$('workspace').style.setProperty('--stack',(prefs.stack||55)+'%');bindEvents();switchFile('html',state.code.activeHtmlPage);setLayout(state.layout);setDevice(state.device);setMobileTab('code');$('autoRun').classList.toggle('active',state.autoRun);refreshSettings();toggleFiles(!matchMedia('(max-width:920px)').matches&&state.filesOpen);runPreview();initFirebase();}
+async function boot(){document.body.classList.add('studio-guest-mode');if(STUDIO_FORCE_GUEST||!STUDIO_PARAMS.has('project'))await restoreGuestDraft();setAppearance(state.appearance);document.documentElement.style.setProperty('--font-size',state.font+'px');$('workspace').style.setProperty('--split',(prefs.split||54)+'%');$('workspace').style.setProperty('--stack',(prefs.stack||55)+'%');bindEvents();if(STUDIO_PARAMS.has('project'))document.body.classList.add('studio-loading-project');switchFile('html',state.code.activeHtmlPage);setLayout(state.layout);setDevice(state.device);setMobileTab('code');$('autoRun').classList.toggle('active',state.autoRun);refreshSettings();toggleFiles(!matchMedia('(max-width:920px)').matches&&state.filesOpen);runPreview();initFirebase();}
 boot();
 })();

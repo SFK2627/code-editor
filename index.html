@@ -319,6 +319,8 @@
   <link rel="stylesheet" href="admin-workspace-theme.css?v=20261101-admin-v1" />
   <link rel="stylesheet" href="student-learning-unified.css?v=20261102-learning-unified-v1" />
   <link rel="stylesheet" href="student-projects-unified.css?v=20261102-projects-header-home-v2" />
+  <link rel="stylesheet" href="student-experience-refinement.css?v=20261102-integration">
+  <link rel="stylesheet" href="student-code-inbox-unified.css?v=20261102-v229-inbox" />
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -625,6 +627,7 @@
           <div><span>Account</span><strong>Student • Active</strong></div>
         </div>
         <p class="sh-settings-help">Your name, section and Student ID are managed by your teacher.</p>
+        <div class="sh-settings-reminder-pref"><div><strong>Student Status Reminder</strong><p>Show your grade and requirements reminder whenever you open Home or My Projects, not only after a fresh login.</p></div><label class="sh-settings-reminder-control"><input type="checkbox" id="shSettingsReminderEveryVisit"><span>Show every visit</span></label></div>
         <div class="sh-settings-security">
           <div class="sh-settings-security-head"><div><span class="sh-settings-kicker">ACCOUNT SECURITY</span><h3>Password</h3><p>Update your password without losing saved projects or progress.</p></div><span aria-hidden="true">🔒</span></div>
           <button type="button" id="shSettingsChangeButton" class="sh-settings-secondary" aria-expanded="false" aria-controls="shSettingsPasswordForm">Change Password <span aria-hidden="true">⌄</span></button>
@@ -1449,6 +1452,13 @@
         </div>
       </div>
       <div id="loginLackingReminderMeta" class="login-lacking-reminder-meta" aria-label="Reminder details"></div>
+      <div id="loginReminderProgressWidget" class="login-reminder-progress-widget hidden" aria-live="polite">
+        <button type="button" id="loginReminderProgressToggle" class="login-reminder-progress-title" aria-expanded="false" aria-controls="loginReminderProgressBreakdown">
+          <span>🎯 Requirements Progress</span><b id="loginReminderProgressValue">—</b><span aria-hidden="true">⌄</span>
+        </button>
+        <div class="login-reminder-progress-track" role="progressbar" aria-label="Completed requirements" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loginReminderProgressFill"></div></div>
+        <p id="loginReminderProgressBreakdown" class="login-reminder-progress-breakdown hidden"></p>
+      </div>
       <div class="login-reminder-overview" aria-label="Other academic information">
         <details id="loginLackingReminderStanding" class="login-reminder-standing" data-standing="unavailable" aria-label="Current academic standing and color legend">
           <summary class="login-reminder-standing-head">
@@ -4416,9 +4426,9 @@ https://example.com/song3.mp3"></textarea>
       <div class="code-transfer-head code-inbox-head">
         <span class="code-transfer-icon" aria-hidden="true">📥</span>
         <div>
-          <p class="section-kicker">Received Code</p>
+          <p class="section-kicker">G8CODE STUDIO · RECEIVED CODE</p>
           <h2 id="codeInboxTitle">Code Inbox</h2>
-          <p class="muted-text">Open a received file, copy its code, then paste it wherever you want in your own project.</p>
+          <p class="muted-text">Read messages, inspect shared files, copy code, and reply to your classmates.</p>
         </div>
         <button id="refreshCodeInboxBtn" class="ghost-btn code-inbox-refresh-btn" type="button">↻ Refresh</button>
       </div>
@@ -5446,11 +5456,11 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261102-studio-v224-route-fix"></script>
+  <script src="script.js?v=20261102-v229-inbox-reply-rules"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-learning-unified-v1"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
-  <script src="student-official-editor-bridge.js?v=20261102-studio-v224-route-fix"></script>
+  <script src="student-official-editor-bridge.js?v=20261102-v225-integrated"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
