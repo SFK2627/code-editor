@@ -9019,8 +9019,13 @@ function updateAppHeaderForSession({ forceTypewriter = false } = {}) {
 
   updateEditorProjectHeader();
   if (typeof window.updateCodeTransferFeatureVisibility === 'function') window.updateCodeTransferFeatureVisibility();
-  schedulePhoneHeaderTypewriter(forceTypewriter);
-  scheduleDesktopHeaderTypewriter(forceTypewriter);
+  if (!document.body.classList.contains('entry-gate-active') &&
+      !document.body.classList.contains('student-home-active') &&
+      !document.body.classList.contains('student-dashboard-active') &&
+      !document.body.classList.contains('guest-home-active')) {
+    schedulePhoneHeaderTypewriter(forceTypewriter);
+    scheduleDesktopHeaderTypewriter(forceTypewriter);
+  }
 }
 
 
@@ -9110,47 +9115,56 @@ function resetWorkspaceState({ blank = false } = {}) {
 }
 
 function continueAsGuest() {
-  hideGuestHome();
+  // V2.31: All normal Guest coding entries go directly to Official Studio V2.
+  // Do NOT resetWorkspaceState(), runCode(), or reveal the retired editor first;
+  // those synchronous legacy operations previously caused the old UI to flash.
+  let returningToGuestHome = false;
+  try {
+    returningToGuestHome = sessionStorage.getItem('g8code.officialStudio.guestHomeOnce') === '1';
+  } catch (_) {}
+
+  if (!returningToGuestHome) {
+    if (document.body.classList.contains('studio-guest-opening')) return;
+    const guestButton = document.getElementById('continueGuestBtn') || document.getElementById('studentLoginGuestBtn');
+    document.body.classList.add('studio-guest-opening');
+    if (guestButton) {
+      guestButton.setAttribute('aria-busy', 'true');
+      guestButton.setAttribute('aria-disabled', 'true');
+    }
+    try {
+      const target = new URL('editor-v2.html', window.location.href);
+      target.searchParams.set('mode', 'guest');
+      window.ICT8AppExitGuard?.allowNextUnload?.();
+      window.location.assign(target.href);
+      return;
+    } catch (error) {
+      console.error('Official Studio could not open.', error);
+      document.body.classList.remove('studio-guest-opening');
+      guestButton?.removeAttribute('aria-busy');
+      guestButton?.removeAttribute('aria-disabled');
+      // Stay on the login screen rather than opening the old editor.
+      const notice = document.getElementById('g8codeStudioOpenError');
+      if (notice) {
+        notice.hidden = false;
+        notice.textContent = 'Could not open G8Code Studio. Please try again.';
+      }
+      return;
+    }
+  }
+
+  // A deliberate Guest Home return is a HOME navigation, not an editor entry.
+  // Keep the legacy workspace hidden and do not initialize/reset its code.
+  try { sessionStorage.removeItem('g8code.officialStudio.guestHomeOnce'); } catch (_) {}
   appSession.mode = 'guest';
-  armAppExitGuard();
   appSession.student = null;
   appSession.currentProjectId = '';
   appSession.currentProject = null;
   appSession.projects = [];
-
-  // Important: hide the welcome gate before any editor reset work.
-  // If reset/render code ever throws, Practice Without Login must still open the editor.
   hideEntryGate();
   hideAllStudentScreens();
-  document.body.classList.remove('entry-gate-active', 'student-auth-open', 'student-dashboard-active', 'student-route-lock');
+  document.body.classList.remove('student-auth-open', 'student-dashboard-active', 'student-route-lock');
   updateAppHeaderForSession();
-  setStatus('Practice mode');
-
-  try {
-    resetWorkspaceState();
-  } catch (error) {
-    console.error('Could not fully reset guest workspace, but practice mode was opened.', error);
-    try {
-      loadActiveEditor();
-      runCode(false, { scroll: false });
-    } catch (fallbackError) {
-      console.error('Guest fallback render failed.', fallbackError);
-    }
-  }
-
-  // Guest coding now opens the official Studio V2. Allow a one-time bypass
-  // when returning to the original Guest Home from the Studio hamburger menu.
-  if (sessionStorage.getItem('g8code.officialStudio.guestHomeOnce') === '1') {
-    sessionStorage.removeItem('g8code.officialStudio.guestHomeOnce');
-  } else {
-    window.ICT8AppExitGuard?.allowNextUnload?.();
-    window.location.assign('editor-v2.html?mode=guest');
-    return;
-  }
-  requestAnimationFrame(() => {
-    entryGate?.classList.add('hidden');
-    document.body.classList.remove('entry-gate-active', 'student-auth-open', 'student-dashboard-active', 'student-route-lock');
-  });
+  showGuestHome();
 }
 
 function dailyLeaderboardPublishStorageKey(uid = appSession.student?.uid) {
@@ -10022,10 +10036,10 @@ function syncEditorHomeNav() {
 document.getElementById('guestHomeScreen')?.addEventListener('click',event => {
   const action = event.target.closest('[data-guest-home-action]')?.dataset.guestHomeAction;
   if (!action) return;
-  if (action === 'editor') {hideGuestHome();return;}
+  if (action === 'editor') { continueAsGuest(); return; }
   if (action === 'lessons') {hideGuestHome();openLessonLibrary('home');return;}
   if (action === 'activities') {hideGuestHome();openGivenActivitiesLibrary('home');return;}
-  if (action === 'login') {hideGuestHome();openStudentLogin();}
+  if (action === 'login') { hideGuestHome(); showEntryGate(); openStudentLogin(); }
 });
 document.getElementById('guestHomeReturnEditor')?.addEventListener('click',()=>{window.ICT8AppExitGuard?.allowNextUnload?.();window.location.assign('editor-v2.html?mode=guest')});
 
@@ -17448,6 +17462,9 @@ async function parseStudentImportFile(file) {
       return Object.fromEntries(headers.map((header, index) => [header, values[index] || '']));
     });
   } else {
+    if (!window.XLSX) {
+      try { await window.G8CodeLoadSpreadsheet?.(); } catch (_) {}
+    }
     if (!window.XLSX) throw new Error('Excel reader did not load. Check the internet connection, or upload a CSV file.');
     const buffer = await file.arrayBuffer();
     const workbook = window.XLSX.read(buffer, { type: 'array' });
@@ -17618,7 +17635,11 @@ async function confirmStudentImport() {
   }
 }
 
-function downloadStudentImportTemplate() {
+async function downloadStudentImportTemplate() {
+  // Admin-only export: avoid downloading the XLSX engine on student/guest startup.
+  if (!window.XLSX) {
+    try { await window.G8CodeLoadSpreadsheet?.(); } catch (_) { /* CSV fallback below */ }
+  }
   const rows = [
     { 'Student ID': '2026-001', 'Name': 'Juan Dela Cruz', 'Gender': 'Male', 'Section': 'Grade 8 - Rizal' },
     { 'Student ID': '2026-002', 'Name': 'Maria Santos', 'Gender': 'Female', 'Section': 'Grade 8 - Rizal' }
@@ -34773,7 +34794,23 @@ clearBtn.addEventListener('click', async () => {
   setStatus(`${activeLanguage.toUpperCase()} cleared`);
 });
 
-window.addEventListener('resize', () => { fitEditorToContent(); updateTagMatching(); });
+// Avoid expensive legacy-editor relayout on every resize when Home, Lessons,
+// Activities, or Studio V2 is actually the visible workspace.
+let legacyEditorResizeFrame = 0;
+window.addEventListener('resize', () => {
+  if (legacyEditorResizeFrame) return;
+  if (!document.getElementById('workspace') ||
+      ['entry-gate-active','student-home-active','student-dashboard-active',
+       'guest-home-active','given-activities-active','lesson-viewer-active',
+       'code-explorer-active','wireframe-maker-active','studio-guest-opening'].some(flag => document.body.classList.contains(flag))) return;
+  legacyEditorResizeFrame = requestAnimationFrame(() => {
+    legacyEditorResizeFrame = 0;
+    if (document.getElementById('workspace')?.getClientRects().length) {
+      fitEditorToContent();
+      updateTagMatching();
+    }
+  });
+}, { passive: true });
 
 window.addEventListener('click', event => {
   if (!suggestionBox.contains(event.target) && event.target !== editor) {

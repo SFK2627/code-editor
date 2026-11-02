@@ -321,6 +321,25 @@
   <link rel="stylesheet" href="student-projects-unified.css?v=20261102-projects-header-home-v2" />
   <link rel="stylesheet" href="student-experience-refinement.css?v=20261102-v230-dark-contrast">
   <link rel="stylesheet" href="student-code-inbox-unified.css?v=20261102-v229-inbox" />
+  <style>
+    /* V2.31: never paint the retired editor behind real student/guest screens. */
+    body:is(.entry-gate-active,.guest-home-active,.student-home-active,
+      .student-dashboard-active,.given-activities-active,.lesson-viewer-active,
+      .code-explorer-active,.wireframe-maker-active,.studio-guest-opening) > .app-shell {
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+    body.studio-guest-opening #entryGate { cursor: progress; }
+    body.studio-guest-opening #entryGate button { pointer-events: none; }
+    #g8codeStudioOpenError {
+      margin: 8px 0; color: #b42318; font: 600 13px/1.4 system-ui,sans-serif;
+    }
+    /* On touch screens, the large animated hero glow causes needless repaints.
+       Retain card and navigation transitions; stop only the looping glow. */
+    @media (hover: none) and (pointer: coarse) {
+      #studentHomeScreen .sh-welcome { animation: none !important; }
+    }
+  </style>
 </head>
 <body class="entry-gate-active">
   <noscript>
@@ -369,6 +388,7 @@
           <div class="entry-choice-grid">
             <button id="openStudentLoginBtn" class="entry-choice primary-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">→</span><span><strong>Log In as Student</strong><small>Student ID and password</small></span></button>
             <button id="continueGuestBtn" class="entry-choice guest-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">⌘</span><span><strong>Practice Without Login</strong></span></button>
+            <p id="g8codeStudioOpenError" hidden role="alert"></p>
             <button id="entryRecitationStatusBtn" class="entry-choice recitation-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">▤</span><span><strong>Recitation Status</strong></span></button>
             <button id="entryLessonViewerBtn" class="entry-choice lessons-choice" type="button"><span class="entry-choice-icon" aria-hidden="true">▧</span><span><strong>View Lessons</strong></span></button>
           </div>
@@ -4551,7 +4571,26 @@ https://example.com/song3.mp3"></textarea>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- Excel support is admin-only; fetch it on demand during Admin import/export. -->
+  <script>
+    (() => {
+      let pending = null;
+      window.G8CodeLoadSpreadsheet = () => {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (pending) return pending;
+        pending = new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+          script.crossOrigin = 'anonymous';
+          script.referrerPolicy = 'no-referrer';
+          script.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('Excel library unavailable'));
+          script.onerror = () => reject(new Error('Excel library unavailable'));
+          document.head.appendChild(script);
+        }).catch(error => { pending = null; throw error; });
+        return pending;
+      };
+    })();
+  </script>
   <script src="firebase-config.js"></script>
     <div id="codeExplorerVerifyOverlay" class="code-explorer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="codeExplorerVerifyTitle">
       <section class="code-explorer-modal code-explorer-verify-modal">
@@ -5456,7 +5495,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261102-v230-home-reminder"></script>
+  <script src="script.js?v=20261102-v231-fast-guest-entry"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-learning-unified-v1"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
