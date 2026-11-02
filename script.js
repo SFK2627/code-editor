@@ -1552,7 +1552,13 @@ function applyPublishedStudentLoginTheme(value = loginReminderSettings) {
   }
   syncEntryAppearanceSwitches(appearance, allowChoice);
   if (loginLackingReminderOverlay) {
-    loginLackingReminderOverlay.dataset.appearance = resolveStudentSurfaceAppearance(settings.modalAppearance, settings);
+    // Entire App coverage takes precedence over Modal Only appearance.
+    // Never overwrite the independent Admin preview appearance.
+    if (loginLackingReminderOverlay.dataset.preview !== 'true') {
+      loginLackingReminderOverlay.dataset.appearance = settings.applyThemeToEntireApp
+        ? resolveEntireStudentAppAppearance(settings)
+        : resolveStudentSurfaceAppearance(settings.modalAppearance, settings);
+    }
     if (!loginLackingReminderOverlay.classList.contains('hidden') && loginLackingReminderOverlay.dataset.preview !== 'true') {
       loginLackingReminderOverlay.dataset.theme = settings.theme;
       loginLackingReminderOverlay.dataset.animation = settings.animation;
@@ -1581,7 +1587,11 @@ window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change'
   applyPublishedStudentLoginTheme(loginReminderSettings);
   renderStudentLoginThemePreviews(loginReminderSettings);
   if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) {
-    loginLackingReminderOverlay.dataset.appearance = resolveStudentSurfaceAppearance(loginReminderSettings.modalAppearance, loginReminderSettings);
+    if (loginLackingReminderOverlay.dataset.preview !== 'true') {
+      loginLackingReminderOverlay.dataset.appearance = loginReminderSettings.applyThemeToEntireApp
+        ? resolveEntireStudentAppAppearance(loginReminderSettings)
+        : resolveStudentSurfaceAppearance(loginReminderSettings.modalAppearance, loginReminderSettings);
+    }
   }
 });
 
@@ -3234,28 +3244,24 @@ async function getLoginReminderComplianceRecord() {
 function studentReminderPreferenceKey(){return `g8code.reminder.everyVisit.v1.${appSession.student?.uid||'guest'}`;}
 function reminderOnEveryVisit(){try{return localStorage.getItem(studentReminderPreferenceKey())==='true'}catch{return false}}
 async function showLoginLackingReminderAfterLogin(options = {}) {
-  // Student status reminder is displayed after login and on My Projects visits.
-  // The old pending flag is still cleared for compatibility with the login flow,
-  // but it no longer prevents the reminder from appearing when students return
-  // to My Projects from the editor, Lesson Viewer, or another student screen.
-  const isFreshLogin=loginReminderPendingAfterPasswordLogin;
+  // V2.30: the Student Status Reminder belongs to Student Home only.
+  // Do NOT consume the fresh-login flag on My Projects: the first real Home
+  // entry may still need it. Also refuse delayed/asynchronous off-page popups.
+  if (options.dismissRoute === 'projects' ||
+      appSession.mode !== 'student' || !appSession.student ||
+      !document.body.classList.contains('student-home-active') ||
+      studentHomeScreen?.classList.contains('hidden')) return false;
+  const isFreshLogin = loginReminderPendingAfterPasswordLogin;
   loginReminderPendingAfterPasswordLogin = false;
-  // Default: fresh password login only. Student may opt into every Home / Projects visit.
-  if(!options.preview && !isFreshLogin && !reminderOnEveryVisit())return false;
-
-  if (appSession.mode !== 'student' || !appSession.student) return false;
+  // Default: fresh password login; optionally every new Student Home visit.
+  if (!options.preview && !isFreshLogin && !reminderOnEveryVisit()) return false;
   if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')) return false;
-  const dismissRoute = options.dismissRoute === 'projects' ||
-    (options.dismissRoute !== 'home' && document.body.classList.contains('student-dashboard-active') &&
-      !document.body.classList.contains('student-home-active')) ? 'projects' : 'home';
+  const dismissRoute = 'home';
   const openingStudentUid = appSession.student.uid;
   const visitStillCurrent = () => appSession.mode === 'student' &&
     appSession.student?.uid === openingStudentUid &&
-    (dismissRoute === 'home'
-      ? (document.body.classList.contains('student-home-active') && !studentHomeScreen?.classList.contains('hidden'))
-      : (document.body.classList.contains('student-dashboard-active') &&
-          !document.body.classList.contains('student-home-active') &&
-          !studentDashboard?.classList.contains('hidden')));
+    document.body.classList.contains('student-home-active') &&
+    !studentHomeScreen?.classList.contains('hidden');
 
   // Let the selected screen paint first so the reminder never blocks route setup.
   await new Promise(resolve => window.setTimeout(resolve, 120));
@@ -10399,15 +10405,8 @@ async function showStudentDashboard(options = {}) {
       console.warn('Project dashboard transition preserved the local recovery copy.', error);
     }
   }
-  const returningFromLessonOrActivities = Boolean(
-    document.body.classList.contains('lesson-viewer-active') ||
-    document.body.classList.contains('given-activities-active')
-  );
-  // A quiet internal return must not override the student's explicit
-  // every-visit preference when opening the My Projects page.
-  const suppressStatusReminder = options.skipVisitReminder === true || (
-    (options.suppressStatusReminder === true || returningFromLessonOrActivities) && !reminderOnEveryVisit()
-  );
+  // V2.30: My Projects never opens the Student Status Reminder, regardless
+  // of the student's every-visit preference or where they navigated from.
   const deferRefresh = options.deferRefresh === true;
   hideEntryGate();
   hideStudentHome();
@@ -10419,6 +10418,8 @@ async function showStudentDashboard(options = {}) {
   document.body.classList.remove('student-auth-open', 'wireframe-maker-active');
   studentDashboard?.classList.remove('hidden');
   document.body.classList.add('student-dashboard-active');
+  // Close a Home reminder immediately before any asynchronous project loading.
+  closeLoginLackingReminder({ stopMusicOnClose: true });
   if (typeof window.refreshCodeInboxSnapshot === 'function') {
     window.refreshCodeInboxSnapshot().catch(() => {});
   }
@@ -10440,13 +10441,6 @@ async function showStudentDashboard(options = {}) {
   // cached dashboard stays visible first, then projects/compliance refresh in
   // the background on the next frame instead of blocking the transition.
   if (deferRefresh) {
-    if (suppressStatusReminder) {
-      closeLoginLackingReminder();
-    } else {
-      showLoginLackingReminderAfterLogin({ dismissRoute: 'projects' }).catch(error => {
-        console.warn('Could not open My Projects reminder.', error);
-      });
-    }
     window.requestAnimationFrame(() => {
       window.setTimeout(() => {
         refreshDashboardData().catch?.(() => {});
@@ -10457,16 +10451,7 @@ async function showStudentDashboard(options = {}) {
 
   await refreshDashboardData();
 
-  // Keep the automatic status reminder for normal dashboard arrivals such as
-  // login/resume, but do not reopen it when Back returns from Lessons or
-  // Activities Given. Those navigation actions should return quietly to My Projects.
-  if (suppressStatusReminder) {
-    closeLoginLackingReminder();
-  } else {
-    showLoginLackingReminderAfterLogin({ dismissRoute: 'projects' }).catch(error => {
-      console.warn('Could not open My Projects reminder.', error);
-    });
-  }
+  // Never display the reminder from My Projects, even on a fresh login.
 }
 
 function closeStudentDashboard() {
@@ -20265,8 +20250,9 @@ function applyTheme(theme) {
   // appearance. Admin preview continues to use the teacher's preview setting.
   if (loginLackingReminderOverlay && !loginLackingReminderOverlay.classList.contains('hidden')
       && loginLackingReminderOverlay.dataset.preview !== 'true') {
-    loginLackingReminderOverlay.dataset.appearance = resolveStudentSurfaceAppearance(
-      loginReminderSettings.modalAppearance, loginReminderSettings);
+    loginLackingReminderOverlay.dataset.appearance = loginReminderSettings.applyThemeToEntireApp
+      ? resolveEntireStudentAppAppearance(loginReminderSettings)
+      : resolveStudentSurfaceAppearance(loginReminderSettings.modalAppearance, loginReminderSettings);
   }
   if (canStudentSwitchAppAppearance()) {
     // Repaint the selected design without resetting forms, project state,

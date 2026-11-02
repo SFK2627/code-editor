@@ -1,6 +1,6 @@
 /* G8Code Student surfaces: appearance scope follows Admin theme coverage. */
-.sh-settings-reminder-pref{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border:1px solid var(--sh-line,#cbd8e8);border-radius:16px;padding:15px;margin:14px 0;background:color-mix(in srgb,var(--sh-card,#fff) 94%,var(--sh-accent,#f0c957) 6%)}
-.sh-settings-reminder-pref strong{font-weight:800}.sh-settings-reminder-pref p{font-size:.84rem;opacity:.8;line-height:1.45;max-width:420px;margin:4px 0}.sh-settings-reminder-control{display:flex;gap:9px;align-items:center;cursor:pointer;font-size:.85rem;font-weight:750}.sh-settings-reminder-control input{width:20px;height:20px;accent-color:#2563eb}
+.sh-settings-reminder-pref{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;border:1px solid var(--shset-border,#cbd8e8);border-radius:16px;padding:15px;margin:14px 0;background:color-mix(in srgb,var(--shset-surface,#f5f8fe) 90%,var(--shset-primary,#215ec1) 10%);color:var(--shset-text,#172844)}
+.sh-settings-reminder-pref strong{font-weight:800;color:var(--shset-text,#172844)}.sh-settings-reminder-pref p{font-size:.84rem;color:var(--shset-muted,#506782);line-height:1.45;max-width:420px;margin:4px 0;opacity:1}.sh-settings-reminder-control{display:flex;gap:9px;align-items:center;cursor:pointer;font-size:.85rem;font-weight:750;color:var(--shset-text,#172844)}.sh-settings-reminder-control input{width:20px;height:20px;accent-color:var(--shset-primary,#2563eb)}
 /* Entire-app theme: include secondary student modals and inbox; no teacher controls or code iframe. */
 body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(#studentAccountSettingsOverlay,#codeInboxOverlay,#codeSendOverlay,#studentComplianceOverlay,#givenActivityViewerOverlay,#lessonPdfOverlay) {--g8-accent:var(--sat-secondary,#e4be49);--g8-text:var(--sat-text,#182e49);--g8-card:var(--sat-card,#fff);--g8-background:var(--sat-bg,#edf4fb)}
 body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(#studentAccountSettingsOverlay .sh-settings-dialog,#codeInboxOverlay .code-transfer-card,#codeSendOverlay .code-transfer-card,#studentComplianceOverlay .student-compliance-panel,#givenActivityViewerOverlay .given-activity-viewer-card,#lessonPdfOverlay .lesson-pdf-card){color:var(--g8-text)!important;background:var(--g8-card)!important;border:1px solid color-mix(in srgb,var(--g8-accent) 28%,var(--g8-text) 13%)!important;box-shadow:0 18px 60px #0002!important}
@@ -29,3 +29,48 @@ body[data-student-app-theme]:not([data-student-app-theme="original"]) :is(#codeI
 #loginLackingReminderOverlay .login-reminder-progress-breakdown{font-size:.75rem;margin:8px 0 0;opacity:.82}
 #loginLackingReminderOverlay .login-reminder-progress-breakdown.hidden{display:none}
 @media(prefers-reduced-motion:reduce){#loginLackingReminderOverlay #loginReminderProgressFill{transition:none}}
+
+/* V2.30: modal surfaces follow the resolved MODAL appearance tokens. These
+   selectors intentionally do not follow html[data-theme] when the teacher
+   selected Modal Only, and do not affect grading/status color badges. */
+#loginLackingReminderOverlay[data-appearance] .login-reminder-progress-widget {
+  background: color-mix(in srgb,var(--modal-appearance-card,#fff) 91%,var(--modal-appearance-paper,#f5f6f8) 9%);
+  color: var(--modal-appearance-ink,#1b2a40);
+  border-color: color-mix(in srgb,var(--modal-appearance-muted,#4e5c72) 30%,transparent);
+}
+#loginLackingReminderOverlay[data-appearance] .login-reminder-progress-title,
+#loginLackingReminderOverlay[data-appearance] .login-reminder-progress-title :is(span,b),
+#loginLackingReminderOverlay[data-appearance] .login-reminder-progress-breakdown {
+  color: var(--modal-appearance-ink,#1b2a40);
+  opacity: 1;
+}
+#loginLackingReminderOverlay[data-appearance] .login-reminder-progress-track {
+  background:color-mix(in srgb,var(--modal-appearance-muted,#4e5c72) 32%,transparent);
+}
+#loginLackingReminderOverlay[data-appearance] .login-reminder-progress-title:focus-visible {
+  outline:2px solid var(--lr-accent,#e7bc59);
+  outline-offset:3px;
+  border-radius:7px;
+}
+#loginLackingReminderOverlay[data-appearance="dark"] .login-reminder-progress-widget {
+  background:color-mix(in srgb,var(--modal-appearance-card,#273248) 88%,var(--modal-appearance-paper,#161d2c) 12%) !important;
+  color:var(--modal-appearance-ink,#f5f7ff) !important;
+  border-color:color-mix(in srgb,var(--modal-appearance-muted,#c6d0e4) 35%,transparent) !important;
+}
+#loginLackingReminderOverlay[data-appearance="dark"] .login-reminder-progress-title,
+#loginLackingReminderOverlay[data-appearance="dark"] .login-reminder-progress-title :is(span,b),
+#loginLackingReminderOverlay[data-appearance="dark"] .login-reminder-progress-breakdown {
+  color:var(--modal-appearance-ink,#f5f7ff) !important;
+  opacity:1 !important;
+}
+#loginLackingReminderOverlay[data-appearance="dark"] .login-reminder-progress-track {
+  background:color-mix(in srgb,var(--modal-appearance-muted,#c6d0e4) 27%,transparent) !important;
+}
+/* Account Settings has its own theme scope: reuse its palette instead of
+   the light-only Student Home cards; this works on all viewport widths. */
+.sh-settings-overlay .sh-settings-reminder-pref,
+.sh-settings-overlay .sh-settings-reminder-control {
+  color:var(--shset-text,#172844);
+}
+.sh-settings-overlay .sh-settings-reminder-pref p { color:var(--shset-muted,#506782); }
+.sh-settings-overlay .sh-settings-reminder-pref strong { color:var(--shset-text,#172844); }
