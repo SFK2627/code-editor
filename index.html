@@ -4,57 +4,68 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>ICT 8 Connect | Learn, Code, Connect</title>
-  <!-- Installed PWA only: lightweight handwriting reveal AFTER the native OS splash. -->
+  <!-- Universal first-paint writing intro (website + installed PWA).
+       Skip accessibility reduced-motion and Studio's internal return handoff. -->
   <script>
     (() => {
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      let studioReturn = false;
       try {
-        const installed = window.matchMedia?.('(display-mode: standalone)')?.matches || navigator.standalone === true;
-        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-        const studioReturn = sessionStorage.getItem('g8code.officialStudio.return.v1');
-        const alreadyShown = sessionStorage.getItem('g8code.pwa.handwriting.seen.v1');
-        if (installed && !reduced && !studioReturn && alreadyShown !== '1') {
-          document.documentElement.classList.add('g8code-pwa-writing-intro');
-          sessionStorage.setItem('g8code.pwa.handwriting.seen.v1', '1');
-        }
-      } catch (_) { /* Private storage must never stop normal login. */ }
+        const pending = JSON.parse(sessionStorage.getItem('g8code.officialStudio.return.v1') || 'null');
+        const age = Date.now() - Number(pending?.at || 0);
+        studioReturn = Boolean(pending &&
+          ['home', 'projects', 'activities', 'lessons', 'explorer', 'admin'].includes(pending.route) &&
+          age >= -10000 && age < 180000);
+      } catch (_) { /* Storage restrictions must not block the app. */ }
+      if (!reducedMotion && !studioReturn) {
+        document.documentElement.classList.add('g8code-opening-intro');
+      }
     })();
   </script>
   <style>
     #g8codePwaWritingSplash { display: none; }
-    html.g8code-pwa-writing-intro #g8codePwaWritingSplash {
+    html.g8code-opening-intro #g8codePwaWritingSplash {
       position: fixed; inset: 0; z-index: 2147483647;
-      display: flex; align-items: center; justify-content: center;
-      overflow: hidden; isolation: isolate;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: clamp(8px, 2vh, 16px); overflow: hidden; isolation: isolate;
       background: #eff6ff; color: #214b8f;
       pointer-events: auto;
-      animation: g8code-pwa-intro-exit .20s ease-out 1.03s both;
+      animation: g8code-opening-exit .30s ease-in-out 2.70s both;
     }
     @media (prefers-color-scheme: dark) {
-      html.g8code-pwa-writing-intro #g8codePwaWritingSplash {
+      html.g8code-opening-intro #g8codePwaWritingSplash {
         background: #0d1831; color: #b7d7ff;
       }
     }
     #g8codePwaWritingSplash .g8code-writing-mark {
-      width: min(76vw, 325px); overflow: visible; height: auto;
+      width: min(76vw, 360px); overflow: visible; height: auto;
       filter: drop-shadow(0 4px 12px rgba(59,130,246,.13));
     }
     #g8codePwaWritingSplash .g8code-write-stroke {
       fill: none; stroke: currentColor; stroke-width: 5.5;
       stroke-linecap: round; stroke-linejoin: round;
       stroke-dasharray: 100; stroke-dashoffset: 100;
-      animation: g8code-handwriting-draw .36s cubic-bezier(.20,.64,.32,1) var(--write-delay,0s) both;
+      animation: g8code-handwriting-draw .70s cubic-bezier(.18,.67,.32,1) var(--write-delay,0s) both;
     }
     #g8codePwaWritingSplash .g8code-write-underline {
       fill: none; stroke: #60a5fa; stroke-width: 2.5;
       stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100;
-      animation: g8code-handwriting-draw .28s ease-out .78s both;
+      animation: g8code-handwriting-draw .40s ease-out 1.94s both;
+    }
+    #g8codePwaWritingSplash .g8code-writing-tagline {
+      font: 600 clamp(11px, 2.5vw, 14px)/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      letter-spacing: .16em; text-align: center;
+      color: inherit; opacity: 0;
+      animation: g8code-tagline-reveal .36s ease-out 2.12s both;
     }
     @keyframes g8code-handwriting-draw { to { stroke-dashoffset: 0; } }
-    @keyframes g8code-pwa-intro-exit { to { opacity: 0; visibility: hidden; } }
-    @media (prefers-reduced-motion: reduce) {
-      html.g8code-pwa-writing-intro #g8codePwaWritingSplash { animation-duration: .01ms; }
-      #g8codePwaWritingSplash .g8code-write-stroke,
-      #g8codePwaWritingSplash .g8code-write-underline { animation-duration: .01ms; }
+    @keyframes g8code-tagline-reveal {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: .78; transform: translateY(0); }
+    }
+    @keyframes g8code-opening-exit {
+      from { opacity: 1; visibility: visible; }
+      to { opacity: 0; visibility: hidden; }
     }
   </style>
   <!-- Hide the entry/login gate ONLY during a verified Studio-to-page return.
@@ -440,28 +451,29 @@
       <g transform="translate(4,5)">
         <!-- Paths are hand-drawn vectors: no font file, image, GIF, or network fetch. -->
         <path class="g8code-write-stroke" style="--write-delay:0s" pathLength="100" d="M90 39 C72 24 44 26 28 44 C9 66 22 95 47 100 C70 106 86 89 93 72 L93 66 L71 68" />
-        <path class="g8code-write-stroke" style="--write-delay:.15s" pathLength="100" d="M132 62 C111 47 118 25 137 25 C163 25 158 49 139 63 C120 76 112 88 125 99 C142 113 164 100 161 85 C159 74 141 65 123 56" />
-        <path class="g8code-write-stroke" style="--write-delay:.30s" pathLength="100" d="M226 43 C210 31 188 38 178 55 C163 81 181 104 203 101 C214 100 222 95 226 90" />
-        <path class="g8code-write-stroke" style="--write-delay:.42s" pathLength="100" d="M259 64 C247 56 233 65 230 78 C226 94 242 101 255 90 C271 75 264 61 256 63" />
-        <path class="g8code-write-stroke" style="--write-delay:.54s" pathLength="100" d="M299 65 C286 56 274 64 270 78 C264 99 287 102 299 81 C304 72 309 39 312 27 C314 20 319 23 317 33 L309 91 C309 97 319 99 325 89" />
-        <path class="g8code-write-stroke" style="--write-delay:.66s" pathLength="100" d="M346 80 C373 67 368 57 353 62 C339 66 332 83 343 92 C351 99 366 94 376 86" />
+        <path class="g8code-write-stroke" style="--write-delay:.26s" pathLength="100" d="M132 62 C111 47 118 25 137 25 C163 25 158 49 139 63 C120 76 112 88 125 99 C142 113 164 100 161 85 C159 74 141 65 123 56" />
+        <path class="g8code-write-stroke" style="--write-delay:.52s" pathLength="100" d="M226 43 C210 31 188 38 178 55 C163 81 181 104 203 101 C214 100 222 95 226 90" />
+        <path class="g8code-write-stroke" style="--write-delay:.78s" pathLength="100" d="M259 64 C247 56 233 65 230 78 C226 94 242 101 255 90 C271 75 264 61 256 63" />
+        <path class="g8code-write-stroke" style="--write-delay:1.04s" pathLength="100" d="M299 65 C286 56 274 64 270 78 C264 99 287 102 299 81 C304 72 309 39 312 27 C314 20 319 23 317 33 L309 91 C309 97 319 99 325 89" />
+        <path class="g8code-write-stroke" style="--write-delay:1.30s" pathLength="100" d="M346 80 C373 67 368 57 353 62 C339 66 332 83 343 92 C351 99 366 94 376 86" />
         <path class="g8code-write-underline" pathLength="100" d="M101 111 C180 121 266 112 348 113" />
       </g>
     </svg>
+    <div class="g8code-writing-tagline">Learn. Code. Connect.</div>
   </div>
   <script>
     (() => {
       const splash = document.getElementById('g8codePwaWritingSplash');
-      if (!document.documentElement.classList.contains('g8code-pwa-writing-intro')) {
+      if (!document.documentElement.classList.contains('g8code-opening-intro')) {
         splash?.remove();
         return;
       }
       const done = () => {
-        document.documentElement.classList.remove('g8code-pwa-writing-intro');
+        document.documentElement.classList.remove('g8code-opening-intro');
         splash?.remove();
       };
       // Hard time limit, even when normal app initialization is slow/offline.
-      window.setTimeout(done, 1240);
+      window.setTimeout(done, 3050);
     })();
   </script>
   <noscript>
