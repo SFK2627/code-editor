@@ -1524,8 +1524,14 @@ function applyPublishedStudentLoginTheme(value = loginReminderSettings) {
    'codeExplorerQuickThemeToggle', 'codeExplorerDesktopThemeToggle', 'studentHomeThemeBtn'].forEach(id => {
     const button = document.getElementById(id);
     if (button) {
-      button.classList.toggle('hidden', lockStudentSwitches);
-      button.setAttribute('aria-hidden', String(lockStudentSwitches));
+      // Public Lessons must remain switchable before login, even when the
+      // teacher locks the APPEARANCE of authenticated students. Previously
+      // this shared admin setting hid the guest Lessons button again after
+      // the lesson view had opened, making its switch appear broken.
+      const isPublicLessonsSwitch = id === 'lessonLibraryThemeBtn' && !appSession.student;
+      const hideButton = lockStudentSwitches && !isPublicLessonsSwitch;
+      button.classList.toggle('hidden', hideButton);
+      button.setAttribute('aria-hidden', String(hideButton));
     }
   });
   const theme = settings.applyThemeToLoginPage ? settings.theme : '';
@@ -35528,19 +35534,21 @@ dashboardOpenLessonsBtn?.addEventListener('click', () => openLessonLibrary('dash
 const GUEST_LESSON_APPEARANCE_KEY = 'ict8connect.guestLessonAppearance';
 function syncLessonViewerAppearance({ opening = false } = {}) {
   if (!lessonViewerScreen) return;
-  const isGuest = appSession.mode === 'guest';
+  // Public Lessons is guest content whenever no student is authenticated.
+  // The entry/login route may still be settling, so do not rely on mode alone.
+  const isGuest = !appSession.student;
   if (!isGuest) {
     delete lessonViewerScreen.dataset.lessonAppearance;
     return;
   }
-  const published = normalizeLoginReminderSettings(loginReminderSettings);
-  const adminLocked = published.applyThemeToEntireApp && !published.allowStudentAppAppearanceChoice;
+  // Guest Lessons always uses its own saved reader preference. The published
+  // Student App theme may control logged-in pages, but must not override the
+  // public reader or make its theme switch appear unresponsive.
   const guestChoice = loadJSON(GUEST_LESSON_APPEARANCE_KEY, null);
+  const defaultMode = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
   const selected = opening
-    ? (adminLocked
-      ? (guestChoice === 'dark' || guestChoice === 'light' ? guestChoice : resolveEntireStudentAppAppearance(published))
-      : (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'))
-    : (lessonViewerScreen.dataset.lessonAppearance || document.documentElement.dataset.theme);
+    ? (guestChoice === 'dark' || guestChoice === 'light' ? guestChoice : defaultMode)
+    : (lessonViewerScreen.dataset.lessonAppearance || guestChoice || defaultMode);
   const mode = selected === 'dark' ? 'dark' : 'light';
   lessonViewerScreen.dataset.lessonAppearance = mode;
   if (lessonLibraryThemeBtn) {
@@ -35553,8 +35561,13 @@ function syncLessonViewerAppearance({ opening = false } = {}) {
     lessonLibraryThemeBtn.textContent = mode === 'dark' ? '☀️ Light' : '🌙 Dark';
   }
 }
-lessonLibraryThemeBtn?.addEventListener('click', () => {
-  if (appSession.mode !== 'guest') {
+lessonLibraryThemeBtn?.addEventListener('click', (event) => {
+  // Never delegate the public reader control to the sign-in/theme-lock UI.
+  event.preventDefault();
+  // Public (not-yet-signed-in) Lessons always uses its own reader palette.
+  // If appSession.mode is still 'entry', it must NOT fall back to a locked
+  // global theme toggle or appear unresponsive.
+  if (appSession.student) {
     themeToggle?.click();
     return;
   }
@@ -35563,9 +35576,9 @@ lessonLibraryThemeBtn?.addEventListener('click', () => {
   // Persist the guest viewer choice even if the admin locks the signed-in
   // student theme; only this standalone reader uses that override.
   saveJSON(GUEST_LESSON_APPEARANCE_KEY, next);
-  if (!loginReminderSettings.applyThemeToEntireApp || loginReminderSettings.allowStudentAppAppearanceChoice) {
-    applyTheme(next);
-  }
+  // Do not invoke applyTheme here. That function intentionally enforces the
+  // teacher's whole-app appearance and can reapply a different palette. A
+  // guest's lesson-reading choice belongs solely to this screen.
   lessonViewerScreen.dataset.lessonAppearance = next;
   syncLessonViewerAppearance();
 });

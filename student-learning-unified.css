@@ -320,3 +320,308 @@ body.student-session-active #givenActivitiesScreen.is-learning-student .given-ac
 body.student-session-active #lessonViewerScreen.is-learning-student .lesson-library-filter-row input::placeholder{
   font-size:13px!important;font-weight:500!important;
 }
+
+
+/* V2.37: Guest Lessons respects the reader's OWN appearance. The global
+   app appearance may be teacher-locked, and the guest reader does not change
+   it; consequently html[data-theme] must not decide guest header colors.
+   Keep the logged-in Lessons/Activities palette unchanged. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance="light"] {
+  --ls-bg:#eef3fa;--ls-ink:#1b2f49;--ls-muted:#52657e;
+  --ls-card:#fff;--ls-border:#c7d7e9;--ls-accent:#1959b3;
+  --ls-soft:#f1f6fc;--ls-shadow:0 12px 30px rgba(19,48,91,.07);
+  color-scheme:light;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance="dark"] {
+  --ls-bg:#0d1726;--ls-ink:#f1f6ff;--ls-muted:#bdccdf;
+  --ls-card:#1a2a41;--ls-border:#3b526f;--ls-accent:#9ec7ff;
+  --ls-soft:#24364e;--ls-shadow:0 12px 30px rgba(0,0,0,.18);
+  color-scheme:dark;
+}
+/* The switch icon must represent the active reader mode, not a potentially
+   unrelated Login or published App mode. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance="dark"] .learning-theme-btn::after {
+  content:'☀' !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance="light"] .learning-theme-btn::after {
+  content:'☾' !important;
+}
+
+
+/* V2.38 — PUBLIC / GUEST LESSONS: authoritative page-specific palette.
+   The older immersive student themes set the hero background and all child
+   text to white even when the public reader is in LIGHT mode. Here we scope
+   the override to the non-student lesson screen, so authenticated pages keep
+   their teacher-published style. These selectors must win over both generic
+   student-theme styles and the old lesson-reader !important declarations. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance="light"] {
+  --lv-page:#eef3fa !important; --lv-header:#fff !important;
+  --lv-panel:#fff !important; --lv-raised:#f1f6fc !important;
+  --lv-control:#f5f8fc !important; --lv-ink:#1b2f49 !important;
+  --lv-muted:#52657e !important; --lv-border:#c7d7e9 !important;
+  --lv-accent:#1959b3 !important; --ls-bg:#eef3fa !important;
+  --ls-card:#fff !important; --ls-ink:#1b2f49 !important;
+  --ls-muted:#52657e !important; --ls-border:#c7d7e9 !important;
+  --ls-soft:#f1f6fc !important;
+  --guest-hero:#fff; --guest-hero-ink:#233449;
+  --guest-hero-muted:#52657e; --guest-hero-kicker:#b21e70;
+  --guest-control:#f5f8fc;
+  color-scheme:light !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance="dark"] {
+  --lv-page:#0d1726 !important; --lv-header:#142238 !important;
+  --lv-panel:#1a2a41 !important; --lv-raised:#24364e !important;
+  --lv-control:#101e31 !important; --lv-ink:#f1f6ff !important;
+  --lv-muted:#bdccdf !important; --lv-border:#3b526f !important;
+  --lv-accent:#9ec7ff !important; --ls-bg:#0d1726 !important;
+  --ls-card:#1a2a41 !important; --ls-ink:#f1f6ff !important;
+  --ls-muted:#bdccdf !important; --ls-border:#3b526f !important;
+  --ls-soft:#24364e !important;
+  --guest-hero:#172a43; --guest-hero-ink:#f1f6ff;
+  --guest-hero-muted:#c2d3eb; --guest-hero-kicker:#e4b7e0;
+  --guest-control:#101e31;
+  color-scheme:dark !important;
+}
+/* Important: the published themes use background-image separately; reset it
+   explicitly so a bright/dark admin hero never sticks on the guest reader. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] {
+  background:var(--lv-page) !important;
+  background-image:none !important;
+  background-color:var(--lv-page) !important;
+  color:var(--lv-ink) !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-welcome-card {
+  background:var(--guest-hero) !important;
+  background-image:none !important;
+  background-color:var(--guest-hero) !important;
+  border:1px solid var(--lv-border) !important;
+  box-shadow:var(--lv-shadow) !important;
+  color:var(--guest-hero-ink) !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-welcome-card :is(h1,h2,h3,strong) {
+  color:var(--guest-hero-ink) !important; opacity:1 !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-welcome-card p {
+  color:var(--guest-hero-muted) !important; opacity:1 !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-welcome-card .lesson-library-eyebrow {
+  color:var(--guest-hero-kicker) !important; opacity:1 !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] :is(
+  .lesson-library-header,.lesson-library-controls,.lesson-continue-card,
+  .lesson-library-card,.lesson-library-empty,.lesson-pdf-card
+) {
+  background:var(--lv-panel) !important;
+  background-image:none !important;
+  color:var(--lv-ink) !important;
+  border-color:var(--lv-border) !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] :is(
+  .lesson-library-header,.learning-header
+) {background:transparent !important; background-image:none !important;}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] :is(
+  .lesson-continue-content p,.lesson-card-content p,.lesson-card-meta,
+  .lesson-card-progress > span,.lesson-library-empty p,.lesson-library-status
+) {color:var(--lv-muted) !important;}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] :is(
+  .lesson-library-search,.lesson-library-search input,.lesson-library-filter-row select
+) {
+  color:var(--lv-ink) !important;
+  background:var(--guest-control) !important;
+  border-color:var(--lv-border) !important;
+  -webkit-text-fill-color:var(--lv-ink) !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-search input::placeholder {
+  color:var(--lv-muted) !important;
+  -webkit-text-fill-color:var(--lv-muted) !important;
+  opacity:1 !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .learning-theme-btn {
+  background:var(--lv-panel) !important; color:var(--lv-ink) !important;
+  border-color:var(--lv-border) !important;
+}
+/* Some immersive designs fill inactive term buttons with a dark/gray color
+   while leaving pale labels. Guest reading tabs must stay legible. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-term-tab:not(.active) {
+  color:var(--lv-ink) !important;
+  background:var(--lv-raised) !important;
+  background-image:none !important;
+  border-color:var(--lv-border) !important;
+  opacity:1 !important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-stat,
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-stat :is(strong,span) {
+  color:#fff !important;
+}
+
+
+/* V2.39 — Lessons contrast/appearance fix shared by public + signed-in pages.
+   A V2.37/V2.38 CSS-only fix could not work consistently because the admin
+   appearance gate still hid the *public* toggle. The JS gate is now corrected.
+   Limit these to Lessons: Activities, Dashboard and teacher theme controls
+   continue to use their own published theme rules. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .learning-theme-btn,
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .learning-theme-btn.hidden {
+  display:inline-flex!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+}
+/* Give Guest Lessons one consistent surface/foreground for the hero, even
+   when a published immersive design puts WHITE text on a LIGHT background. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-welcome-card {
+  background:var(--guest-hero)!important;
+  background-image:none!important;
+  color:var(--guest-hero-ink)!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-welcome-card :is(h2,p,span,strong) {
+  color:var(--guest-hero-ink)!important;
+  opacity:1!important;
+  -webkit-text-fill-color:currentColor!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-welcome-card p {
+  color:var(--guest-hero-muted)!important;
+  -webkit-text-fill-color:var(--guest-hero-muted)!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-welcome-card .lesson-library-eyebrow {
+  color:var(--guest-hero-kicker)!important;
+  -webkit-text-fill-color:var(--guest-hero-kicker)!important;
+}
+/* The count badge is deliberately BLUE, so its number and LESSONS caption
+   must stay white in either theme. The former selector missed themes that
+   apply text colors directly to badge children. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-stat {
+  background:linear-gradient(145deg,#2563eb,#0e8ecd)!important;
+  background-image:linear-gradient(145deg,#2563eb,#0e8ecd)!important;
+  border:1px solid rgba(255,255,255,.25)!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] .lesson-library-stat :is(strong,span) {
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
+  opacity:1!important;
+}
+/* Ensure small count badges, PDF lesson descriptors and secondary labels
+   use the SAME contrast tokens as the rest of the reader. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] :is(
+  .lesson-term-tab:not(.active),.lesson-term-tab:not(.active) span,
+  .lesson-card-content p,.lesson-card-meta,.lesson-continue-content p,
+  .lesson-library-status,.lesson-library-filter-row label
+) {color:var(--lv-muted)!important;-webkit-text-fill-color:var(--lv-muted)!important;opacity:1!important;}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance] :is(
+  .lesson-library-card h3,.lesson-continue-card h3,.lesson-library-controls,
+  .lesson-library-card,.lesson-continue-card
+) {color:var(--lv-ink)!important;-webkit-text-fill-color:var(--lv-ink)!important;}
+/* Signed-in Lessons: keep the Home-inspired hero but guarantee readable text.
+   The light palette uses a light hero with DARK copy; dark uses a navy hero
+   with WHITE copy. Teacher-selected whole-app light/dark wins over the root
+   switch when it is published. */
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student {
+  --lesson-hero-surface:#f8fbff;
+  --lesson-hero-ink:#1c3049;
+  --lesson-hero-muted:#465b77;
+  --lesson-hero-kicker:#9b206f;
+  --lesson-stat-surface:linear-gradient(145deg,#2563eb,#0284c7);
+}
+html[data-theme="dark"] body:not([data-student-app-appearance="light"]) #lessonViewerScreen.lesson-viewer-screen.is-learning-student,
+html body[data-student-app-appearance="dark"] #lessonViewerScreen.lesson-viewer-screen.is-learning-student {
+  --lesson-hero-surface:#152941;
+  --lesson-hero-ink:#f1f6ff;
+  --lesson-hero-muted:#c1d2ea;
+  --lesson-hero-kicker:#f0bfe4;
+  --lesson-stat-surface:linear-gradient(145deg,#2563eb,#0369a1);
+}
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-library-welcome-card {
+  background:var(--lesson-hero-surface)!important;
+  background-image:none!important;
+  background-color:var(--lesson-hero-surface)!important;
+  border:1px solid var(--ls-border)!important;
+  color:var(--lesson-hero-ink)!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-library-welcome-card :is(h2,h3,strong) {
+  color:var(--lesson-hero-ink)!important;
+  -webkit-text-fill-color:var(--lesson-hero-ink)!important;
+  opacity:1!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-library-welcome-card p {
+  color:var(--lesson-hero-muted)!important;
+  -webkit-text-fill-color:var(--lesson-hero-muted)!important;
+  opacity:1!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-library-welcome-card .lesson-library-eyebrow {
+  color:var(--lesson-hero-kicker)!important;
+  -webkit-text-fill-color:var(--lesson-hero-kicker)!important;
+  opacity:1!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-library-stat {
+  background:var(--lesson-stat-surface)!important;
+  background-image:var(--lesson-stat-surface)!important;
+  border:1px solid rgba(255,255,255,.25)!important;
+  color:#fff!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-library-stat :is(strong,span){
+  color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;
+}
+/* Count chips, titles, PDF labels and controls in the published light theme. */
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student :is(
+  .lesson-term-tab:not(.active),.lesson-term-tab:not(.active) span,
+  .lesson-card-content p,.lesson-card-meta,.lesson-continue-content p,
+  .lesson-library-status
+){ color:var(--lv-muted)!important;-webkit-text-fill-color:var(--lv-muted)!important;opacity:1!important; }
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student :is(
+  .lesson-library-card h3,.lesson-continue-card h3,.lesson-library-card,
+  .lesson-continue-card,.lesson-library-controls
+){color:var(--lv-ink)!important;}
+
+/* V2.39 — explicit contrast for term controls and PDF cover numbers.
+   Existing older appearance variants used a light chip in Dark Mode, and
+   applied text fill independently of `color`. Never combine a pale chip
+   with pale text, or a blue cover with dark PDF/lesson-number lettering. */
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance="light"] .lesson-term-tab:not(.active),
+html body #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-term-tab:not(.active) {
+  background:#e8eff8!important;
+  background-image:none!important;
+  border-color:#bfcedf!important;
+  color:#344a67!important;
+  -webkit-text-fill-color:#344a67!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen:not(.is-learning-student)[data-lesson-appearance="dark"] .lesson-term-tab:not(.active),
+html[data-theme="dark"] body:not([data-student-app-appearance="light"]) #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-term-tab:not(.active),
+html body[data-student-app-appearance="dark"] #lessonViewerScreen.lesson-viewer-screen.is-learning-student .lesson-term-tab:not(.active) {
+  background:#263b56!important;
+  background-image:none!important;
+  border-color:#4c6481!important;
+  color:#ebf2ff!important;
+  -webkit-text-fill-color:#ebf2ff!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen .lesson-term-tab:not(.active) span {
+  background:rgba(67,95,132,.14)!important;
+  color:inherit!important;
+  -webkit-text-fill-color:currentColor!important;
+  opacity:1!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen .lesson-term-tab.active {
+  background:#1769cb!important;
+  background-image:none!important;
+  border-color:#1769cb!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen .lesson-term-tab.active span {
+  background:rgba(1,27,67,.28)!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen .lesson-card-cover {
+  background:linear-gradient(160deg,#2059bd,#123b8a 65%,#1164a3)!important;
+  color:#fff!important;
+}
+html body #lessonViewerScreen.lesson-viewer-screen .lesson-card-cover :is(.lesson-card-number,.lesson-card-pdf,.lesson-card-book){
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  opacity:1!important;
+}
+/* Prevent a pale-on-pale intermediate frame during rapid Light/Dark toggles. */
+html body #lessonViewerScreen.lesson-viewer-screen .lesson-term-tab,
+html body #lessonViewerScreen.lesson-viewer-screen .lesson-term-tab span{
+  transition:none!important;
+}

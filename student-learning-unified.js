@@ -26,8 +26,42 @@
       const button = document.getElementById(id);
       if (!button) continue;
       if (student && themeLocked) button.classList.add('hidden');
+      // Public lessons own a separate reader preference; do not let the
+      // signed-in student theme lock hide the guest switch. The original
+      // Lessons handler supplies the correct current Light/Dark label.
+      if (!student && id === 'lessonLibraryThemeBtn') {
+        button.classList.remove('hidden');
+        button.setAttribute('aria-hidden', 'false');
+        continue;
+      }
       button.title = themeLocked ? 'Appearance is controlled by your teacher' : 'Switch appearance';
       button.setAttribute('aria-label', button.title);
+    }
+    // V2.39: Older Admin themes apply !important styling to individual Term
+    // buttons. Set only these compact contrast-critical controls directly so
+    // the visible label and count always contrast with the current surface.
+    // This runs on theme/state changes, never on every scroll or animation.
+    if (!lessons.classList.contains('hidden')) {
+      const appearance = student
+        ? (document.body.dataset.studentAppAppearance || document.documentElement.dataset.theme || 'light')
+        : (lessons.dataset.lessonAppearance || document.documentElement.dataset.theme || 'light');
+      const dark = appearance === 'dark';
+      for (const tab of lessons.querySelectorAll('.lesson-term-tab')) {
+        const active = tab.classList.contains('active');
+        const tabBg = active ? '#1769cb' : dark ? '#263b56' : '#e8eff8';
+        const tabInk = active ? '#ffffff' : dark ? '#edf4ff' : '#344a67';
+        tab.style.setProperty('background', tabBg, 'important');
+        tab.style.setProperty('background-image', 'none', 'important');
+        tab.style.setProperty('border-color', active ? '#1769cb' : dark ? '#4c6481' : '#bfcedf', 'important');
+        tab.style.setProperty('color', tabInk, 'important');
+        tab.style.setProperty('-webkit-text-fill-color', tabInk, 'important');
+        const count = tab.querySelector('span');
+        if (count) {
+          count.style.setProperty('background', active ? 'rgba(1,27,67,.28)' : dark ? '#35516f' : '#d3deec', 'important');
+          count.style.setProperty('color', tabInk, 'important');
+          count.style.setProperty('-webkit-text-fill-color', tabInk, 'important');
+        }
+      }
     }
     const term = document.querySelector('#lessonTermTabs [data-lesson-term].active');
     const termLabel = document.getElementById('lessonLibraryCurrentTermPill');
@@ -79,7 +113,7 @@
   // directly between Lessons and Activities. Original back buttons remain.
   const observer = new MutationObserver(syncLearningUI);
   observer.observe(document.body, {attributes:true,attributeFilter:['class','data-student-app-theme','data-student-app-appearance','data-student-app-choice']});
-  for (const screen of routes) observer.observe(screen, {attributes:true,attributeFilter:['class']});
+  for (const screen of routes) observer.observe(screen, {attributes:true,attributeFilter:['class','data-lesson-appearance']});
   for (const modal of [lessonModal,activityModal]) {
     if (modal) observer.observe(modal,{attributes:true,attributeFilter:['class']});
   }
