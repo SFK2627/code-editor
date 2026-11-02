@@ -1,0 +1,56 @@
+/* V2.41 shared color-role system for supported student surfaces & Studio.
+   The published Admin theme/appearance is still the source of truth. No color
+   tokens are applied to teacher/admin screens or sandboxed project output. */
+body{
+ --g8-ui-surface:#ffffff;
+ --g8-ui-raised:#f1f5fb;
+ --g8-ui-text:#1e3046;
+ --g8-ui-muted:#4e627d;
+ --g8-ui-border:#c7d4e5;
+ --g8-ui-input:#ffffff;
+ --g8-ui-focus:#2762b5;
+}
+html[data-theme="dark"] body:not([data-student-app-appearance]),
+body[data-student-app-appearance="dark"],
+body[data-appearance="dark"]:not([data-student-app-appearance]){
+ --g8-ui-surface:#182940;
+ --g8-ui-raised:#213751;
+ --g8-ui-text:#f1f6ff;
+ --g8-ui-muted:#c1d1e6;
+ --g8-ui-border:#4a607b;
+ --g8-ui-input:#17263e;
+ --g8-ui-focus:#90bdff;
+}
+/* More specific published light choice must override a dark login theme. */
+html body[data-student-app-appearance="light"],body[data-appearance="light"]:not([data-student-app-appearance]){
+ --g8-ui-surface:#ffffff;
+ --g8-ui-raised:#f1f5fb;
+ --g8-ui-text:#1e3046;
+ --g8-ui-muted:#4e627d;
+ --g8-ui-border:#c7d4e5;
+ --g8-ui-input:#ffffff;
+ --g8-ui-focus:#2762b5;
+}
+/* Preserve selected design's geometry; set only cross-component contrast roles.
+   Guest Lessons uses its own public palette and is intentionally excluded. */
+:is(#studentAccountSettingsOverlay,#codeInboxOverlay,#codeSendOverlay,#studentComplianceOverlay,#givenActivityViewerOverlay,#lessonPdfOverlay)[data-student-app-appearance="dark"]{
+ --g8-ui-surface:#182940;--g8-ui-raised:#213751;--g8-ui-text:#f1f6ff;--g8-ui-muted:#c1d1e6;--g8-ui-border:#4a607b;--g8-ui-input:#17263e;
+}
+:is(#studentAccountSettingsOverlay,#codeInboxOverlay,#codeSendOverlay,#studentComplianceOverlay,#givenActivityViewerOverlay,#lessonPdfOverlay)[data-student-app-appearance="light"]{
+ --g8-ui-surface:#fff;--g8-ui-raised:#f1f5fb;--g8-ui-text:#1e3046;--g8-ui-muted:#4e627d;--g8-ui-border:#c7d4e5;--g8-ui-input:#fff;
+}
+/* Some legacy themes force white/near-white text into LIGHT settings cards.
+   Give descriptions, labels, and interactive fields semantic text roles. */
+#studentAccountSettingsOverlay :is(.sh-settings-reminder-pref,.sh-settings-reminder-pref strong,.sh-settings-reminder-control,.sh-settings-reminder-control span),
+#studentAccountSettingsOverlay :is(input,select,textarea){color:var(--g8-ui-text)}
+#studentAccountSettingsOverlay .sh-settings-reminder-pref p{color:var(--g8-ui-muted)}
+#studentAccountSettingsOverlay .sh-settings-reminder-pref{background:var(--g8-ui-raised);border-color:var(--g8-ui-border)}
+#studentAccountSettingsOverlay :is(input,select,textarea){background:var(--g8-ui-input);border-color:var(--g8-ui-border)}
+/* Status progress and Code Inbox supplementary labels keep contrast across
+   published light/dark visual styles. Existing hero and grade colors remain. */
+#codeInboxOverlay :is(.code-inbox-muted,.code-inbox-meta,.code-inbox-description),
+#loginLackingReminderOverlay :is(.login-reminder-progress-label,.login-reminder-progress-caption){color:var(--g8-ui-muted)}
+/* Studio is a separate document; use the same semantic roles without forcing
+   the student/guest design style onto the student's runnable code. */
+body:has(.studio-shell){--g8-ui-surface:var(--surface);--g8-ui-raised:var(--surface-alt);--g8-ui-text:var(--ink);--g8-ui-muted:var(--muted);--g8-ui-border:var(--border)}
+body:has(.studio-shell) :is(.studio-console-panel,.studio-symbol-bar){color:var(--g8-ui-text);border-color:var(--g8-ui-border)}

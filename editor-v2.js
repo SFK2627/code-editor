@@ -9,7 +9,7 @@ const START=blankProject();
 // When the Admin has disabled starter code, initializeFreshStudio() clears all files.
 START.pages['index.html']=BASIC_HTML;
 function studioFreshCode(){const code=blankProject();if(state.root?.studentAssistanceSettings?.starterCodeEnabled!==false)code.pages['index.html']=BASIC_HTML;return code}
-function initializeFreshStudio(){if(studioStudentLoginBusy||state.projectId||state.dirty||state.project||STUDIO_PARAMS.has('join')||STUDIO_PARAMS.has('project'))return;state.code=studioFreshCode();state.previewPage='index.html';switchFile('html','index.html');runPreview();}
+function initializeFreshStudio(){if(studioStudentLoginBusy||state.projectId||state.dirty||state.project||STUDIO_PARAMS.has('join')||STUDIO_PARAMS.has('project'))return;editHistory?.reset();clearSourceDiagnostics();state.code=studioFreshCode();state.previewPage='index.html';switchFile('html','index.html');runPreview();}
 
 const PREF='g8code.studio.v2.pref', DRAFT='g8code.studio.v2.guest.draft';
 const STUDIO_ROUTE_KEY='g8code.officialStudio.return.v1';
@@ -17,9 +17,44 @@ const STUDIO_PARAMS=new URLSearchParams(location.search);
 let STUDIO_FORCE_GUEST=STUDIO_PARAMS.get('mode')==='guest';
 const fromJSON=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}};
 const prefs=fromJSON(PREF,{});
-const state={lang:'html',layout:prefs.layout||'split',mobileTab:'code',device:prefs.device||(matchMedia('(max-width:700px)').matches?'phone':matchMedia('(max-width:920px)').matches?'tablet':'desktop'),appearance:prefs.appearance||'light',autoRun:prefs.autoRun!==false,font:clamp(Number(prefs.font)||13,9,32),previewZoom:'fit',filesOpen:typeof prefs.filesOpen==='boolean'?prefs.filesOpen:matchMedia('(min-width:1200px)').matches,dirty:false,saving:false,guest:true,auth:null,profile:null,root:{},activities:[],given:[],projects:[],project:null,projectId:'',name:'My First Webpage',code:structuredClone(START),previewPage:'index.html',collab:null,collabUnsubs:[],rtcTimer:null,unsavedSince:0};
+const STUDIO_SHARED_APPEARANCE='studentCodeStudio.themedStudentAppearance.v1';
+const STUDIO_ORIGINAL_APPEARANCE='studentCodeStudio.theme';
+function studioSharedAppearance(){
+ const value=fromJSON(STUDIO_SHARED_APPEARANCE,null)||fromJSON(STUDIO_ORIGINAL_APPEARANCE,null);
+ return value==='dark'||value==='light'?value:null;
+}
+const state={lang:'html',layout:prefs.layout||'split',mobileTab:'code',device:prefs.device||(matchMedia('(max-width:700px)').matches?'phone':matchMedia('(max-width:920px)').matches?'tablet':'desktop'),appearance:studioSharedAppearance()||prefs.appearance||'light',autoRun:prefs.autoRun!==false,font:clamp(Number(prefs.font)||13,9,32),previewZoom:'fit',filesOpen:typeof prefs.filesOpen==='boolean'?prefs.filesOpen:matchMedia('(min-width:1200px)').matches,dirty:false,saving:false,guest:true,auth:null,profile:null,root:{},activities:[],given:[],projects:[],project:null,projectId:'',name:'My First Webpage',code:structuredClone(START),previewPage:'index.html',collab:null,collabUnsubs:[],rtcTimer:null,unsavedSince:0};
 const frame=$('outputFrame'),input=$('codeInput'),rootPath=()=>{const c=window.MCS_FIREBASE_COLLECTION||'webCodeEditor',d=window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1';return [c,d]};
 let db=null,auth=null,autoTimer=null,cloudTimer=null,resizeObserver=null,dialogResolve=null, lastFocused=null;
+// V2.42 — local, per-file history. Remote edits to a file invalidate its
+// outdated local history rather than allowing an undo to overwrite a peer.
+const editAssist=window.G8StudioEditAssist;
+const editHistory=editAssist ? new editAssist.LocalHistory(80) : null;
+let applyingHistory=false;
+function updateUndoButtons(){
+ const editable=!input.readOnly&&(!state.collab||liveCollab?.canEdit());
+ for(const [id,direction] of [['studioUndo','undo'],['studioRedo','redo']]){
+  const button=$(id);if(!button)continue;
+  const ready=editable&&editHistory?.can(state.lang,fileName(),direction,fileContent());
+  button.disabled=!ready;
+  button.setAttribute('aria-label',(direction==='undo'?'Undo':'Redo')+' current file');
+  button.title=(direction==='undo'?'Undo':'Redo')+' · '+fileName();
+ }
+}
+function editorHistoryStep(direction){
+ if(input.readOnly||(state.collab&&!liveCollab?.canEdit())){toast('This file is view-only.','error');return;}
+ if(!editHistory)return;
+ const result=editHistory.step(state.lang,fileName(),direction,fileContent());
+ if(!result){updateUndoButtons();return;}
+ applyingHistory=true;
+ try{
+  input.value=result.text;
+  input.focus({preventScroll:true});
+  input.setSelectionRange(result.caret,result.caret);
+  changeCode({inputType:'history'+(direction==='undo'?'Undo':'Redo')});
+ }finally{applyingHistory=false;updateUndoButtons()}
+}
+
 const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 function clone(v){return JSON.parse(JSON.stringify(v))}
 function toast(message,kind=''){const el=document.createElement('div');el.className='toast '+kind;el.textContent=message;$('toastHost').append(el);setTimeout(()=>el.remove(),3800)}
@@ -41,7 +76,7 @@ function normalizeProject(raw){
 }
 function setDirty(){state.dirty=true;state.changeRevision=(state.changeRevision||0)+1;state.unsavedSince=Date.now();status(state.guest?'● Unsaved local draft':'● Unsaved changes');safeLocalDraft();if(state.autoRun)scheduleRun();if(!state.collab&&!state.guest&&state.root?.studentAssistanceSettings?.enabled!==false&&state.root?.studentAssistanceSettings?.autoSave!==false){clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>saveProject({quiet:true}),15000)}}
 function safeLocalDraft(){try{const key=state.guest?DRAFT:`${DRAFT}.${state.auth?.uid||'auth'}`;sessionStorage.setItem(key,JSON.stringify({name:state.name,code:state.code,projectId:state.projectId,practiceCheck:state.lastPracticeCheck||null,dirty:state.dirty,updated:Date.now()}))}catch{}}
-function switchFile(lang,name){if(!fileMap(lang)?.hasOwnProperty(name))return;state.lang=lang;state.code[ACTIVE[lang]]=name;input.value=fileContent();$('activeFileLabel').textContent=name;all('#languageTabs button').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));renderFiles();refreshLineNumbers();refreshCursor();input.focus();renderCollabCursors();scheduleCollabCursor();}
+function switchFile(lang,name){if(!fileMap(lang)?.hasOwnProperty(name))return;state.lang=lang;renderMobileSymbols();state.code[ACTIVE[lang]]=name;input.value=fileContent();$('activeFileLabel').textContent=name;all('#languageTabs button').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));renderFiles();refreshLineNumbers();refreshCursor();input.focus();renderCollabCursors();scheduleCollabCursor();updateUndoButtons();scheduleSourceDiagnostics();}
 function renderFiles(){
  const groups=[['html','HTML pages','⌘'],['css','Stylesheets','◈'],['js','JavaScript','◇']];
  $('fileExplorer').innerHTML=groups.map(([lang,label,icon])=>{
@@ -58,7 +93,14 @@ function renderFiles(){
  $('deleteFile').title=canDelete?'Delete selected file':'Keep at least one HTML page';
  renderPreviewPages();if(state.collab&&!liveCollab?.canEdit())all('#fileExplorer [data-add],#fileExplorer [data-rename],#fileExplorer [data-delete]').forEach(el=>el.disabled=true);
 }
-function renderPreviewPages(){const sel=$('previewPage'),pages=Object.keys(state.code.pages);if(!pages.includes(state.previewPage))state.previewPage=pages[0];sel.innerHTML=pages.map(p=>`<option ${p===state.previewPage?'selected':''}>${escapeHTML(p)}</option>`).join('')}
+let previewPageOptionsKey='';
+function renderPreviewPages(){
+ const sel=$('previewPage'),pages=Object.keys(state.code.pages);
+ if(!pages.includes(state.previewPage))state.previewPage=pages[0];
+ const key=JSON.stringify(pages);
+ if(key!==previewPageOptionsKey){sel.innerHTML=pages.map(p=>`<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join('');previewPageOptionsKey=key;}
+ if(sel.value!==state.previewPage)sel.value=state.previewPage;
+}
 function refreshLineNumbers(){renderHighlight();const count=input.value.split('\n').length;$('lineNumbers').textContent=Array.from({length:count},(_,i)=>i+1).join('\n');$('lineNumbers').scrollTop=input.scrollTop;$('editorStatus').textContent=input.value.length.toLocaleString()+' chars'+(state.lang==='html'&&htmlTagIssues.length?' · '+htmlTagIssues.length+' tag warning'+(htmlTagIssues.length===1?'':'s'):'');$('editorStatus').title=state.lang==='html'&&htmlTagIssues.length?'Red underline: possible missing or unmatched closing tag':''}
 // Lightweight HTML editor lexer with paired/unpaired tag diagnostics.
 // It highlights attribute names and values separately without touching editable text.
@@ -119,9 +161,17 @@ function renderHighlight(){
 
 function zoomEditorFont(delta){state.font=clamp(state.font+delta,9,32);document.documentElement.style.setProperty('--font-size',state.font+'px');storePrefs();toast('Editor font: '+state.font+'px')};
 function refreshCursor(){const pos=input.selectionStart,lines=input.value.slice(0,pos).split('\n');$('cursorStatus').textContent=`Ln ${lines.length}, Col ${lines[lines.length-1].length+1}`}
-function changeCode(){if(state.collab&&!liveCollab?.canEdit()){input.value=fileContent();refreshLineNumbers();toast('This project is view-only until the host enables editing.','error');return;}const previous=fileContent(),lang=state.lang,name=fileName();fileMap()[name]=input.value;liveCollab?.localEdit(lang,name,previous,input.value);refreshLineNumbers();refreshCursor();setDirty()}
+function changeCode(event){
+ if(state.collab&&!liveCollab?.canEdit()){input.value=fileContent();refreshLineNumbers();updateUndoButtons();toast('This project is view-only until the host enables editing.','error');return;}
+ const previous=fileContent(),lang=state.lang,name=fileName(),next=input.value;
+ if(previous===next){updateUndoButtons();return;}
+ if(!applyingHistory)editHistory?.record(lang,name,previous,next,input.selectionStart,Date.now(),event?.inputType||'');
+ fileMap()[name]=next;
+ liveCollab?.localEdit(lang,name,previous,next);
+ refreshLineNumbers();refreshCursor();setDirty();updateUndoButtons();scheduleSourceDiagnostics();
+}
 function renameReferences(oldName,newName){for(const [page,html] of Object.entries(state.code.pages)){state.code.pages[page]=html.replace(/((?:href|src)\s*=\s*["'])[^"']*(["'])/gi,(whole,a,b)=>{const value=whole.slice(a.length,-b.length);return value===oldName?a+newName+b:whole})}}
-async function addOrRenameFile(lang,name=''){if(state.collab&&!liveCollab?.canEdit()){toast('View-only session: files cannot be changed.','error');return;}const isRename=Boolean(name);const oldName=name;const result=await promptText(isRename?'Rename file':`Add ${lang.toUpperCase()} file`,isRename?name:lang==='html'?'about.html':lang==='css'?'layout.css':'effects.js','File name');if(result===null)return;const valid=validFileName(result,lang);if(!valid){toast('Use a valid .html, .css, or .js filename without folders.','error');return}if(valid!==oldName && Object.prototype.hasOwnProperty.call(fileMap(lang),valid)){toast('A file with that name already exists.','error');return}if(isRename){const map=fileMap(lang);const data=map[oldName];delete map[oldName];map[valid]=data;renameReferences(oldName,valid);if(state.previewPage===oldName)state.previewPage=valid}else fileMap(lang)[valid]=lang==='html'?'<!DOCTYPE html>\n<html lang="en">\n<head><meta name="viewport" content="width=device-width,initial-scale=1"><title>New Page</title></head>\n<body>\n<h1>New page</h1>\n</body>\n</html>':'';state.code[ACTIVE[lang]]=valid;switchFile(lang,valid);if(matchMedia('(max-width:920px)').matches)toggleFiles(false);setDirty();liveCollab?.structure();toast(isRename?'File renamed':'File created')}
+async function addOrRenameFile(lang,name=''){if(state.collab&&!liveCollab?.canEdit()){toast('View-only session: files cannot be changed.','error');return;}const isRename=Boolean(name);const oldName=name;const result=await promptText(isRename?'Rename file':`Add ${lang.toUpperCase()} file`,isRename?name:lang==='html'?'about.html':lang==='css'?'layout.css':'effects.js','File name');if(result===null)return;const valid=validFileName(result,lang);if(!valid){toast('Use a valid .html, .css, or .js filename without folders.','error');return}if(valid!==oldName && Object.prototype.hasOwnProperty.call(fileMap(lang),valid)){toast('A file with that name already exists.','error');return}if(isRename){editHistory?.invalidate(lang,oldName);editHistory?.invalidate(lang,valid);const map=fileMap(lang);const data=map[oldName];delete map[oldName];map[valid]=data;renameReferences(oldName,valid);if(state.previewPage===oldName)state.previewPage=valid}else fileMap(lang)[valid]=lang==='html'?'<!DOCTYPE html>\n<html lang="en">\n<head><meta name="viewport" content="width=device-width,initial-scale=1"><title>New Page</title></head>\n<body>\n<h1>New page</h1>\n</body>\n</html>':'';state.code[ACTIVE[lang]]=valid;switchFile(lang,valid);if(matchMedia('(max-width:920px)').matches)toggleFiles(false);setDirty();liveCollab?.structure();toast(isRename?'File renamed':'File created')}
 async function deleteFile(lang=state.lang,name=fileName(lang)){if(state.collab&&!liveCollab?.canEdit()){toast('View-only session: files cannot be deleted.','error');return;}
  const map=fileMap(lang);
  if(!map||!Object.prototype.hasOwnProperty.call(map,name))return;
@@ -131,6 +181,7 @@ async function deleteFile(lang=state.lang,name=fileName(lang)){if(state.collab&&
    : [...new DOMParser().parseFromString(html,'text/html').querySelectorAll('script[src]')].some(el=>el.getAttribute('src').split(/[?#]/)[0].replace(/^\.\//,'')===name));
  const warning=linked?' Its HTML stylesheet/script references will also be removed.':lang==='html'?' Links from other pages may need updating.':'';
  if(!await confirmAction(`Permanently delete ${name}?${warning} This cannot be undone after saving.`, 'Delete file','danger'))return;
+ editHistory?.invalidate(lang,name);
  // Don't remove another file if a confirmation dialog stayed open while project changed.
  if(!Object.prototype.hasOwnProperty.call(fileMap(lang),name))return;
  delete fileMap(lang)[name];
@@ -161,6 +212,21 @@ function safeInlineScript(js){return String(js).replace(/<\/script/gi,'<\\/scrip
 // counters, forms, timers or the page the student navigated to.
 let previewRendered=false;
 let previewRevision=-1;
+// Keep output navigation separate from CSS-only edits. CSS can be changed inside
+// the already running sandbox without resetting its JavaScript, forms or scroll.
+let previewFrameReady=false;
+let previewRunToken=0;
+let previewBaseSignature='';
+let pendingAutoStart=0;
+const AUTO_RUN_DELAY={html:210,css:95,js:260};
+function nonCssPreviewSignature(){return JSON.stringify([state.previewPage,state.code.pages,state.code.jsFiles]);}
+function patchLivePreviewCSS(){
+ if(!previewRendered || !previewFrameReady || previewBaseSignature!==nonCssPreviewSignature())return false;
+ previewRevision=state.changeRevision||0;
+ frame.contentWindow?.postMessage({g8StudioV2Parent:true,cssUpdate:state.code.cssFiles,runToken:previewRunToken,revision:previewRevision},'*');
+ $('previewStatus').textContent='Updating styles…';
+ return true;
+}
 let pendingFragment='';
 let pendingPageNavigation=false;
 function normalizePreviewLink(raw,currentPage=state.previewPage){
@@ -177,13 +243,159 @@ function normalizePreviewLink(raw,currentPage=state.previewPage){
  const hashPos=source.indexOf('#');
  return {page:name,fragment:hashPos>=0?source.slice(hashPos+1):'',query:source.includes('?')?source.slice(source.indexOf('?'),hashPos>=0?hashPos:undefined):''};
 }
+// V2.41: diagnostics are sourced from the opaque preview iframe only.
+// Never execute a student's logs or permit diagnostics to access the parent app.
+const studioConsole={entries:[],diagnostics:new Map(),errors:0,open:false,run:0,limit:90,raf:0};
+let diagnosticTimer=null;
+function explainStudioIssue(message){
+ const s=String(message||'');
+ if(/ReferenceError|is not defined/i.test(s))return 'A name is missing or misspelled. Check the variable or function declaration.';
+ if(/SyntaxError|Unexpected token|Unexpected end/i.test(s))return 'Check brackets, quotes, commas, and the code near the reported error.';
+ if(/TypeError|Cannot read properties|is not a function/i.test(s))return 'Check whether the value or element exists before using it.';
+ if(/Failed to fetch|network|CORS/i.test(s))return 'An external request failed. Check the URL, internet connection, and resource permissions.';
+ return 'Review the message and the related code. Not all browser messages indicate a mistake in your HTML or CSS.';
+}
+function renderStudioConsole(){
+ studioConsole.raf=0;
+ const log=$('studioConsoleLog');if(!log)return;
+ const frag=document.createDocumentFragment();
+ if(!studioConsole.entries.length&&![...studioConsole.diagnostics.values()].some(x=>x.length)){const el=document.createElement('p');el.className='studio-console-empty';el.textContent='No messages yet. Run your code or interact with the preview.';frag.append(el)}
+ const diagnostics=[...studioConsole.diagnostics.values()].flat();
+ const combined=[...diagnostics,...studioConsole.entries];
+ for(const item of combined){
+  const row=document.createElement('div');row.className='studio-console-entry level-'+item.level;
+  const heading=document.createElement('div');heading.className='studio-console-entry-head';
+  const type=document.createElement('strong');type.textContent=item.level==='error'?'Error':item.level==='warn'?'Warning':item.level==='info'?'Info':'Log';heading.append(type);
+  if(item.file){
+   const jump=document.createElement('button');jump.type='button';jump.className='studio-console-jump';
+   jump.dataset.diagLang=item.language;jump.dataset.diagFile=item.file;jump.dataset.diagLine=String(item.line||1);
+   jump.textContent=item.file+':'+(item.line||1);jump.title='Open this location in the editor';
+   heading.append(jump);
+  } else {const time=document.createElement('span');time.textContent=item.time;heading.append(time);}
+  row.append(heading);
+  const msg=document.createElement('pre');msg.textContent=item.message;row.append(msg);
+  if(item.tip || item.level==='error'){
+    const help=document.createElement('p');help.className='studio-console-tip';
+    help.textContent=item.tip||explainStudioIssue(item.message);row.append(help);
+  }
+  frag.append(row);
+ }
+ log.replaceChildren(frag);
+ studioConsole.errors=combined.filter(e=>e.level==='error').length;
+ const warnings=combined.filter(e=>e.level==='warn').length;
+ $('studioConsoleSummary').textContent=[studioConsole.errors?studioConsole.errors+' error'+(studioConsole.errors===1?'':'s'):'',warnings?warnings+' warning'+(warnings===1?'':'s'):'',combined.length&&!studioConsole.errors&&!warnings?combined.length+' message'+(combined.length===1?'':'s'):''].filter(Boolean).join(' · ')||'No messages';
+ for(const id of ['studioConsoleBadge','studioPreviewErrorCount']){const b=$(id);if(b){b.textContent=String(studioConsole.errors);b.hidden=!studioConsole.errors}}
+ $('studioConsoleToggle')?.classList.toggle('has-errors',studioConsole.errors>0);
+}
+function scheduleStudioConsolePaint(){if(!studioConsole.raf)studioConsole.raf=requestAnimationFrame(renderStudioConsole)}
+function clearStudioConsole(){
+ // Keep live source diagnostics visible; Clear clears runtime messages only.
+ studioConsole.entries=[];studioConsole.run=previewRunToken;scheduleStudioConsolePaint();
+}
+function scheduleSourceDiagnostics(immediate=false){
+ if(!editAssist)return;
+ clearTimeout(diagnosticTimer);
+ const lang=state.lang,name=fileName(),text=fileContent();
+ if(!name)return;
+ diagnosticTimer=setTimeout(()=>{
+  const diagnostics=lang==='html'?editAssist.diagnoseHTML(text,name):lang==='css'?editAssist.diagnoseCSS(text,name):[];
+  studioConsole.diagnostics.set(lang+':'+name,diagnostics);
+  scheduleStudioConsolePaint();
+ },immediate?0:340);
+}
+function clearSourceDiagnostics(){clearTimeout(diagnosticTimer);studioConsole.diagnostics.clear();scheduleSourceDiagnostics(true)}
+function jumpToDiagnostic(lang,name,line){
+ if(!GROUP[lang] || !fileMap(lang)?.hasOwnProperty(name))return;
+ switchFile(lang,name);
+ const rows=input.value.split('\n'),n=clamp(Number(line)||1,1,rows.length);
+ const position=rows.slice(0,n-1).reduce((total,row)=>total+row.length+1,0);
+ input.focus({preventScroll:true});input.setSelectionRange(position,Math.min(input.value.length,position+rows[n-1].length));
+ const lh=parseFloat(getComputedStyle(input).lineHeight)||20;
+ input.scrollTop=Math.max(0,(n-3)*lh);refreshCursor();
+ if(matchMedia('(max-width:700px)').matches)setStudioConsoleOpen(false);
+}
+function pushStudioConsole(entry){
+ if(!entry || typeof entry!=='object')return;
+ const level=['error','warn','info','log'].includes(entry.level)?entry.level:'log';
+ const message=String(entry.message||'').slice(0,1200);
+ if(!message)return;
+ if(studioConsole.entries.length>=studioConsole.limit){studioConsole.entries.shift();}
+ studioConsole.entries.push({level,message,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})});
+ studioConsole.errors=studioConsole.entries.filter(e=>e.level==='error').length;
+ scheduleStudioConsolePaint();
+}
+function setStudioConsoleOpen(open){
+ studioConsole.open=Boolean(open);
+ const panel=$('studioConsolePanel');if(panel)panel.hidden=!studioConsole.open;
+ const btn=$('studioConsoleToggle');if(btn)btn.setAttribute('aria-expanded',String(studioConsole.open));
+ if(studioConsole.open){if(matchMedia('(max-width:700px)').matches && state.mobileTab==='preview' && !document.body.dataset.immersive)setMobileTab('code');scheduleStudioConsolePaint()}
+}
+function installStudioConsole(){
+ $('studioConsoleToggle')?.addEventListener('click',()=>setStudioConsoleOpen(!studioConsole.open));
+ $('studioPreviewConsoleToggle')?.addEventListener('click',()=>setStudioConsoleOpen(true));
+ $('studioConsoleClose')?.addEventListener('click',()=>setStudioConsoleOpen(false));
+ $('studioConsoleClear')?.addEventListener('click',clearStudioConsole);
+ $('studioConsoleLog')?.addEventListener('click',e=>{
+  const b=e.target.closest('[data-diag-lang]');if(!b)return;
+  jumpToDiagnostic(b.dataset.diagLang,b.dataset.diagFile,b.dataset.diagLine);
+ });
+ const drag=$('studioConsoleDrag'),panel=$('studioConsolePanel');let pointer=null;
+ drag?.addEventListener('pointerdown',e=>{if(e.target.closest('button')||!panel||matchMedia('(max-width:700px)').matches)return;pointer={y:e.clientY,h:panel.getBoundingClientRect().height,id:e.pointerId};drag.setPointerCapture(e.pointerId)});
+ drag?.addEventListener('pointermove',e=>{if(!pointer||e.pointerId!==pointer.id)return;panel.style.height=clamp(pointer.h+pointer.y-e.clientY,130,Math.max(200,$('codePanel').clientHeight-90))+'px'});
+ const end=()=>{pointer=null};drag?.addEventListener('pointerup',end);drag?.addEventListener('pointercancel',end);
+}
+const quickSymbols={html:['<','>','/','=','"',"'",'<></>'],css:['{','}',':',';','#','.','()'],js:['{','}','(',')',';','=','=>']};
+function renderMobileSymbols(){
+ const bar=$('studioSymbolBar');if(!bar)return;
+ const fragment=document.createDocumentFragment();
+ for(const symbol of quickSymbols[state.lang]||quickSymbols.html){const b=document.createElement('button');b.type='button';b.textContent=symbol;b.dataset.symbol=symbol;b.setAttribute('aria-label','Insert '+symbol);fragment.append(b)}
+ bar.replaceChildren(fragment);
+}
+function insertMobileSymbol(symbol){
+ if(input.readOnly || (state.collab && !liveCollab?.canEdit())){toast('This file is view-only.','error');return}
+ input.focus({preventScroll:true});
+ const start=input.selectionStart,end=input.selectionEnd;
+ let value=symbol,caretOffset=symbol.length;
+ if(symbol==='<></>'){value='<></>';caretOffset=1}
+ if(symbol==='()'){value='()';caretOffset=1}
+ // execCommand retains native text undo on browsers where it is supported.
+ const previous=input.value;
+ input.setSelectionRange(start,end);
+ let applied=false;
+ try{applied=Boolean(document.execCommand('insertText',false,value))}catch{}
+ if(!applied){input.setRangeText(value,start,end,'end');input.dispatchEvent(new Event('input',{bubbles:true}))}
+ else if(input.value!==previous && fileContent()!==input.value){input.dispatchEvent(new Event('input',{bubbles:true}))}
+ if(caretOffset!==value.length){const point=start+caretOffset;input.setSelectionRange(point,point)}
+ refreshCursor();
+}
+function installMobileCoding(){
+ renderMobileSymbols();
+ $('studioSymbolBar')?.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault()});
+ $('studioSymbolBar')?.addEventListener('click',e=>{const b=e.target.closest('button[data-symbol]');if(b)insertMobileSymbol(b.dataset.symbol)});
+ // Keyboard-aware height is limited to the code workspace and never used on desktop.
+ const vv=window.visualViewport;
+ if(vv){let queued=false;const update=()=>{queued=false;const keyboard=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);const active=document.activeElement===input&&matchMedia('(max-width:700px)').matches&&keyboard>120;
+  document.body.classList.toggle('studio-keyboard-active',active);
+  if(active)document.body.style.setProperty('--studio-mobile-viewport',Math.max(280,vv.height)+'px');else document.body.style.removeProperty('--studio-mobile-viewport');
+ };const queue=()=>{if(!queued){queued=true;requestAnimationFrame(update)}};vv.addEventListener('resize',queue);vv.addEventListener('scroll',queue);input.addEventListener('focus',queue);input.addEventListener('blur',queue)}
+}
 function previewBridgeScript(){
  // This script belongs only to the opaque-origin, sandboxed output iframe.
  // Never grant the student's code access to the parent G8Code Firebase session.
  return `(()=>{'use strict';
  const PAGE=${JSON.stringify(state.previewPage)};
+ const RUN_TOKEN=${previewRunToken};
  const pages=new Set(${JSON.stringify(Object.keys(state.code.pages))});
  const report=(detail)=>parent.postMessage(Object.assign({g8StudioV2:true},detail),'*');
+ let logCount=0;
+ const formatArg=v=>{try{if(typeof v==='string')return v;if(v instanceof Error)return v.name+': '+v.message;const out=JSON.stringify(v);return out===undefined?String(v):out}catch{return String(v)}};
+ const sendLog=(level,args)=>{if(logCount++>=80)return;try{report({consoleEntry:{level,message:Array.from(args).map(formatArg).join(' ').slice(0,1200)},runToken:RUN_TOKEN})}catch{}};
+ for(const level of ['log','warn','error','info']){
+  const original=console[level];
+  console[level]=function(...args){sendLog(level,args);return original.apply(console,args)};
+ }
+ window.addEventListener('error',e=>{if(e.message && e.message!=='Script error.')sendLog('error',[e.message]);},true);
+ window.addEventListener('unhandledrejection',e=>sendLog('error',[e.reason?.message||e.reason||'Unhandled promise rejection']));
  function internal(raw){
    if(!raw||raw[0]==='#'||/^(?:javascript:|mailto:|tel:|sms:|data:|blob:)/i.test(raw))return null;
    let bare=raw.split(/[?#]/)[0];
@@ -266,6 +478,19 @@ function previewBridgeScript(){
  },true);
  window.addEventListener('message',event=>{
    if(event.source!==parent || !event.data?.g8StudioV2Parent)return;
+   if(event.data.cssUpdate && event.data.runToken===RUN_TOKEN){
+     const files=event.data.cssUpdate;
+     if(files && typeof files==='object' && !Array.isArray(files)){
+       document.querySelectorAll('style[data-g8studio-css-file]').forEach(el=>{
+         const name=el.getAttribute('data-g8studio-css-file');
+         if(Object.prototype.hasOwnProperty.call(files,name) && typeof files[name]==='string')el.textContent=files[name];
+       });
+       document.querySelectorAll('style[data-g8studio-css-bundle]').forEach(el=>{
+         el.textContent=Object.values(files).filter(v=>typeof v==='string').join('\\n');
+       });
+       report({styleApplied:true,runToken:RUN_TOKEN,revision:event.data.revision});
+     }
+   }
    if(event.data.fragment!==undefined){
      const hash=String(event.data.fragment||'');
      // A linked HTML page may build its destination during DOMContentLoaded;
@@ -275,8 +500,8 @@ function previewBridgeScript(){
      }
    }
  });
- window.addEventListener('error',e=>report({error:String(e.message||'Script error')}));
- window.addEventListener('unhandledrejection',e=>report({error:String(e.reason?.message||e.reason||'Async script error')}));
+ document.addEventListener('DOMContentLoaded',()=>report({previewReady:true,runToken:RUN_TOKEN}),{once:true});
+
  })();`;
 }
 function buildDocument(page=state.previewPage){
@@ -287,7 +512,7 @@ function buildDocument(page=state.previewPage){
  for(const el of [...doc.querySelectorAll('link[rel~="stylesheet"][href]')]){
    const href=(el.getAttribute('href')||'').split(/[?#]/)[0].replace(/^\.\//,'');
    if(Object.hasOwn(state.code.cssFiles,href)){
-     const css=doc.createElement('style');css.textContent=state.code.cssFiles[href];el.replaceWith(css);
+     const css=doc.createElement('style');css.dataset.g8studioCssFile=href;css.textContent=state.code.cssFiles[href];el.replaceWith(css);
    }
  }
  for(const el of [...doc.querySelectorAll('script[src]')]){
@@ -296,9 +521,15 @@ function buildDocument(page=state.previewPage){
      const scr=doc.createElement('script');scr.textContent=safeInlineScript(state.code.jsFiles[src]);el.replaceWith(scr);
    }
  }
+ // Existing HTML may already contain the exact CSS file as inline <style>.
+ // Mark that source too, so CSS-only editing updates it without iframe reload.
+ for(const style of [...doc.querySelectorAll('style:not([data-g8studio-css-file])')]){
+   const found=Object.entries(state.code.cssFiles).find(([name,value])=>value===style.textContent);
+   if(found)style.dataset.g8studioCssFile=found[0];
+ }
  const cssSources=Object.values(state.code.cssFiles);
  if(![...doc.querySelectorAll('style')].some(e=>cssSources.includes(e.textContent))&&cssSources.length){
-   const css=doc.createElement('style');css.textContent=cssSources.join('\n');doc.head.append(css);
+   const css=doc.createElement('style');css.dataset.g8studioCssBundle='';css.textContent=cssSources.join('\n');doc.head.append(css);
  }
  const jsSources=Object.values(state.code.jsFiles);
  if(![...doc.querySelectorAll('script:not([src])')].some(e=>jsSources.includes(e.textContent))&&jsSources.length){
@@ -310,25 +541,55 @@ function buildDocument(page=state.previewPage){
  const bridge=doc.createElement('script');bridge.textContent=safeInlineScript(previewBridgeScript());doc.head.prepend(bridge);
  return '<!DOCTYPE html>\n'+doc.documentElement.outerHTML;
 }
-function scheduleRun(){clearTimeout(autoTimer);autoTimer=setTimeout(runPreview,450)}
-function runPreview(){
+// Adaptive Auto Run: react quickly after a short pause, but still update
+// during a long typing burst (rather than waiting indefinitely for a pause).
+// Avoid reloading the iframe for CSS-only changes, preserving interactive state.
+function scheduleRun(){
+ if(!state.autoRun)return;
+ const now=performance.now();
+ if(!pendingAutoStart)pendingAutoStart=now;
  clearTimeout(autoTimer);
+ const delay=AUTO_RUN_DELAY[state.lang]||210;
+ const wait=Math.max(0,Math.min(delay,700-(now-pendingAutoStart)));
+ autoTimer=setTimeout(()=>{
+   autoTimer=null;
+   const cssOnly=previewBaseSignature===nonCssPreviewSignature();
+   if(cssOnly && !previewFrameReady && previewRendered){
+     // The iframe is still initializing: its DOM-ready event will apply the
+     // newest stylesheet. Do not abort the navigation with another reload.
+     $('previewStatus').textContent='Preparing latest styles…';
+   }else if(!(cssOnly && patchLivePreviewCSS())){
+     runPreview();
+   }
+   pendingAutoStart=0;
+ },wait);
+}
+function runPreview(){
+ clearStudioConsole();
+ clearTimeout(autoTimer);autoTimer=null;pendingAutoStart=0;
  if(fileMap()?.[fileName()]!==undefined&&fileMap()[fileName()]!==input.value)fileMap()[fileName()]=input.value;
  renderPreviewPages();
+ const firstRender=!previewRendered;
  previewRendered=true;
+ previewFrameReady=false;
+ previewRunToken++;
  previewRevision=state.changeRevision||0;
+ previewBaseSignature=nonCssPreviewSignature();
  frame.srcdoc=buildDocument();
- $('previewStatus').textContent='Running · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+ $('previewStatus').textContent='Updating output…';
  $('resultQuick').textContent=state.project?.lastResult?'Saved rubric result available':'Preview updated';
  state.project&&(state.project.runCount=(state.project.runCount||0)+1);
- updateCanvas();
+ if(firstRender)updateCanvas();
 }
 function ensurePreviewRendered(){
  if(!previewRendered || !frame.srcdoc || (state.autoRun && previewRevision!==(state.changeRevision||0))){runPreview();return}
  updateCanvas();
 }
 frame.addEventListener('load',()=>{
- $('previewStatus').textContent='Output ready · interactive';
+ // The bridge sends an earlier DOM-ready message; network assets can finish
+ // later. Do not overwrite a pending update with a misleading 'ready' label.
+ if(previewFrameReady && previewRevision===(state.changeRevision||0))
+   $('previewStatus').textContent='Output ready · interactive';
  if(document.body.dataset.immersive==='preview')updateCanvas();
  if(pendingPageNavigation){
    const fragment=pendingFragment;pendingFragment='';pendingPageNavigation=false;
@@ -338,6 +599,20 @@ frame.addEventListener('load',()=>{
 });
 window.addEventListener('message',event=>{
  if(event.source!==frame.contentWindow||!event.data?.g8StudioV2)return;
+ if(event.data.consoleEntry){if(event.data.runToken===previewRunToken)pushStudioConsole(event.data.consoleEntry);return;}
+ if(event.data.previewReady){
+   if(event.data.runToken!==previewRunToken)return;
+   previewFrameReady=true;
+   if(state.autoRun && previewRevision!==(state.changeRevision||0)){
+     if(!patchLivePreviewCSS())scheduleRun();
+   }else $('previewStatus').textContent='Output ready · interactive';
+   return;
+ }
+ if(event.data.styleApplied){
+   if(event.data.runToken===previewRunToken && event.data.revision===(state.changeRevision||0))
+     $('previewStatus').textContent='Styles updated · interactive';
+   return;
+ }
  if(event.data.navigate){
    if(event.data.from && event.data.from!==state.previewPage)return;
    const path=normalizePreviewLink(event.data.navigate);
@@ -476,12 +751,17 @@ function setMobileTab(value,options={}){
  else requestAnimationFrame(updateCanvas);
 }
 function setAppearance(value,options={}){
- const settings=state.root?.loginReminderSettings||{};
+ const settings=state.root?.loginReminderSettings||fromJSON('studentCodeStudio.loginReminderSettings.v1',{});
  const locked=settings.applyThemeToEntireApp===true && settings.allowStudentAppAppearanceChoice!==true;
  if(locked && !options.fromAdmin){
   toast('Appearance is controlled by the Admin theme settings.','error');return;
  }
  state.appearance=value==='dark'?'dark':'light';
+ // Student-selected appearance follows the same existing preference as Home,
+ // Lessons, and Activities. A teacher-locked theme NEVER writes over it.
+ if(!locked && !options.fromAdmin){
+  try{localStorage.setItem(STUDIO_SHARED_APPEARANCE,JSON.stringify(state.appearance));localStorage.setItem(STUDIO_ORIGINAL_APPEARANCE,JSON.stringify(state.appearance))}catch{}
+ }
  document.body.dataset.appearance=state.appearance;
  $('toggleTheme').textContent=state.appearance==='dark'?'☀':'☾';
  $('toggleTheme').title=locked?'Appearance set by Admin':'Switch to '+(state.appearance==='dark'?'Light':'Dark')+' Mode';
@@ -517,7 +797,7 @@ function applyAdminTheme(){
   setAppearance(target,{fromAdmin:true});
  }else{
   $('toggleTheme').disabled=false;
-  setAppearance(state.appearance,{fromAdmin:true});
+  setAppearance(studioSharedAppearance()||state.appearance,{fromAdmin:true});
  }
 }
 let studioAdminSettingsUnsub=null;
@@ -654,7 +934,7 @@ async function signInStudent(){
 }
 async function listProjects(){if(!requireAccount('Project library'))return;openDialog('My G8Code Projects','<p class="subtext">Loading your saved code projects…</p>',[{label:'Close',action:closeDialog}]);try{const snap=await projectsRef().orderBy('updatedAt','desc').limit(70).get().catch(()=>projectsRef().limit(70).get());state.projects=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.projectType!=='wireframe');renderProjectsModal()}catch(err){$('dialogContent').innerHTML=`<p>${escapeHTML(err.message)}</p>`}}
 function renderProjectsModal(){const rows=state.projects.length?state.projects.map(p=>`<div class="record-row"><div class="record-title"><strong>${escapeHTML(p.name||'Untitled Project')}</strong><small>${escapeHTML(p.activityTitle||p.petaActivityTitle||'HTML · CSS · JS')} · ${p.lastResult?`Rubric score ${p.lastResult.score??'?'} / ${p.lastResult.possible??'?'}`:p.studioPracticeCheck?`Practice ${p.studioPracticeCheck.score??'?'}/${p.studioPracticeCheck.checkedMax??'?'} · not official`:'In progress'}</small></div><button data-project-open="${escapeHTML(p.id)}">Open</button></div>`).join(''):'<p class="subtext">No code projects found. Create your first project in Studio V2.</p>';$('dialogContent').innerHTML=`<div class="record-list">${rows}</div>`;$('dialogFooter').innerHTML='';const cancel=document.createElement('button');cancel.className='secondary';cancel.textContent='Close';cancel.onclick=closeDialog;const create=document.createElement('button');create.className='primary';create.textContent='New project';create.onclick=()=>{closeDialog();newProject()};$('dialogFooter').append(cancel,create)}
-async function loadProject(id){if(!requireAccount('Open project'))return false;const startup=STUDIO_PARAMS.get('project')===id; if(startup)document.body.classList.add('studio-loading-project');try{status('Loading selected project…');const doc=await projectsRef().doc(id).get();if(!doc.exists)throw Error('Project does not exist.');const project={id,...doc.data()};if(project.projectType==='wireframe')throw Error('This is a Wireframe project. Open it in the original G8Code app.');if(state.dirty&&!startup&&!await confirmAction('Unsaved changes will be replaced. Open this project?','Open project'))return false;state.project=project;state.projectId=id;state.lastPracticeCheck=project.studioPracticeCheck||null;state.lastAutoResult=null;state.code=normalizeProject(project);state.previewPage=state.code.activeHtmlPage;state.lang='html';title(project.name);switchFile('html',state.code.activeHtmlPage);state.dirty=false;status('● Project loaded');renderResultQuick();closeDialog();runPreview();const linkedPeta=String(STUDIO_PARAMS.get('peta')||project.petaActivityId||'');if(linkedPeta){const activity=state.given.find(a=>String(a.id)===linkedPeta);if(activity)showReferenceDock(activity);}toast('Opened '+state.name);return true}catch(err){status('Open failed');toast(err.message||'Cannot load project','error');if(startup)openDialog('Project could not load',`<p>${escapeHTML(err.message||'Please check your connection and open the project again.')}</p>`,[{label:'My Projects',action:()=>goToStudioDestination('projects')},{label:'Retry',kind:'primary',action:()=>{closeDialog();loadProject(id)}}]);return false}finally{if(startup)document.body.classList.remove('studio-loading-project')}}
+async function loadProject(id){if(!requireAccount('Open project'))return false;const startup=STUDIO_PARAMS.get('project')===id; if(startup)document.body.classList.add('studio-loading-project');try{status('Loading selected project…');const doc=await projectsRef().doc(id).get();if(!doc.exists)throw Error('Project does not exist.');const project={id,...doc.data()};if(project.projectType==='wireframe')throw Error('This is a Wireframe project. Open it in the original G8Code app.');if(state.dirty&&!startup&&!await confirmAction('Unsaved changes will be replaced. Open this project?','Open project'))return false;editHistory?.reset();clearSourceDiagnostics();state.project=project;state.projectId=id;state.lastPracticeCheck=project.studioPracticeCheck||null;state.lastAutoResult=null;state.code=normalizeProject(project);state.previewPage=state.code.activeHtmlPage;state.lang='html';title(project.name);switchFile('html',state.code.activeHtmlPage);state.dirty=false;status('● Project loaded');renderResultQuick();closeDialog();runPreview();const linkedPeta=String(STUDIO_PARAMS.get('peta')||project.petaActivityId||'');if(linkedPeta){const activity=state.given.find(a=>String(a.id)===linkedPeta);if(activity)showReferenceDock(activity);}toast('Opened '+state.name);return true}catch(err){status('Open failed');toast(err.message||'Cannot load project','error');if(startup)openDialog('Project could not load',`<p>${escapeHTML(err.message||'Please check your connection and open the project again.')}</p>`,[{label:'My Projects',action:()=>goToStudioDestination('projects')},{label:'Retry',kind:'primary',action:()=>{closeDialog();loadProject(id)}}]);return false}finally{if(startup)document.body.classList.remove('studio-loading-project')}}
 function currentSavePayload(){const current=state.code;const key=state.project?.selectedActivityId||'scratch';const preserve={...((state.project?.codeByActivity)||{})};preserve[key]={...clone(current),html:current.pages[current.activeHtmlPage]||'',css:current.cssFiles[current.activeCssFile]||'',js:current.jsFiles[current.activeJsFile]||''};return {projectType:'code',name:state.name||'Untitled Project',nameLower:(state.name||'Untitled Project').toLowerCase(),status:state.project?.status||'in-progress',codeByActivity:preserve,selectedActivityId:state.project?.selectedActivityId||'',activityTitle:state.project?.activityTitle||'',petaActivityId:state.project?.petaActivityId||'',petaActivityTitle:state.project?.petaActivityTitle||'',isPetaProject:state.project?.isPetaProject===true,fileNames:{html:current.activeHtmlPage,css:current.activeCssFile,js:current.activeJsFile},runCount:state.project?.runCount||0,...(state.lastPracticeCheck?{studioPracticeCheck:clone(state.lastPracticeCheck)}:{}),...(state.lastAutoResult?{lastResult:clone(state.lastAutoResult),status:state.lastAutoResult.passed?'passed':'checked'}:{})}}
 // Studio V2 and the original G8Code app intentionally share the same project
 // collection AND My Projects index/cache format. Do not create a V2-only library.
@@ -832,7 +1112,7 @@ async function finishStudioNavigation(route){
 }
 function restoreStudentRecovery(uid){try{const draft=JSON.parse(sessionStorage.getItem(`${DRAFT}.${uid}`)||'null');if(!draft?.dirty||!draft.code||Date.now()-Number(draft.updated||0)>24*60*60*1000)return;state.projectId=draft.projectId||'';state.project=null;state.code=normalizeCode(draft.code);state.lastPracticeCheck=draft.practiceCheck||null;title(draft.name||'Recovered draft');state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);state.dirty=true;status('● Recovered unsaved work · save to cloud');runPreview();toast('Recovered an unsaved draft from this browser tab. Save it when ready.')}catch(e){console.warn('Recovery skipped',e)}}
 function renderResultQuick(){const r=state.project?.lastResult;$('resultQuick').textContent=r?`Score: ${Number(r.score||0)}/${Number(r.possible||0)}`:'No recorded score loaded'}
-async function newProject(){if(state.collab){toast('Leave live collaboration before starting another project.','error');return;}if(state.dirty&&!await confirmAction('Create a new project and replace the current unsaved work?','Create new'))return;state.project=null;state.projectId='';state.lastPracticeCheck=null;state.lastAutoResult=null;state.code=studioFreshCode();state.previewPage='index.html';title('Untitled Webpage');state.lang='html';switchFile('html','index.html');state.dirty=false;status('● New draft · not saved');renderResultQuick();runPreview()}
+async function newProject(){if(state.collab){toast('Leave live collaboration before starting another project.','error');return;}if(state.dirty&&!await confirmAction('Create a new project and replace the current unsaved work?','Create new'))return;state.project=null;state.projectId='';state.lastPracticeCheck=null;state.lastAutoResult=null;editHistory?.reset();clearSourceDiagnostics();state.code=studioFreshCode();state.previewPage='index.html';title('Untitled Webpage');state.lang='html';switchFile('html','index.html');state.dirty=false;status('● New draft · not saved');renderResultQuick();runPreview()}
 function makeNativeZip(files){const enc=new TextEncoder();const local=[],central=[];let offset=0;const crcTable=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let j=0;j<8;j++)c=c&1?0xedb88320^(c>>>1):c>>>1;crcTable[n]=c>>>0}const crc32=bytes=>{let crc=0xffffffff;for(const b of bytes)crc=crcTable[(crc^b)&255]^(crc>>>8);return (crc^0xffffffff)>>>0};for(const [name,source] of Object.entries(files)){const nb=enc.encode(name),data=enc.encode(String(source)),crc=crc32(data);if(nb.length>65535)throw Error('File name too long');const a=new Uint8Array(30+nb.length),av=new DataView(a.buffer);av.setUint32(0,0x04034b50,true);av.setUint16(4,20,true);av.setUint16(6,0x0800,true);av.setUint16(8,0,true);av.setUint32(14,crc,true);av.setUint32(18,data.length,true);av.setUint32(22,data.length,true);av.setUint16(26,nb.length,true);a.set(nb,30);local.push(a,data);const c=new Uint8Array(46+nb.length),cv=new DataView(c.buffer);cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x0800,true);cv.setUint16(10,0,true);cv.setUint32(16,crc,true);cv.setUint32(20,data.length,true);cv.setUint32(24,data.length,true);cv.setUint16(28,nb.length,true);cv.setUint32(42,offset,true);c.set(nb,46);central.push(c);offset+=a.length+data.length}if(central.length>65535)throw Error('Too many files');const centralSize=central.reduce((s,b)=>s+b.length,0),end=new Uint8Array(22),v=new DataView(end.buffer);v.setUint32(0,0x06054b50,true);v.setUint16(8,central.length,true);v.setUint16(10,central.length,true);v.setUint32(12,centralSize,true);v.setUint32(16,offset,true);return new Blob([...local,...central,end],{type:'application/zip'})}
 async function exportZip(){const files=getProjectFiles();try{const blob=makeNativeZip(files);downloadBlob(blob,`${state.name.toLowerCase().replace(/[^a-z0-9-]+/g,'-')||'g8code-project'}.zip`);toast('ZIP downloaded · '+Object.keys(files).length+' files')}catch(err){toast('Export failed: '+err.message,'error')}}
 function downloadBlob(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
@@ -1301,10 +1581,10 @@ function ensureLiveEngine(){if(liveCollab)return liveCollab;if(!window.createStu
   notice:message=>{if(state.collab){state.collab.liveStatus=message;renderCollabPresence()}status(message)},
   members:(members,channels,access,ready)=>{if(!state.collab)return;state.collab.peers={...members};state.collab.access=access;state.collab.ready=ready;renderCollabPresence()},
   cursor:(uid,c)=>{if(!state.collab)return;const next={...c,lang:c.lang||c.language,updatedAtMs:Date.now()};if(state.collab.peers?.[uid])state.collab.peers[uid].cursor=next;renderCollabCursors()},
-  permissions:(allowed,inSession,access,ready)=>{input.readOnly=inSession&&!allowed;$('projectTitle').disabled=inSession&&!allowed;document.body.classList.toggle('studio-collab-readonly',inSession&&!allowed);renderFiles();if(inSession&&!allowed)status(ready?'View only · host controls editing':'Connecting to live host…')},
-  initialState:data=>{const blocks=data.codeByActivity||{},key=data.selectedActivityId||state.project?.selectedActivityId||'scratch',store=blocks[key]||blocks.scratch||Object.values(blocks)[0];if(store){state.code=normalizeCode(store);state.previewPage=state.code.activeHtmlPage;state.lang='html';switchFile('html',state.code.activeHtmlPage);runPreview()}},
-  structuralState:data=>{const blocks=data.codeByActivity||{},store=blocks[data.selectedActivityId||'scratch']||blocks.scratch||Object.values(blocks)[0];if(store){state.code=normalizeCode(store);switchFile('html',state.code.activeHtmlPage);runPreview()}},
-  remoteFile:(lang,name,text,editorName)=>{if(!GROUP[lang]||!validFileName(name,lang))return;const map=state.code[GROUP[lang]];map[name]=text;if(state.lang===lang&&fileName(lang)===name&&input.value!==text){const prior=input.value,at=input.selectionStart,end=input.selectionEnd;let prefix=0;while(prefix<Math.min(prior.length,text.length)&&prior[prefix]===text[prefix])prefix++;const delta=text.length-prior.length;input.value=text;input.setSelectionRange(Math.max(0,Math.min(text.length,at+(at>prefix?delta:0))),Math.max(0,Math.min(text.length,end+(end>prefix?delta:0))));refreshLineNumbers();refreshCursor();}if(state.autoRun)scheduleRun();safeLocalDraft();renderCollabCursors()},
+  permissions:(allowed,inSession,access,ready)=>{input.readOnly=inSession&&!allowed;$('projectTitle').disabled=inSession&&!allowed;document.body.classList.toggle('studio-collab-readonly',inSession&&!allowed);renderFiles();updateUndoButtons();if(inSession&&!allowed)status(ready?'View only · host controls editing':'Connecting to live host…')},
+  initialState:data=>{editHistory?.reset();clearSourceDiagnostics();const blocks=data.codeByActivity||{},key=data.selectedActivityId||state.project?.selectedActivityId||'scratch',store=blocks[key]||blocks.scratch||Object.values(blocks)[0];if(store){state.code=normalizeCode(store);state.previewPage=state.code.activeHtmlPage;state.lang='html';switchFile('html',state.code.activeHtmlPage);runPreview()}},
+  structuralState:data=>{editHistory?.reset();clearSourceDiagnostics();const blocks=data.codeByActivity||{},store=blocks[data.selectedActivityId||'scratch']||blocks.scratch||Object.values(blocks)[0];if(store){state.code=normalizeCode(store);switchFile('html',state.code.activeHtmlPage);runPreview()}},
+  remoteFile:(lang,name,text,editorName)=>{if(!GROUP[lang]||!validFileName(name,lang))return;const map=state.code[GROUP[lang]];if(map[name]!==text)editHistory?.invalidate(lang,name);map[name]=text;if(state.lang===lang&&fileName(lang)===name&&input.value!==text){const prior=input.value,at=input.selectionStart,end=input.selectionEnd;let prefix=0;while(prefix<Math.min(prior.length,text.length)&&prior[prefix]===text[prefix])prefix++;const delta=text.length-prior.length;input.value=text;input.setSelectionRange(Math.max(0,Math.min(text.length,at+(at>prefix?delta:0))),Math.max(0,Math.min(text.length,end+(end>prefix?delta:0))));refreshLineNumbers();refreshCursor();}state.changeRevision=(state.changeRevision||0)+1;if(state.autoRun)scheduleRun();safeLocalDraft();renderCollabCursors();updateUndoButtons();scheduleSourceDiagnostics()},
   stopped:message=>{stopCollab();toast(message,'error')}
 });return liveCollab}
 async function leaveCollabSession(){const c=state.collab;if(!c)return;if(c.isHost)liveCollab?.terminate();const code=c.code;stopCollab();try{if(c.isHost)await sharedDoc(code).set({active:false,status:'closed'},{merge:true});else await sharedDoc(code).collection('peers').doc(state.auth.uid).set({online:false,lastSeenAt:Date.now()},{merge:true});toast(c.isHost?'Live sharing ended':'Left live collaboration')}catch(e){toast('Left locally; session status may take a moment to update.','error')}}
@@ -1671,7 +1951,25 @@ function openSuperStudio(){
  openDialog('Super Studio · Coding Tools',`<p class="subtext">One-click Auto Format for the active HTML, CSS or JavaScript file. Snapshots capture your whole project and stay in this browser tab only.</p><div class="option-grid"><button data-action="formatCurrent">✦ Auto Format Current File<small>Clean indentation and layout in ${escapeHTML(fileName())}. Other project files are not changed.</small></button><button data-action="snapshotSave">＋ Save Snapshot<small>Capture all HTML, CSS and JS files before experimenting.</small></button>${undo?'<button data-action="formatUndo">↶ Undo Last Format<small>Restore this file to its exact code before formatting.</small></button>':''}</div><h3>Saved snapshots</h3><div class="record-list">${snapshots.map((v,i)=>`<div class="record-row"><div class="record-title"><strong>${escapeHTML(v.name||'Snapshot')}</strong><small>${escapeHTML(new Date(v.at).toLocaleString())}</small></div><button data-snapshot="${i}">Restore</button></div>`).join('')||'<p class="subtext">No snapshots yet.</p>'}</div>`,[{label:'Close',action:closeDialog}]);
 }
 function bindEvents(){
-$('codeInput').addEventListener('input',e=>{changeCode(e);scheduleCollabCursor()});input.addEventListener('scroll',()=>{$('lineNumbers').scrollTop=input.scrollTop;const hi=$('codeHighlight');hi.scrollTop=input.scrollTop;hi.scrollLeft=input.scrollLeft;renderCollabCursors()});input.addEventListener('click',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('keyup',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('select',()=>{renderHighlight();scheduleCollabCursor()});input.addEventListener('keydown',e=>{if(e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1);return;}if(e.key==='Tab'){if(input.readOnly){e.preventDefault();return}e.preventDefault();const start=input.selectionStart,end=input.selectionEnd;input.setRangeText('  ',start,end,'end');changeCode()}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}if(e.altKey&&!e.ctrlKey&&!e.metaKey&&e.target!==input&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1)}if(e.key==='Escape'){if(!$('focusMobileMoreMenu').hidden){closeMobileFocusMore();return}if(!$('dialog').classList.contains('hidden'))closeDialog();else if($('filesPanel').classList.contains('open'))toggleFiles(false);else if(document.body.dataset.immersive)exitStudioFullscreen();else $('navMenu').classList.add('hidden')}});
+installStudioConsole();installMobileCoding();
+window.addEventListener('storage',e=>{
+ if(e.key!==STUDIO_SHARED_APPEARANCE&&e.key!==STUDIO_ORIGINAL_APPEARANCE)return;
+ const settings=state.root?.loginReminderSettings||fromJSON('studentCodeStudio.loginReminderSettings.v1',{});
+ if(settings.applyThemeToEntireApp===true&&settings.allowStudentAppAppearanceChoice!==true)return;
+ const value=studioSharedAppearance();if(value&&value!==state.appearance)setAppearance(value,{fromAdmin:true});
+});
+$('studioUndo').onclick=()=>editorHistoryStep('undo');
+$('studioRedo').onclick=()=>editorHistoryStep('redo');
+input.addEventListener('beforeinput',e=>{
+ if(e.inputType==='historyUndo'||e.inputType==='historyRedo'){
+  if(e.cancelable){e.preventDefault();editorHistoryStep(e.inputType==='historyUndo'?'undo':'redo');}
+ }
+});
+$('codeInput').addEventListener('input',e=>{changeCode(e);scheduleCollabCursor()});input.addEventListener('scroll',()=>{$('lineNumbers').scrollTop=input.scrollTop;const hi=$('codeHighlight');hi.scrollTop=input.scrollTop;hi.scrollLeft=input.scrollLeft;renderCollabCursors()});input.addEventListener('click',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('keyup',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('select',()=>{renderHighlight();scheduleCollabCursor()});input.addEventListener('keydown',e=>{
+ if((e.ctrlKey||e.metaKey)&&!e.altKey&&['z','y'].includes(e.key.toLowerCase())){
+  e.preventDefault();editorHistoryStep(e.key.toLowerCase()==='y'||(e.shiftKey&&e.key.toLowerCase()==='z')?'redo':'undo');return;
+ }
+ if(e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1);return;}if(e.key==='Tab'){if(input.readOnly){e.preventDefault();return}e.preventDefault();const start=input.selectionStart,end=input.selectionEnd;input.setRangeText('  ',start,end,'end');changeCode()}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}if(e.altKey&&!e.ctrlKey&&!e.metaKey&&e.target!==input&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1)}if(e.key==='Escape'){if(!$('focusMobileMoreMenu').hidden){closeMobileFocusMore();return}if(!$('dialog').classList.contains('hidden'))closeDialog();else if($('filesPanel').classList.contains('open'))toggleFiles(false);else if(document.body.dataset.immersive)exitStudioFullscreen();else $('navMenu').classList.add('hidden')}});
 $('projectTitle').addEventListener('change',()=>{title($('projectTitle').value);setDirty()});$('saveBtn').onclick=()=>saveProject();$('mobileSaveAction').onclick=()=>saveProject();$('authPill').onclick=openAccount;$('menuBtn').onclick=()=>{const m=$('navMenu');m.classList.toggle('hidden');$('menuBtn').setAttribute('aria-expanded',String(!m.classList.contains('hidden')))};$('navMenu').addEventListener('click',e=>{const button=e.target.closest('[data-studio-route]');if(button)goToStudioDestination(button.dataset.studioRoute)});$('studioAdminShortcut').addEventListener('click',()=>goToStudioDestination('admin'));$('guestLoginMenu')?.addEventListener('click',guestLoginToSave);
 $('toggleTheme').onclick=()=>setAppearance(state.appearance==='dark'?'light':'dark');all('.layout-picker button[data-layout]').forEach(b=>b.onclick=()=>{if(b.dataset.layout==='editor'){enterStudioFullscreen('code');return}setLayout(b.dataset.layout);if(matchMedia('(max-width:700px)').matches)setMobileTab(b.dataset.layout==='preview'?'preview':'code')});$('focusSwitch').onclick=switchStudioFullscreen;$('focusExit').onclick=exitStudioFullscreen;$('focusLandscape').onclick=async()=>{if(state.device!=='desktop'||document.body.dataset.immersive!=='preview')return;try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();await screen.orientation.lock('landscape');toast('Desktop output in landscape');}catch(err){toast('Rotate your phone to landscape. Your browser may block forced rotation.','error')}requestAnimationFrame(updateCanvas)};$('focusFiles').onclick=()=>toggleFiles(true);$('focusTools').onclick=()=>openTools();
 $('focusMobileMore').onclick=()=>{
@@ -1713,13 +2011,13 @@ all('#languageTabs button').forEach(b=>b.onclick=()=>{const lang=b.dataset.lang;
       runPreview();
     }
   }));
-};$('autoRun').onclick=()=>{state.autoRun=!state.autoRun;$('autoRun').classList.toggle('active',state.autoRun);$('autoRun').setAttribute('aria-pressed',String(state.autoRun));storePrefs();toast(state.autoRun?'Auto Run on':'Manual Run on')};$('previewPage').onchange=e=>{state.previewPage=e.target.value;runPreview()};$('previewZoom').onchange=e=>{state.previewZoom=e.target.value;updateCanvas();$('previewViewport').scrollTo(0,0)};all('[data-device]').forEach(b=>b.onclick=()=>setDevice(b.dataset.device));$('mobileCode').onclick=()=>setMobileTab('code');$('mobilePreview').onclick=()=>setMobileTab('preview');$('openMore').onclick=()=>openTools();$('mobileMoreAction').onclick=()=>openTools();$('openProjects').onclick=listProjects;$('openActivities').onclick=openActivities;$('openCollab').onclick=openCollab;$('quickResult').onclick=openRubrics;$('closeDialog').onclick=closeDialog;$('dialogSize').onclick=()=>{const expanded=$('dialog').classList.toggle('expanded');$('dialogSize').textContent=expanded?'↙ Compact':'⤢ Resize'};$('scrim').onclick=closeDialog;$('dialogContent').addEventListener('change',async e=>{if(e.target?.id!=='studioCollabAccess')return;const mode=e.target.value==='view'?'view':'edit';if(state.collab?.isHost){try{await liveCollab?.access(mode);state.collab.access=mode;renderCollabPresence();toast(mode==='view'?'Classmates are now view-only':'Classmates can now edit together')}catch(err){toast('Could not update access: '+err.message,'error')}}else state.collabNewAccess=mode});
+};$('autoRun').onclick=()=>{state.autoRun=!state.autoRun;$('autoRun').classList.toggle('active',state.autoRun);$('autoRun').setAttribute('aria-pressed',String(state.autoRun));storePrefs();if(state.autoRun && previewRevision!==(state.changeRevision||0))scheduleRun();toast(state.autoRun?'Auto Run on':'Manual Run on')};$('previewPage').onchange=e=>{state.previewPage=e.target.value;runPreview()};$('previewZoom').onchange=e=>{state.previewZoom=e.target.value;updateCanvas();$('previewViewport').scrollTo(0,0)};all('[data-device]').forEach(b=>b.onclick=()=>setDevice(b.dataset.device));$('mobileCode').onclick=()=>setMobileTab('code');$('mobilePreview').onclick=()=>setMobileTab('preview');$('openMore').onclick=()=>openTools();$('mobileMoreAction').onclick=()=>openTools();$('openProjects').onclick=listProjects;$('openActivities').onclick=openActivities;$('openCollab').onclick=openCollab;$('quickResult').onclick=openRubrics;$('closeDialog').onclick=closeDialog;$('dialogSize').onclick=()=>{const expanded=$('dialog').classList.toggle('expanded');$('dialogSize').textContent=expanded?'↙ Compact':'⤢ Resize'};$('scrim').onclick=closeDialog;$('dialogContent').addEventListener('change',async e=>{if(e.target?.id!=='studioCollabAccess')return;const mode=e.target.value==='view'?'view':'edit';if(state.collab?.isHost){try{await liveCollab?.access(mode);state.collab.access=mode;renderCollabPresence();toast(mode==='view'?'Classmates are now view-only':'Classmates can now edit together')}catch(err){toast('Could not update access: '+err.message,'error')}}else state.collabNewAccess=mode});
 $('dialogContent').addEventListener('click',async e=>{const el=e.target.closest('button');if(!el)return;if(el.dataset.collabKick){e.preventDefault();e.stopPropagation();await kickCollabParticipant(el.dataset.collabKick);}else if(el.dataset.projectOpen)loadProject(el.dataset.projectOpen);else if(el.dataset.activity)openActivity(el.dataset.activity);else if(el.dataset.inbox)viewInbox(el.dataset.inbox);else if(el.dataset.add){closeDialog();addOrRenameFile(el.dataset.add)}else if(el.dataset.downloadFile){const name=el.dataset.downloadFile;downloadBlob(new Blob([getProjectFiles()[name]||''],{type:'text/plain'}),name)}else if(el.dataset.snapshot!==undefined){
  if(!assistantAllowed('superStudio'))return;
  const saved=JSON.parse(sessionStorage.getItem(V2_SNAPSHOT_KEY)||'[]'),snap=saved[Number(el.dataset.snapshot)];
  if(!snap)return;
  if(!await confirmAction('Restore this snapshot? This replaces your current unsaved code.','Restore'))return;
- state.code=normalizeCode(snap.code);title(snap.name);state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);setDirty();runPreview();closeDialog();toast('Snapshot restored');
+ editHistory?.reset();clearSourceDiagnostics();state.code=normalizeCode(snap.code);title(snap.name);state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);setDirty();runPreview();closeDialog();toast('Snapshot restored');
  }else if(el.dataset.action){const action=el.dataset.action;if(action==='snapshotSave'){
   if(!assistantAllowed('superStudio'))return;
   const snapshots=JSON.parse(sessionStorage.getItem(V2_SNAPSHOT_KEY)||'[]');snapshots.unshift({at:Date.now(),name:state.name,code:clone(state.code)});
@@ -1743,6 +2041,6 @@ function toggleFiles(open){
  storePrefs();
 }
 async function restoreGuestDraft(){try{const draft=JSON.parse(sessionStorage.getItem(DRAFT)||'null');if(draft?.code){state.code=normalizeCode(draft.code);state.lastPracticeCheck=draft.practiceCheck||null;title(draft.name||state.name);state.dirty=true}}catch{}}
-async function boot(){document.body.classList.add('studio-guest-mode');if(STUDIO_FORCE_GUEST||!STUDIO_PARAMS.has('project'))await restoreGuestDraft();setAppearance(state.appearance);document.documentElement.style.setProperty('--font-size',state.font+'px');$('workspace').style.setProperty('--split',(prefs.split||54)+'%');$('workspace').style.setProperty('--stack',(prefs.stack||55)+'%');bindEvents();if(STUDIO_PARAMS.has('project'))document.body.classList.add('studio-loading-project');switchFile('html',state.code.activeHtmlPage);setLayout(state.layout);setDevice(state.device);setMobileTab('code');$('autoRun').classList.toggle('active',state.autoRun);refreshSettings();toggleFiles(!matchMedia('(max-width:920px)').matches&&state.filesOpen);runPreview();initFirebase();}
+async function boot(){document.body.classList.add('studio-guest-mode');if(STUDIO_FORCE_GUEST||!STUDIO_PARAMS.has('project'))await restoreGuestDraft();setAppearance(state.appearance,{fromAdmin:true});document.documentElement.style.setProperty('--font-size',state.font+'px');$('workspace').style.setProperty('--split',(prefs.split||54)+'%');$('workspace').style.setProperty('--stack',(prefs.stack||55)+'%');bindEvents();if(STUDIO_PARAMS.has('project'))document.body.classList.add('studio-loading-project');switchFile('html',state.code.activeHtmlPage);setLayout(state.layout);setDevice(state.device);setMobileTab('code');$('autoRun').classList.toggle('active',state.autoRun);refreshSettings();updateUndoButtons();scheduleSourceDiagnostics(true);toggleFiles(!matchMedia('(max-width:920px)').matches&&state.filesOpen);runPreview();initFirebase();}
 boot();
 })();

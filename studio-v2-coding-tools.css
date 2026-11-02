@@ -1,0 +1,64 @@
+/* Studio V2.41 — compact, isolated diagnostics and touch-coding tools. */
+#codePanel{position:relative}
+.studio-console-trigger,.studio-console-preview-btn{font:700 11px/1.2 inherit;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:9px;padding:5px 9px;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:28px;cursor:pointer}
+.studio-console-trigger.has-errors{border-color:#dc6472;color:#c32945}
+body[data-appearance="dark"] .studio-console-trigger.has-errors{color:#ffacba}
+.studio-console-trigger b,.studio-console-preview-btn b{display:grid;place-items:center;background:#be2643;color:#fff;min-width:17px;height:17px;border-radius:50%;font-size:10px}
+.studio-console-trigger b[hidden],.studio-console-preview-btn b[hidden]{display:none}
+.studio-console-panel{position:absolute;bottom:0;left:0;right:0;z-index:15;height:min(285px,50%);min-height:130px;background:var(--surface);border:1px solid var(--border);border-radius:14px 14px 0 0;box-shadow:0 -8px 30px rgba(6,19,45,.18);display:flex;flex-direction:column;color:var(--ink);overflow:hidden}
+.studio-console-panel[hidden]{display:none!important}
+.studio-console-header{touch-action:none;flex:none;display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--surface-alt);border-bottom:1px solid var(--border);min-height:43px;font-size:12px}
+.studio-console-header strong{font-size:12px;white-space:nowrap}
+#studioConsoleSummary{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.studio-console-header button{border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:7px;min-width:35px;min-height:30px;padding:5px 8px;font-size:11px;cursor:pointer}
+.studio-console-log{flex:1;overflow:auto;overscroll-behavior:contain;padding:9px 12px;font-size:12px}
+.studio-console-empty{color:var(--muted);margin:8px 2px}
+.studio-console-entry{padding:10px;border:1px solid var(--border);border-left:3px solid #567fba;background:var(--surface-alt);border-radius:8px;margin-bottom:8px;overflow-wrap:anywhere}
+.studio-console-entry.level-error{border-left-color:#df5365}
+.studio-console-entry.level-warn{border-left-color:#d59e37}
+.studio-console-entry-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:4px}
+.studio-console-entry-head strong{font-size:11px}
+.studio-console-entry-head span{font-size:10px;color:var(--muted)}
+.studio-console-entry pre{font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word;margin:0;color:var(--ink)}
+.studio-console-tip{color:var(--muted);font-size:11px;line-height:1.45;margin:5px 0 0}
+.studio-symbol-bar{display:none;flex:none;align-items:center;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;background:var(--surface-alt);padding:5px 9px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.studio-symbol-bar::-webkit-scrollbar{display:none}
+.studio-symbol-bar button{flex:0 0 auto;min-width:38px;min-height:35px;padding:5px 10px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:700 14px/1.1 ui-monospace,Consolas,monospace}
+.studio-symbol-bar button:active{background:var(--brand-2);color:#fff}
+@media (max-width:700px){
+ .studio-symbol-bar{display:flex}
+ .studio-console-trigger{padding:5px 7px;font-size:10px;min-height:30px}
+ .studio-console-preview-btn{min-width:31px;padding:4px}
+ .studio-console-panel{height:min(46dvh,340px);max-height:calc(100% - 92px);border-radius:15px 15px 0 0}
+ .studio-console-header{touch-action:pan-x}
+ .studio-console-grip{height:4px;width:23px;background:var(--muted);opacity:.6;border-radius:10px;flex:none}
+ .studio-console-log{padding:8px}
+ /* The small keyboard only changes Studio's available viewport. The normal app and fullscreen preview stay untouched. */
+ body.studio-keyboard-active .studio-shell{height:min(100dvh,var(--studio-mobile-viewport,100dvh));}
+ body.studio-keyboard-active .mobile-actionbar{padding-bottom:3px}
+ body.studio-keyboard-active #codeInput{scroll-padding-bottom:50px}
+}
+@media(min-width:701px){.studio-console-header{cursor:ns-resize}}
+
+/* V2.42: Undo/Redo consistently aligned with existing editor actions. */
+.code-panel .pane-actions .studio-history-btn{display:inline-flex;align-items:center;justify-content:center;line-height:1;font-family:system-ui,sans-serif;font-size:20px;font-weight:700;padding:0;color:var(--ink);flex:none}
+.code-panel .pane-actions .studio-history-btn:disabled{opacity:.36;cursor:not-allowed}
+.code-panel .pane-actions .studio-history-btn:not(:disabled):active{background:var(--surface-alt)}
+.studio-console-jump{border:1px solid var(--border);color:var(--brand);background:var(--surface);border-radius:6px;padding:3px 6px;font:700 10px/1.25 ui-monospace,monospace;min-height:25px;margin-left:auto;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.studio-console-jump:focus-visible{outline:2px solid var(--brand-2)}
+@media (max-width:700px){
+ .code-panel .pane-header{gap:4px;padding-left:6px;padding-right:6px}
+ .code-panel .pane-actions{display:flex;align-items:center;gap:3px;flex:none}
+ .code-panel .pane-actions .icon-button.small{width:30px;min-width:30px;height:32px;padding:0}
+ .code-panel .pane-actions .studio-history-btn{font-size:20px}
+ .code-panel .file-tabs{min-width:0;gap:1px}
+ .code-panel .file-tabs button{padding:7px 8px;min-width:0}
+ .studio-console-jump{max-width:66%}
+}
+@media (max-width:370px){
+ .code-panel .pane-actions{gap:2px}
+ .code-panel .pane-actions .icon-button.small{width:27px;min-width:27px;height:30px}
+ .code-panel .pane-actions .studio-history-btn{font-size:18px}
+ .code-panel .file-tabs button{padding:7px 6px}
+ .code-panel .pane-header{padding-left:5px;padding-right:5px}
+}
