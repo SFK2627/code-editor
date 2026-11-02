@@ -23,7 +23,7 @@ function studioSharedAppearance(){
  const value=fromJSON(STUDIO_SHARED_APPEARANCE,null)||fromJSON(STUDIO_ORIGINAL_APPEARANCE,null);
  return value==='dark'||value==='light'?value:null;
 }
-const state={lang:'html',layout:prefs.layout||'split',mobileTab:'code',device:prefs.device||(matchMedia('(max-width:700px)').matches?'phone':matchMedia('(max-width:920px)').matches?'tablet':'desktop'),appearance:studioSharedAppearance()||prefs.appearance||'light',autoRun:prefs.autoRun!==false,font:clamp(Number(prefs.font)||13,9,32),previewZoom:'fit',filesOpen:typeof prefs.filesOpen==='boolean'?prefs.filesOpen:matchMedia('(min-width:1200px)').matches,dirty:false,saving:false,guest:true,auth:null,profile:null,root:{},activities:[],given:[],projects:[],project:null,projectId:'',name:'My First Webpage',code:structuredClone(START),previewPage:'index.html',collab:null,collabUnsubs:[],rtcTimer:null,unsavedSince:0};
+const state={lang:'html',layout:prefs.layout||'split',mobileTab:'code',device:prefs.device||(matchMedia('(max-width:700px)').matches?'phone':matchMedia('(max-width:920px)').matches?'tablet':'desktop'),appearance:studioSharedAppearance()||prefs.appearance||'light',autoRun:prefs.autoRun!==false,font:clamp(Number(prefs.font)||13,9,32),previewZoom:'fit',autoCssEnabled:prefs.autoCssEnabled===true,filesOpen:typeof prefs.filesOpen==='boolean'?prefs.filesOpen:matchMedia('(min-width:1200px)').matches,dirty:false,saving:false,guest:true,auth:null,profile:null,root:{},activities:[],given:[],projects:[],project:null,projectId:'',name:'My First Webpage',code:structuredClone(START),previewPage:'index.html',collab:null,collabUnsubs:[],rtcTimer:null,unsavedSince:0};
 const frame=$('outputFrame'),input=$('codeInput'),rootPath=()=>{const c=window.MCS_FIREBASE_COLLECTION||'webCodeEditor',d=window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1';return [c,d]};
 let db=null,auth=null,autoTimer=null,cloudTimer=null,resizeObserver=null,dialogResolve=null, lastFocused=null;
 // V2.42 — local, per-file history. Remote edits to a file invalidate its
@@ -76,7 +76,7 @@ function normalizeProject(raw){
 }
 function setDirty(){state.dirty=true;state.changeRevision=(state.changeRevision||0)+1;state.unsavedSince=Date.now();status(state.guest?'● Unsaved local draft':'● Unsaved changes');safeLocalDraft();if(state.autoRun)scheduleRun();if(!state.collab&&!state.guest&&state.root?.studentAssistanceSettings?.enabled!==false&&state.root?.studentAssistanceSettings?.autoSave!==false){clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>saveProject({quiet:true}),15000)}}
 function safeLocalDraft(){try{const key=state.guest?DRAFT:`${DRAFT}.${state.auth?.uid||'auth'}`;sessionStorage.setItem(key,JSON.stringify({name:state.name,code:state.code,projectId:state.projectId,practiceCheck:state.lastPracticeCheck||null,dirty:state.dirty,updated:Date.now()}))}catch{}}
-function switchFile(lang,name){if(!fileMap(lang)?.hasOwnProperty(name))return;state.lang=lang;renderMobileSymbols();state.code[ACTIVE[lang]]=name;input.value=fileContent();$('activeFileLabel').textContent=name;all('#languageTabs button').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));renderFiles();refreshLineNumbers();refreshCursor();input.focus();renderCollabCursors();scheduleCollabCursor();updateUndoButtons();scheduleSourceDiagnostics();}
+function switchFile(lang,name){if(!fileMap(lang)?.hasOwnProperty(name))return;state.lang=lang;renderMobileSymbols();state.code[ACTIVE[lang]]=name;input.value=fileContent();$('activeFileLabel').textContent=name;all('#languageTabs button').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));renderFiles();refreshLineNumbers();refreshCursor();input.focus();renderCollabCursors();scheduleCollabCursor();updateUndoButtons();updateAutoCssToolbar();if(lang==='html')captureAutoCssSelection();scheduleSourceDiagnostics();}
 function renderFiles(){
  const groups=[['html','HTML pages','⌘'],['css','Stylesheets','◈'],['js','JavaScript','◇']];
  $('fileExplorer').innerHTML=groups.map(([lang,label,icon])=>{
@@ -255,6 +255,104 @@ function explainStudioIssue(message){
  if(/Failed to fetch|network|CORS/i.test(s))return 'An external request failed. Check the URL, internet connection, and resource permissions.';
  return 'Review the message and the related code. Not all browser messages indicate a mistake in your HTML or CSS.';
 }
+// V2.43 — student-led explanations; no AI request, execution or automatic fixes.
+function showStudioExplanation(item){
+ const lesson=window.G8StudioFindLearn?.explanation(item);if(!lesson)return;
+ const root=document.createElement('div');root.className='studio-explain-lesson';
+ for(const [label,text,kind] of [['CONSOLE MESSAGE',lesson.message,'message'],['WHAT IT MEANS',lesson.why,'plain'],['SMALL EXAMPLE',lesson.example,'code'],['THINK ABOUT IT',lesson.question,'question']]){
+  const section=document.createElement('section');section.className='studio-explain-part '+kind;
+  const heading=document.createElement('strong');heading.textContent=label;section.append(heading);
+  const body=document.createElement(kind==='code'?'pre':'p');body.textContent=text;section.append(body);root.append(section);
+ }
+ const note=document.createElement('p');note.className='studio-explain-note';note.textContent=lesson.notice;root.append(note);
+ openDialog('Explain My Error',root,[{label:'Back to Code',kind:'primary',action:()=>{closeDialog();input.focus({preventScroll:true})}}],'LEARN · CODE · CONNECT');
+}
+// V2.43 — find literal text in current file or all HTML/CSS/JS project files.
+let lastFindOptions={term:'',replace:'',scope:'current',caseSensitive:false,selected:-1};
+function searchFileEntries(scope){
+ if(scope==='current')return [[state.lang,fileName(),fileContent()]];
+ const result=[];
+ for(const lang of ['html','css','js'])for(const [name,source] of Object.entries(fileMap(lang)||{}))result.push([lang,name,source]);
+ return result;
+}
+function openStudioFind(options={}){
+ const engine=window.G8StudioFindLearn;if(!engine){toast('Search tools did not load. Refresh the Studio.','error');return;}
+ const data={...lastFindOptions,...options};
+ const root=document.createElement('div');root.className='studio-search';
+ root.innerHTML='<label>Find <input type="search" id="studioSearchTerm" autocomplete="off" placeholder="Word, class name, or ID" aria-label="Find text"></label>'+ 
+  '<label>Replace with <input type="text" id="studioSearchReplacement" autocomplete="off" placeholder="Replacement text (can be empty)" aria-label="Replace with"></label>'+ 
+  '<div class="studio-search-options"><label>Search in <select id="studioSearchScope"><option value="current">Current file</option><option value="project">Entire project</option></select></label><label class="studio-search-checkbox"><input id="studioSearchCase" type="checkbox"> Match case</label></div>'+ 
+  '<p id="studioSearchSummary" role="status" aria-live="polite"></p><div id="studioSearchMatches" class="studio-search-matches" aria-label="Match preview"></div>'+ 
+  '<div class="studio-search-actions"><button type="button" id="studioReplaceOne" class="secondary">Replace selected</button><button type="button" id="studioReplaceAll" class="primary">Preview &amp; Replace All</button></div>'+ 
+  '<p class="studio-search-hint">Select a match to replace just that occurrence, or preview every affected file before Replace All. Changes remain unsaved until you save your project.</p>';
+ openDialog('Find & Replace',root,[{label:'Close',action:closeDialog}]);
+ const term=root.querySelector('#studioSearchTerm'),replacement=root.querySelector('#studioSearchReplacement'),scope=root.querySelector('#studioSearchScope'),caseCheck=root.querySelector('#studioSearchCase');
+ term.value=data.term;replacement.value=data.replace;scope.value=data.scope;caseCheck.checked=data.caseSensitive;
+ const summary=root.querySelector('#studioSearchSummary'),preview=root.querySelector('#studioSearchMatches'),one=root.querySelector('#studioReplaceOne'),allButton=root.querySelector('#studioReplaceAll');
+ let results={matches:[],truncated:false},selected=-1,queued=0;
+ function snapshot(){return {term:term.value,replace:replacement.value,scope:scope.value,caseSensitive:caseCheck.checked,selected};}
+ function paint(){
+  queued=0;lastFindOptions=snapshot();
+  results=engine.scan(searchFileEntries(scope.value),term.value,{caseSensitive:caseCheck.checked});
+  if(!results.matches.length)selected=-1;
+  else if(selected<0||selected>=results.matches.length)selected=0;
+  summary.textContent=!term.value?'Enter text to search.':`${results.matches.length}${results.truncated?'+':''} match(es) in ${new Set(results.matches.map(m=>m.lang+':'+m.name)).size} file(s).${results.truncated?' Too many matches; narrow your search before replacing.':''}`;
+  preview.replaceChildren();
+  const fragment=document.createDocumentFragment();
+  for(let i=0;i<Math.min(results.matches.length,80);i++){
+   const m=results.matches[i],button=document.createElement('button');button.type='button';button.className='studio-search-match'+(i===selected?' selected':'');
+   button.setAttribute('aria-pressed',String(i===selected));
+   const path=document.createElement('strong');path.textContent=m.name+':'+m.line;
+   const sample=document.createElement('span');sample.textContent=m.context;
+   button.append(path,sample);button.addEventListener('click',()=>{selected=i;paint()});fragment.append(button);
+  }
+  preview.append(fragment);
+  if(results.matches.length>80){const tip=document.createElement('p');tip.textContent='Showing first 80 matches. All matches will be included in a confirmed Replace All.';preview.append(tip)}
+  one.disabled=!term.value||results.truncated||selected<0||input.readOnly||(state.collab&&!liveCollab?.canEdit());
+  allButton.disabled=!term.value||results.truncated||!results.matches.length||input.readOnly||(state.collab&&!liveCollab?.canEdit());
+ }
+ function defer(){clearTimeout(queued);queued=setTimeout(paint,90)}
+ term.addEventListener('input',defer);replacement.addEventListener('input',defer);scope.addEventListener('change',paint);caseCheck.addEventListener('change',paint);
+ function applyChanges(changes){
+  if(input.readOnly||(state.collab&&!liveCollab?.canEdit())){toast('This collaboration is view-only.','error');return false;}
+  // No async gap: validate all expected original versions before any write.
+  if(changes.some(c=>!Object.prototype.hasOwnProperty.call(fileMap(c.lang)||{},c.name)||fileMap(c.lang)[c.name]!==c.before)){
+   toast('A file changed while you were reviewing. Search again before replacing.','error');return false;
+  }
+  for(const c of changes){
+   if(c.before===c.after)continue;
+   editHistory?.record(c.lang,c.name,c.before,c.after,0,Date.now(),'insertReplacement');
+   fileMap(c.lang)[c.name]=c.after;
+   liveCollab?.localEdit(c.lang,c.name,c.before,c.after);
+   if(editAssist && (c.lang==='html'||c.lang==='css'))studioConsole.diagnostics.set(c.lang+':'+c.name,c.lang==='html'?editAssist.diagnoseHTML(c.after,c.name):editAssist.diagnoseCSS(c.after,c.name));
+  }
+  input.value=fileContent();refreshLineNumbers();refreshCursor();updateUndoButtons();scheduleStudioConsolePaint();scheduleSourceDiagnostics();setDirty();
+  return true;
+ }
+ one.addEventListener('click',()=>{
+  if(!results.matches.length||selected<0||results.truncated)return;
+  const m=results.matches[selected],source=fileMap(m.lang)?.[m.name];
+  if(typeof source!=='string')return;
+  const next=source.slice(0,m.at)+replacement.value+source.slice(m.end);
+  if(applyChanges([{lang:m.lang,name:m.name,before:source,after:next}])){
+   const options=snapshot();switchFile(m.lang,m.name);input.setSelectionRange(m.at,m.at+replacement.value.length);toast('Replaced one match in '+m.name);openStudioFind({...options,selected:-1});
+  }
+ });
+ allButton.addEventListener('click',async()=>{
+  if(results.truncated||!results.matches.length)return;
+  const options=snapshot(),files=searchFileEntries(options.scope);
+  const fresh=engine.scan(files,options.term,{caseSensitive:options.caseSensitive});
+  if(fresh.truncated){toast('Too many matches; narrow your search.','error');return}
+  const planned=engine.plan(files,fresh.matches,options.replace);
+  if(!planned||!planned.length)return;
+  const count=planned.reduce((n,c)=>n+c.count,0);
+  const yes=await confirmAction(`Preview: ${count} occurrence(s) across ${planned.length} file(s) will be replaced. This changes your working code; save afterward to keep it.`, 'Replace All');
+  if(!yes){openStudioFind(options);return;}
+  if(applyChanges(planned)){toast(`Replaced ${count} occurrence(s) in ${planned.length} file(s). Save your project to keep changes.`);openStudioFind({...options,selected:-1});}
+  else openStudioFind(options);
+ });
+ paint();term.focus({preventScroll:true});
+}
 function renderStudioConsole(){
  studioConsole.raf=0;
  const log=$('studioConsoleLog');if(!log)return;
@@ -277,6 +375,11 @@ function renderStudioConsole(){
   if(item.tip || item.level==='error'){
     const help=document.createElement('p');help.className='studio-console-tip';
     help.textContent=item.tip||explainStudioIssue(item.message);row.append(help);
+  }
+  if((item.level==='error'||item.level==='warn')&&window.G8StudioFindLearn){
+   const explain=document.createElement('button');explain.type='button';explain.className='studio-console-explain';
+   explain.textContent='✦ Explain my error';explain.setAttribute('aria-label','Explain this '+(item.level==='error'?'error':'warning'));
+   explain.addEventListener('click',()=>showStudioExplanation(item));row.append(explain);
   }
   frag.append(row);
  }
@@ -349,6 +452,7 @@ function renderMobileSymbols(){
  const bar=$('studioSymbolBar');if(!bar)return;
  const fragment=document.createDocumentFragment();
  for(const symbol of quickSymbols[state.lang]||quickSymbols.html){const b=document.createElement('button');b.type='button';b.textContent=symbol;b.dataset.symbol=symbol;b.setAttribute('aria-label','Insert '+symbol);fragment.append(b)}
+ const find=document.createElement('button');find.type='button';find.textContent='⌕';find.dataset.findAction='true';find.title='Find & Replace';find.setAttribute('aria-label','Find and replace across files');fragment.append(find);
  bar.replaceChildren(fragment);
 }
 function insertMobileSymbol(symbol){
@@ -371,7 +475,7 @@ function insertMobileSymbol(symbol){
 function installMobileCoding(){
  renderMobileSymbols();
  $('studioSymbolBar')?.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault()});
- $('studioSymbolBar')?.addEventListener('click',e=>{const b=e.target.closest('button[data-symbol]');if(b)insertMobileSymbol(b.dataset.symbol)});
+ $('studioSymbolBar')?.addEventListener('click',e=>{if(e.target.closest('[data-find-action]')){openStudioFind();return;}const b=e.target.closest('button[data-symbol]');if(b)insertMobileSymbol(b.dataset.symbol)});
  // Keyboard-aware height is limited to the code workspace and never used on desktop.
  const vv=window.visualViewport;
  if(vv){let queued=false;const update=()=>{queued=false;const keyboard=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);const active=document.activeElement===input&&matchMedia('(max-width:700px)').matches&&keyboard>120;
@@ -680,7 +784,7 @@ function updateCanvas(){
  all('[data-device]').forEach(b=>b.classList.toggle('active',b.dataset.device===d));
 }
 function setDevice(value){state.device=value;prefs.device=value;storePrefs();updateCanvas()}
-function storePrefs(){try{localStorage.setItem(PREF,JSON.stringify({layout:state.layout,device:state.device,appearance:state.appearance,autoRun:state.autoRun,font:state.font,filesOpen:state.filesOpen,split:parseFloat($('workspace').style.getPropertyValue('--split'))||54,stack:parseFloat($('workspace').style.getPropertyValue('--stack'))||55}))}catch{}}
+function storePrefs(){try{localStorage.setItem(PREF,JSON.stringify({layout:state.layout,device:state.device,appearance:state.appearance,autoRun:state.autoRun,autoCssEnabled:state.autoCssEnabled,font:state.font,filesOpen:state.filesOpen,split:parseFloat($('workspace').style.getPropertyValue('--split'))||54,stack:parseFloat($('workspace').style.getPropertyValue('--stack'))||55}))}catch{}}
 function setLayout(value){if(!['split','stacked','preview','editor'].includes(value))return;state.layout=value;$('workspace').dataset.layout=value;all('[data-layout]').forEach(b=>b.classList.toggle('active',b.dataset.layout===value));storePrefs();requestAnimationFrame(updateCanvas)}
 // Full-viewport (and, where supported, native browser fullscreen) workspace.
 // Remember the previous layout/mobile tab: switching Code↔Preview never loses work.
@@ -1116,7 +1220,7 @@ async function newProject(){if(state.collab){toast('Leave live collaboration bef
 function makeNativeZip(files){const enc=new TextEncoder();const local=[],central=[];let offset=0;const crcTable=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let j=0;j<8;j++)c=c&1?0xedb88320^(c>>>1):c>>>1;crcTable[n]=c>>>0}const crc32=bytes=>{let crc=0xffffffff;for(const b of bytes)crc=crcTable[(crc^b)&255]^(crc>>>8);return (crc^0xffffffff)>>>0};for(const [name,source] of Object.entries(files)){const nb=enc.encode(name),data=enc.encode(String(source)),crc=crc32(data);if(nb.length>65535)throw Error('File name too long');const a=new Uint8Array(30+nb.length),av=new DataView(a.buffer);av.setUint32(0,0x04034b50,true);av.setUint16(4,20,true);av.setUint16(6,0x0800,true);av.setUint16(8,0,true);av.setUint32(14,crc,true);av.setUint32(18,data.length,true);av.setUint32(22,data.length,true);av.setUint16(26,nb.length,true);a.set(nb,30);local.push(a,data);const c=new Uint8Array(46+nb.length),cv=new DataView(c.buffer);cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x0800,true);cv.setUint16(10,0,true);cv.setUint32(16,crc,true);cv.setUint32(20,data.length,true);cv.setUint32(24,data.length,true);cv.setUint16(28,nb.length,true);cv.setUint32(42,offset,true);c.set(nb,46);central.push(c);offset+=a.length+data.length}if(central.length>65535)throw Error('Too many files');const centralSize=central.reduce((s,b)=>s+b.length,0),end=new Uint8Array(22),v=new DataView(end.buffer);v.setUint32(0,0x06054b50,true);v.setUint16(8,central.length,true);v.setUint16(10,central.length,true);v.setUint32(12,centralSize,true);v.setUint32(16,offset,true);return new Blob([...local,...central,end],{type:'application/zip'})}
 async function exportZip(){const files=getProjectFiles();try{const blob=makeNativeZip(files);downloadBlob(blob,`${state.name.toLowerCase().replace(/[^a-z0-9-]+/g,'-')||'g8code-project'}.zip`);toast('ZIP downloaded · '+Object.keys(files).length+' files')}catch(err){toast('Export failed: '+err.message,'error')}}
 function downloadBlob(blob,name){const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000)}
-function openTools(tab='tools'){const downloadMarkup=Object.entries(getProjectFiles()).map(([n])=>`<button type="button" data-download-file="${escapeHTML(n)}">⬇ ${escapeHTML(n)}</button>`).join('');openDialog('Studio Tools',`<div class="option-grid"><button data-action="zip">⬇ Download ZIP<small>HTML, CSS, JS, and all your pages.</small></button><button data-action="checkResult">▣ Check Current Code<small>Choose rubric and check unsaved work.</small></button><button data-action="focus">⛶ Full editor<small>Fullscreen code with a one-tap switch to full preview and Exit.</small></button><button data-action="fullPreview">▣ Full preview<small>Dedicated fullscreen output and device simulator.</small></button><button data-action="font">A± Font size<small>Current: ${state.font}px</small></button><button data-action="reset">↺ Reset editor<small>Start fresh after confirmation.</small></button><button data-action="clear">⌫ Clear current tab<small>Remove code from current file.</small></button><button data-action="delete">✕ Delete current file<small>Preserves one HTML page; CSS/JS can be deleted.</small></button><button data-action="new">＋ New project<small>Start another HTML/CSS/JS workspace.</small></button><button data-action="appearance">◐ Appearance<small>Switch light/dark mode.</small></button></div><h3>Admin-enabled assistance</h3><div class="option-grid"><button data-action="codeHelper" id="toolCodeHelper">⌕ Code Helper<small>Inspect your current code and get actionable hints.</small></button><button data-action="superStudio" id="toolSuperStudio">✦ Super Studio<small>Auto Format, snapshots, restore, and focused editing tools.</small></button></div><h3>Individual file downloads</h3><div class="option-grid">${downloadMarkup}</div>`,[{label:'Done',action:closeDialog}]);
+function openTools(tab='tools'){const downloadMarkup=Object.entries(getProjectFiles()).map(([n])=>`<button type="button" data-download-file="${escapeHTML(n)}">⬇ ${escapeHTML(n)}</button>`).join('');openDialog('Studio Tools',`<div class="option-grid"><button data-action="findReplace">⌕ Find & Replace<small>Search current file or all project files and preview replacements.</small></button><button data-action="zip">⬇ Download ZIP<small>HTML, CSS, JS, and all your pages.</small></button><button data-action="checkResult">▣ Check Current Code<small>Choose rubric and check unsaved work.</small></button><button data-action="focus">⛶ Full editor<small>Fullscreen code with a one-tap switch to full preview and Exit.</small></button><button data-action="fullPreview">▣ Full preview<small>Dedicated fullscreen output and device simulator.</small></button><button data-action="font">A± Font size<small>Current: ${state.font}px</small></button><button data-action="reset">↺ Reset editor<small>Start fresh after confirmation.</small></button><button data-action="clear">⌫ Clear current tab<small>Remove code from current file.</small></button><button data-action="delete">✕ Delete current file<small>Preserves one HTML page; CSS/JS can be deleted.</small></button><button data-action="new">＋ New project<small>Start another HTML/CSS/JS workspace.</small></button><button data-action="appearance">◐ Appearance<small>Switch light/dark mode.</small></button></div><h3>Admin-enabled assistance</h3><div class="option-grid"><button data-action="codeHelper" id="toolCodeHelper">⌕ Code Helper<small>Inspect your current code and get actionable hints.</small></button><button data-action="superStudio" id="toolSuperStudio">✦ Super Studio<small>Auto Format, snapshots, restore, and focused editing tools.</small></button></div><h3>Individual file downloads</h3><div class="option-grid">${downloadMarkup}</div>`,[{label:'Done',action:closeDialog}]);
  $('toolCodeHelper').disabled=!assistantAllowed('codeHelper');
  $('toolSuperStudio').disabled=!assistantAllowed('superStudio');
  $('toolCodeHelper').title=assistantAllowed('codeHelper')?'Code Helper enabled by Admin':'Code Helper disabled by Admin';
@@ -1543,7 +1647,7 @@ function installReferenceDock(){
 function openActivities(){const term=studioAcademicTerm();const tasks=state.given.filter(isCurrentPeta).sort((a,b)=>(Number(a.order)||999)-(Number(b.order)||999));openDialog('Current-Term PETAs',`<p class="subtext"><strong>${escapeHTML(term.label)}</strong> · Showing only published, assigned Performance Tasks for the current term. Other terms and non-PETA activities are hidden.</p><div class="record-list">${tasks.length?tasks.map(a=>`<div class="record-row"><div class="record-title"><strong>${escapeHTML(a.title||'PETA Activity')}</strong><small>${escapeHTML(a.term||term.libraryTerm)} · ${studioPetaAttachments(a).length} reference(s)</small></div><button data-activity="${escapeHTML(a.id)}">Open PETA</button></div>`).join(''):'<p class="subtext">No published PETAs found for this term and section. Open the main G8Code app if you expect an activity.</p>'}</div>`,[{label:'Check rubric',action:openRubrics},{label:'Close',action:closeDialog}])}
 function openActivity(id){const a=state.given.find(i=>String(i.id)===id&&isCurrentPeta(i));if(!a){toast('This PETA is not available for the current term.','error');return;}const attachments=studioPetaAttachments(a);openDialog(a.title||'PETA instructions',`<div class="instruction-sheet"><p>${escapeHTML(getActivityText(a)).replaceAll('\n','<br>')}</p><p class="subtext">${attachments.length} PDF / image / link reference(s). Pin to view within the editor and zoom from 10% to 1000%.</p></div>`,[{label:'Back to PETAs',action:openActivities},{label:'Pin & View',kind:'primary',action:()=>{showReferenceDock(a);closeDialog()}},{label:'Use for current project',action:()=>{state.project={...(state.project||{}),petaActivityId:String(a.id),petaActivityTitle:a.title||'',isPetaProject:true};setDirty();showReferenceDock(a);closeDialog();toast('Current-term PETA linked to the draft. Save to keep it.')}}],'PETA · '+studioAcademicTerm().label)}
 function openPreviewLarge(){enterStudioFullscreen('preview')}
-function refreshSettings(){const p=state.root?.studentAssistanceSettings||{};const enabled=p.enabled!==false;
+function refreshSettings(){updateAutoCssToolbar();const p=state.root?.studentAssistanceSettings||{};const enabled=p.enabled!==false;
  $('autoRun').disabled=enabled&&p.autoRunControl===false;
  $('openCollab').disabled=!enabled||(p.collaboration!==true&&p.codeTransfer===false);
  $('openCollab').title=!enabled?'Admin assistance settings are not available or are disabled':p.collaboration!==true?'Live collaboration disabled by Admin':'Collaborate';
@@ -1581,7 +1685,7 @@ function ensureLiveEngine(){if(liveCollab)return liveCollab;if(!window.createStu
   notice:message=>{if(state.collab){state.collab.liveStatus=message;renderCollabPresence()}status(message)},
   members:(members,channels,access,ready)=>{if(!state.collab)return;state.collab.peers={...members};state.collab.access=access;state.collab.ready=ready;renderCollabPresence()},
   cursor:(uid,c)=>{if(!state.collab)return;const next={...c,lang:c.lang||c.language,updatedAtMs:Date.now()};if(state.collab.peers?.[uid])state.collab.peers[uid].cursor=next;renderCollabCursors()},
-  permissions:(allowed,inSession,access,ready)=>{input.readOnly=inSession&&!allowed;$('projectTitle').disabled=inSession&&!allowed;document.body.classList.toggle('studio-collab-readonly',inSession&&!allowed);renderFiles();updateUndoButtons();if(inSession&&!allowed)status(ready?'View only · host controls editing':'Connecting to live host…')},
+  permissions:(allowed,inSession,access,ready)=>{input.readOnly=inSession&&!allowed;$('projectTitle').disabled=inSession&&!allowed;document.body.classList.toggle('studio-collab-readonly',inSession&&!allowed);renderFiles();updateUndoButtons();updateAutoCssToolbar();if(inSession&&!allowed)status(ready?'View only · host controls editing':'Connecting to live host…')},
   initialState:data=>{editHistory?.reset();clearSourceDiagnostics();const blocks=data.codeByActivity||{},key=data.selectedActivityId||state.project?.selectedActivityId||'scratch',store=blocks[key]||blocks.scratch||Object.values(blocks)[0];if(store){state.code=normalizeCode(store);state.previewPage=state.code.activeHtmlPage;state.lang='html';switchFile('html',state.code.activeHtmlPage);runPreview()}},
   structuralState:data=>{editHistory?.reset();clearSourceDiagnostics();const blocks=data.codeByActivity||{},store=blocks[data.selectedActivityId||'scratch']||blocks.scratch||Object.values(blocks)[0];if(store){state.code=normalizeCode(store);switchFile('html',state.code.activeHtmlPage);runPreview()}},
   remoteFile:(lang,name,text,editorName)=>{if(!GROUP[lang]||!validFileName(name,lang))return;const map=state.code[GROUP[lang]];if(map[name]!==text)editHistory?.invalidate(lang,name);map[name]=text;if(state.lang===lang&&fileName(lang)===name&&input.value!==text){const prior=input.value,at=input.selectionStart,end=input.selectionEnd;let prefix=0;while(prefix<Math.min(prior.length,text.length)&&prior[prefix]===text[prefix])prefix++;const delta=text.length-prior.length;input.value=text;input.setSelectionRange(Math.max(0,Math.min(text.length,at+(at>prefix?delta:0))),Math.max(0,Math.min(text.length,end+(end>prefix?delta:0))));refreshLineNumbers();refreshCursor();}state.changeRevision=(state.changeRevision||0)+1;if(state.autoRun)scheduleRun();safeLocalDraft();renderCollabCursors();updateUndoButtons();scheduleSourceDiagnostics()},
@@ -1944,20 +2048,99 @@ function undoStudioFormat(){
  input.focus({preventScroll:true});
  toast('↶ Reverted the formatting in '+saved.name);
 }
+// V2.44 — Auto CSS: explicit, opt-in Super Studio helper. The HTML selection
+// is cached BEFORE the toolbar receives focus (critical for touch selection).
+let autoCssHTMLSelection=null, pendingAutoCss=null;
+function captureAutoCssSelection(){
+ if(state.lang!=='html')return;
+ autoCssHTMLSelection={codeRef:state.code,projectId:state.projectId,name:fileName('html'),source:fileContent('html'),start:input.selectionStart,end:input.selectionEnd};
+}
+function updateAutoCssToolbar(){
+ const btn=$('studioAutoCss');if(!btn)return;
+ const visible=state.autoCssEnabled&&assistantAllowed('superStudio');
+ btn.classList.toggle('hidden',!visible);
+ btn.hidden=!visible;
+ btn.disabled=!visible||state.lang!=='html'||input.readOnly||(Boolean(state.collab)&&!liveCollab?.canEdit());
+ btn.title=state.lang!=='html'?'Select an HTML tag first':'Select a tag or highlight a complete id/class attribute';
+}
+function toggleAutoCss(checked){
+ if(!assistantAllowed('superStudio')){toast('Super Studio is disabled by Admin.','error');return}
+ state.autoCssEnabled=Boolean(checked);storePrefs();updateAutoCssToolbar();
+ toast(state.autoCssEnabled?'Auto CSS enabled · Select HTML and tap CSS':'Auto CSS disabled');
+}
+function autoCssChooseTarget(html){
+ const css=state.code.cssFiles||{},names=Object.keys(css);
+ const linked=[];
+ try{const doc=new DOMParser().parseFromString(html,'text/html');
+  for(const item of doc.querySelectorAll('link[rel~="stylesheet"][href]')){
+   const url=String(item.getAttribute('href')||'').split(/[?#]/)[0].replace(/^\.\//,'');
+   if(Object.hasOwn(css,url)&&!linked.includes(url))linked.push(url);
+  }
+ }catch{}
+ const active=state.code.activeCssFile;
+ return linked.includes(active)?active:(linked[0]|| (names.includes(active)?active:names[0])||'style.css');
+}
+function autoCssCreate(selector,original){
+ if(!state.autoCssEnabled||!assistantAllowed('superStudio')){toast('Enable Auto CSS in Super Studio first.','error');return}
+ if(input.readOnly||(state.collab&&!liveCollab?.canEdit())){toast('View-only collaborators cannot generate CSS.','error');return}
+ if(!original||original.codeRef!==state.code||original.projectId!==state.projectId||state.code.pages?.[original.name]!==original.source){toast('HTML changed after selection. Select the tag again.','error');return}
+ const tool=window.G8CodeStudioAutoCSS;
+ if(!tool){toast('Auto CSS helper is unavailable. Reload the editor.','error');return}
+ const cssMap=state.code.cssFiles;
+ // Check ALL stylesheets before creating another selector. Existing code wins.
+ const existing=Object.entries(cssMap).find(([,css])=>tool.findExisting(css,selector)>=0);
+ if(existing){const [name,css]=existing,at=tool.findExisting(css,selector);
+  closeDialog();switchFile('css',name);input.setSelectionRange(at,at+selector.length);
+  input.focus({preventScroll:true});refreshCursor();renderHighlight();
+  toast('Selector '+selector+' already exists in '+name+' · Jumped to rule');return;
+ }
+ const target=autoCssChooseTarget(original.source);
+ if(!Object.hasOwn(cssMap,target)){
+  cssMap[target]='';state.code.activeCssFile=target;liveCollab?.structure();
+ }
+ const before=cssMap[target];const where=tool.findExisting(before,selector);
+ closeDialog();
+ switchFile('css',target);
+ if(where>=0){input.setSelectionRange(where,where+selector.length);input.focus({preventScroll:true});refreshCursor();renderHighlight();toast('CSS selector '+selector+' already exists in '+target+' · Jumped to rule');return}
+ const prefix=before.trimEnd();const appended=(prefix?prefix+'\n\n':'')+tool.block(selector);
+ const caret=(prefix?prefix.length+2:0)+selector.length+4;
+ input.value=appended;
+ input.setSelectionRange(Math.min(caret,appended.length),Math.min(caret,appended.length));
+ changeCode({inputType:'insertFromAutoCSS'}); // Undo/Redo, local draft, Auto Run, P2P collaboration
+ input.focus({preventScroll:true});refreshLineNumbers();renderCollabCursors();scheduleCollabCursor();
+ toast('✓ Created '+selector+' in '+target+' · Add your own properties and values');
+}
+function autoCssStart(){
+ if(!state.autoCssEnabled||!assistantAllowed('superStudio')){toast('Enable Auto CSS in Super Studio.','error');return}
+ if(state.lang!=='html'){toast('Open an HTML file and select a tag first.','error');return}
+ if(input.readOnly||(state.collab&&!liveCollab?.canEdit())){toast('This collaboration is view-only.','error');return}
+ const selection=autoCssHTMLSelection;
+ if(!selection||selection.codeRef!==state.code||selection.name!==fileName('html')||selection.source!==fileContent('html')){toast('Select a current HTML tag or an id/class attribute first.','error');return}
+ const tool=window.G8CodeStudioAutoCSS;
+ const result=tool?.resolve(selection.source,selection.start,selection.end);
+ if(!result||result.error){toast(result?.error||'Auto CSS is unavailable.','error');return}
+ if(result.selectors.length===1){autoCssCreate(result.selectors[0],selection);return}
+ pendingAutoCss={...selection,selectors:result.selectors};
+ openDialog('Auto CSS · Choose a class',`<p class="subtext">This class attribute contains multiple names. Pick ONE class selector to create:</p><div class="option-grid">${result.selectors.map((v,i)=>`<button type="button" data-autocss-select="${i}">${escapeHTML(v)}<small>Generate an empty CSS rule for this class.</small></button>`).join('')}</div>`,[{label:'Cancel',action:closeDialog}]);
+}
 function openSuperStudio(){
  if(!assistantAllowed('superStudio')){toast('Super Studio is disabled by Admin.','error');return}
  let snapshots=[];try{snapshots=JSON.parse(sessionStorage.getItem(V2_SNAPSHOT_KEY)||'[]')}catch{}
  const undo=lastStudioFormat&&lastStudioFormat.codeRef===state.code&&lastStudioFormat.projectId===state.projectId&&lastStudioFormat.lang===state.lang&&lastStudioFormat.name===fileName()&&input.value===lastStudioFormat.after;
- openDialog('Super Studio · Coding Tools',`<p class="subtext">One-click Auto Format for the active HTML, CSS or JavaScript file. Snapshots capture your whole project and stay in this browser tab only.</p><div class="option-grid"><button data-action="formatCurrent">✦ Auto Format Current File<small>Clean indentation and layout in ${escapeHTML(fileName())}. Other project files are not changed.</small></button><button data-action="snapshotSave">＋ Save Snapshot<small>Capture all HTML, CSS and JS files before experimenting.</small></button>${undo?'<button data-action="formatUndo">↶ Undo Last Format<small>Restore this file to its exact code before formatting.</small></button>':''}</div><h3>Saved snapshots</h3><div class="record-list">${snapshots.map((v,i)=>`<div class="record-row"><div class="record-title"><strong>${escapeHTML(v.name||'Snapshot')}</strong><small>${escapeHTML(new Date(v.at).toLocaleString())}</small></div><button data-snapshot="${i}">Restore</button></div>`).join('')||'<p class="subtext">No snapshots yet.</p>'}</div>`,[{label:'Close',action:closeDialog}]);
+ openDialog('Super Studio · Coding Tools',`<p class="subtext">Auto Format, snapshots, and optional Auto CSS. Auto CSS generates only an empty CSS selector — you still write every property and value.</p><label class="studio-auto-css-setting"><span><strong>Auto CSS</strong><small>Show a CSS button beside Undo/Redo when enabled.</small></span><input type="checkbox" id="superAutoCssToggle" ${state.autoCssEnabled?'checked':''} aria-label="Enable Auto CSS"></label><div class="option-grid"><button data-action="formatCurrent">✦ Auto Format Current File<small>Clean indentation and layout in ${escapeHTML(fileName())}. Other project files are not changed.</small></button><button data-action="snapshotSave">＋ Save Snapshot<small>Capture all HTML, CSS and JS files before experimenting.</small></button>${undo?'<button data-action="formatUndo">↶ Undo Last Format<small>Restore this file to its exact code before formatting.</small></button>':''}</div><h3>Saved snapshots</h3><div class="record-list">${snapshots.map((v,i)=>`<div class="record-row"><div class="record-title"><strong>${escapeHTML(v.name||'Snapshot')}</strong><small>${escapeHTML(new Date(v.at).toLocaleString())}</small></div><button data-snapshot="${i}">Restore</button></div>`).join('')||'<p class="subtext">No snapshots yet.</p>'}</div>`,[{label:'Close',action:closeDialog}]);
 }
 function bindEvents(){
 installStudioConsole();installMobileCoding();
+$('studioAutoCss')?.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')e.preventDefault();});
+$('studioAutoCss')?.addEventListener('click',autoCssStart);
+input.addEventListener('select',captureAutoCssSelection);input.addEventListener('pointerup',captureAutoCssSelection);input.addEventListener('keyup',captureAutoCssSelection);
 window.addEventListener('storage',e=>{
  if(e.key!==STUDIO_SHARED_APPEARANCE&&e.key!==STUDIO_ORIGINAL_APPEARANCE)return;
  const settings=state.root?.loginReminderSettings||fromJSON('studentCodeStudio.loginReminderSettings.v1',{});
  if(settings.applyThemeToEntireApp===true&&settings.allowStudentAppAppearanceChoice!==true)return;
  const value=studioSharedAppearance();if(value&&value!==state.appearance)setAppearance(value,{fromAdmin:true});
 });
+$('studioFind').onclick=()=>openStudioFind();
 $('studioUndo').onclick=()=>editorHistoryStep('undo');
 $('studioRedo').onclick=()=>editorHistoryStep('redo');
 input.addEventListener('beforeinput',e=>{
@@ -1965,11 +2148,11 @@ input.addEventListener('beforeinput',e=>{
   if(e.cancelable){e.preventDefault();editorHistoryStep(e.inputType==='historyUndo'?'undo':'redo');}
  }
 });
-$('codeInput').addEventListener('input',e=>{changeCode(e);scheduleCollabCursor()});input.addEventListener('scroll',()=>{$('lineNumbers').scrollTop=input.scrollTop;const hi=$('codeHighlight');hi.scrollTop=input.scrollTop;hi.scrollLeft=input.scrollLeft;renderCollabCursors()});input.addEventListener('click',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('keyup',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('select',()=>{renderHighlight();scheduleCollabCursor()});input.addEventListener('keydown',e=>{
+$('codeInput').addEventListener('input',e=>{changeCode(e);captureAutoCssSelection();scheduleCollabCursor()});input.addEventListener('scroll',()=>{$('lineNumbers').scrollTop=input.scrollTop;const hi=$('codeHighlight');hi.scrollTop=input.scrollTop;hi.scrollLeft=input.scrollLeft;renderCollabCursors()});input.addEventListener('click',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('keyup',()=>{refreshCursor();renderHighlight();scheduleCollabCursor()});input.addEventListener('select',()=>{renderHighlight();scheduleCollabCursor()});input.addEventListener('keydown',e=>{
  if((e.ctrlKey||e.metaKey)&&!e.altKey&&['z','y'].includes(e.key.toLowerCase())){
   e.preventDefault();editorHistoryStep(e.key.toLowerCase()==='y'||(e.shiftKey&&e.key.toLowerCase()==='z')?'redo':'undo');return;
  }
- if(e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1);return;}if(e.key==='Tab'){if(input.readOnly){e.preventDefault();return}e.preventDefault();const start=input.selectionStart,end=input.selectionEnd;input.setRangeText('  ',start,end,'end');changeCode()}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}if(e.altKey&&!e.ctrlKey&&!e.metaKey&&e.target!==input&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1)}if(e.key==='Escape'){if(!$('focusMobileMoreMenu').hidden){closeMobileFocusMore();return}if(!$('dialog').classList.contains('hidden'))closeDialog();else if($('filesPanel').classList.contains('open'))toggleFiles(false);else if(document.body.dataset.immersive)exitStudioFullscreen();else $('navMenu').classList.add('hidden')}});
+ if(e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1);return;}if(e.key==='Tab'){if(input.readOnly){e.preventDefault();return}e.preventDefault();const start=input.selectionStart,end=input.selectionEnd;input.setRangeText('  ',start,end,'end');changeCode()}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}});document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'&&$('dialog').classList.contains('hidden')){e.preventDefault();openStudioFind();return;}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saveProject()}if(e.altKey&&!e.ctrlKey&&!e.metaKey&&e.target!==input&&(e.key==='+'||e.key==='='||e.code==='NumpadAdd'||e.key==='-'||e.key==='_'||e.code==='NumpadSubtract')){e.preventDefault();zoomEditorFont(e.key==='-'||e.key==='_'||e.code==='NumpadSubtract'?-1:1)}if(e.key==='Escape'){if(!$('focusMobileMoreMenu').hidden){closeMobileFocusMore();return}if(!$('dialog').classList.contains('hidden'))closeDialog();else if($('filesPanel').classList.contains('open'))toggleFiles(false);else if(document.body.dataset.immersive)exitStudioFullscreen();else $('navMenu').classList.add('hidden')}});
 $('projectTitle').addEventListener('change',()=>{title($('projectTitle').value);setDirty()});$('saveBtn').onclick=()=>saveProject();$('mobileSaveAction').onclick=()=>saveProject();$('authPill').onclick=openAccount;$('menuBtn').onclick=()=>{const m=$('navMenu');m.classList.toggle('hidden');$('menuBtn').setAttribute('aria-expanded',String(!m.classList.contains('hidden')))};$('navMenu').addEventListener('click',e=>{const button=e.target.closest('[data-studio-route]');if(button)goToStudioDestination(button.dataset.studioRoute)});$('studioAdminShortcut').addEventListener('click',()=>goToStudioDestination('admin'));$('guestLoginMenu')?.addEventListener('click',guestLoginToSave);
 $('toggleTheme').onclick=()=>setAppearance(state.appearance==='dark'?'light':'dark');all('.layout-picker button[data-layout]').forEach(b=>b.onclick=()=>{if(b.dataset.layout==='editor'){enterStudioFullscreen('code');return}setLayout(b.dataset.layout);if(matchMedia('(max-width:700px)').matches)setMobileTab(b.dataset.layout==='preview'?'preview':'code')});$('focusSwitch').onclick=switchStudioFullscreen;$('focusExit').onclick=exitStudioFullscreen;$('focusLandscape').onclick=async()=>{if(state.device!=='desktop'||document.body.dataset.immersive!=='preview')return;try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();await screen.orientation.lock('landscape');toast('Desktop output in landscape');}catch(err){toast('Rotate your phone to landscape. Your browser may block forced rotation.','error')}requestAnimationFrame(updateCanvas)};$('focusFiles').onclick=()=>toggleFiles(true);$('focusTools').onclick=()=>openTools();
 $('focusMobileMore').onclick=()=>{
@@ -2011,14 +2194,14 @@ all('#languageTabs button').forEach(b=>b.onclick=()=>{const lang=b.dataset.lang;
       runPreview();
     }
   }));
-};$('autoRun').onclick=()=>{state.autoRun=!state.autoRun;$('autoRun').classList.toggle('active',state.autoRun);$('autoRun').setAttribute('aria-pressed',String(state.autoRun));storePrefs();if(state.autoRun && previewRevision!==(state.changeRevision||0))scheduleRun();toast(state.autoRun?'Auto Run on':'Manual Run on')};$('previewPage').onchange=e=>{state.previewPage=e.target.value;runPreview()};$('previewZoom').onchange=e=>{state.previewZoom=e.target.value;updateCanvas();$('previewViewport').scrollTo(0,0)};all('[data-device]').forEach(b=>b.onclick=()=>setDevice(b.dataset.device));$('mobileCode').onclick=()=>setMobileTab('code');$('mobilePreview').onclick=()=>setMobileTab('preview');$('openMore').onclick=()=>openTools();$('mobileMoreAction').onclick=()=>openTools();$('openProjects').onclick=listProjects;$('openActivities').onclick=openActivities;$('openCollab').onclick=openCollab;$('quickResult').onclick=openRubrics;$('closeDialog').onclick=closeDialog;$('dialogSize').onclick=()=>{const expanded=$('dialog').classList.toggle('expanded');$('dialogSize').textContent=expanded?'↙ Compact':'⤢ Resize'};$('scrim').onclick=closeDialog;$('dialogContent').addEventListener('change',async e=>{if(e.target?.id!=='studioCollabAccess')return;const mode=e.target.value==='view'?'view':'edit';if(state.collab?.isHost){try{await liveCollab?.access(mode);state.collab.access=mode;renderCollabPresence();toast(mode==='view'?'Classmates are now view-only':'Classmates can now edit together')}catch(err){toast('Could not update access: '+err.message,'error')}}else state.collabNewAccess=mode});
-$('dialogContent').addEventListener('click',async e=>{const el=e.target.closest('button');if(!el)return;if(el.dataset.collabKick){e.preventDefault();e.stopPropagation();await kickCollabParticipant(el.dataset.collabKick);}else if(el.dataset.projectOpen)loadProject(el.dataset.projectOpen);else if(el.dataset.activity)openActivity(el.dataset.activity);else if(el.dataset.inbox)viewInbox(el.dataset.inbox);else if(el.dataset.add){closeDialog();addOrRenameFile(el.dataset.add)}else if(el.dataset.downloadFile){const name=el.dataset.downloadFile;downloadBlob(new Blob([getProjectFiles()[name]||''],{type:'text/plain'}),name)}else if(el.dataset.snapshot!==undefined){
+};$('autoRun').onclick=()=>{state.autoRun=!state.autoRun;$('autoRun').classList.toggle('active',state.autoRun);$('autoRun').setAttribute('aria-pressed',String(state.autoRun));storePrefs();if(state.autoRun && previewRevision!==(state.changeRevision||0))scheduleRun();toast(state.autoRun?'Auto Run on':'Manual Run on')};$('previewPage').onchange=e=>{state.previewPage=e.target.value;runPreview()};$('previewZoom').onchange=e=>{state.previewZoom=e.target.value;updateCanvas();$('previewViewport').scrollTo(0,0)};all('[data-device]').forEach(b=>b.onclick=()=>setDevice(b.dataset.device));$('mobileCode').onclick=()=>setMobileTab('code');$('mobilePreview').onclick=()=>setMobileTab('preview');$('openMore').onclick=()=>openTools();$('mobileMoreAction').onclick=()=>openTools();$('openProjects').onclick=listProjects;$('openActivities').onclick=openActivities;$('openCollab').onclick=openCollab;$('quickResult').onclick=openRubrics;$('closeDialog').onclick=closeDialog;$('dialogSize').onclick=()=>{const expanded=$('dialog').classList.toggle('expanded');$('dialogSize').textContent=expanded?'↙ Compact':'⤢ Resize'};$('scrim').onclick=closeDialog;$('dialogContent').addEventListener('change',async e=>{if(e.target?.id==='superAutoCssToggle'){toggleAutoCss(e.target.checked);return;}if(e.target?.id!=='studioCollabAccess')return;const mode=e.target.value==='view'?'view':'edit';if(state.collab?.isHost){try{await liveCollab?.access(mode);state.collab.access=mode;renderCollabPresence();toast(mode==='view'?'Classmates are now view-only':'Classmates can now edit together')}catch(err){toast('Could not update access: '+err.message,'error')}}else state.collabNewAccess=mode});
+$('dialogContent').addEventListener('click',async e=>{const el=e.target.closest('button');if(!el)return;if(el.dataset.autocssSelect!==undefined){const pending=pendingAutoCss,idx=Number(el.dataset.autocssSelect);if(pending&&pending.selectors[idx])autoCssCreate(pending.selectors[idx],pending);return;}if(el.dataset.collabKick){e.preventDefault();e.stopPropagation();await kickCollabParticipant(el.dataset.collabKick);}else if(el.dataset.projectOpen)loadProject(el.dataset.projectOpen);else if(el.dataset.activity)openActivity(el.dataset.activity);else if(el.dataset.inbox)viewInbox(el.dataset.inbox);else if(el.dataset.add){closeDialog();addOrRenameFile(el.dataset.add)}else if(el.dataset.downloadFile){const name=el.dataset.downloadFile;downloadBlob(new Blob([getProjectFiles()[name]||''],{type:'text/plain'}),name)}else if(el.dataset.snapshot!==undefined){
  if(!assistantAllowed('superStudio'))return;
  const saved=JSON.parse(sessionStorage.getItem(V2_SNAPSHOT_KEY)||'[]'),snap=saved[Number(el.dataset.snapshot)];
  if(!snap)return;
  if(!await confirmAction('Restore this snapshot? This replaces your current unsaved code.','Restore'))return;
  editHistory?.reset();clearSourceDiagnostics();state.code=normalizeCode(snap.code);title(snap.name);state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);setDirty();runPreview();closeDialog();toast('Snapshot restored');
- }else if(el.dataset.action){const action=el.dataset.action;if(action==='snapshotSave'){
+ }else if(el.dataset.action){const action=el.dataset.action;if(action==='findReplace'){openStudioFind();}else if(action==='snapshotSave'){
   if(!assistantAllowed('superStudio'))return;
   const snapshots=JSON.parse(sessionStorage.getItem(V2_SNAPSHOT_KEY)||'[]');snapshots.unshift({at:Date.now(),name:state.name,code:clone(state.code)});
   try{sessionStorage.setItem(V2_SNAPSHOT_KEY,JSON.stringify(snapshots.slice(0,8)));toast('Snapshot saved in this tab');openSuperStudio()}catch(e){toast('Snapshot storage full. Download a ZIP instead.','error')}

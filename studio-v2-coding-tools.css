@@ -62,3 +62,47 @@ body[data-appearance="dark"] .studio-console-trigger.has-errors{color:#ffacba}
  .code-panel .file-tabs button{padding:7px 6px}
  .code-panel .pane-header{padding-left:5px;padding-right:5px}
 }
+
+/* V2.43: Find & Replace and Explain Error. Scoped to Studio only. */
+.code-panel .pane-actions .studio-find-btn{display:inline-flex;align-items:center;justify-content:center;font:700 23px/1 system-ui,sans-serif;color:var(--ink);padding:0}
+.studio-console-explain{display:inline-flex;align-items:center;justify-content:center;margin-top:8px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:7px;padding:7px 10px;font:700 11px/1.25 system-ui,sans-serif;min-height:32px;cursor:pointer}
+.studio-console-explain:focus-visible,.studio-search button:focus-visible{outline:2px solid var(--brand-2);outline-offset:2px}
+.studio-explain-lesson{display:grid;gap:11px;color:var(--ink)}
+.studio-explain-part{background:var(--surface-alt);border:1px solid var(--border);border-radius:10px;padding:12px}
+.studio-explain-part strong{display:block;font-size:10px;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
+.studio-explain-part p{font-size:13px;line-height:1.55;margin:0;color:var(--ink);overflow-wrap:anywhere}
+.studio-explain-part pre{white-space:pre-wrap;word-break:break-word;background:var(--surface);color:var(--ink);padding:10px;border-radius:7px;margin:0;font:12px/1.5 ui-monospace,monospace}
+.studio-explain-note,.studio-search-hint{font-size:11px;color:var(--muted);line-height:1.5;margin:3px 0}
+.studio-search{display:grid;gap:11px;min-width:0;color:var(--ink)}
+.studio-search>label,.studio-search-options label{display:grid;gap:5px;font-size:12px;font-weight:700;color:var(--ink)}
+.studio-search input[type="search"],.studio-search input[type="text"],.studio-search select{width:100%;min-width:0;box-sizing:border-box;min-height:40px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:14px system-ui,sans-serif;padding:8px 10px}
+.studio-search-options{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end}
+.studio-search-options .studio-search-checkbox{display:flex;align-items:center;gap:6px;min-height:40px;white-space:nowrap}
+#studioSearchSummary{color:var(--muted);font-size:12px;margin:0;line-height:1.4}
+.studio-search-matches{max-height:min(34dvh,240px);overflow:auto;display:grid;gap:5px;padding:2px;overscroll-behavior:contain}
+.studio-search-match{display:grid;gap:3px;width:100%;text-align:left;border:1px solid var(--border);background:var(--surface-alt);border-radius:8px;padding:9px;min-height:52px;color:var(--ink);cursor:pointer}
+.studio-search-match.selected{border-color:var(--brand-2);box-shadow:inset 3px 0 0 var(--brand-2)}
+.studio-search-match strong{font-size:11px;overflow-wrap:anywhere}
+.studio-search-match span{font:11px/1.4 ui-monospace,monospace;color:var(--muted);overflow-wrap:anywhere}
+.studio-search-actions{display:flex;gap:8px;flex-wrap:wrap}
+.studio-search-actions button{flex:1 1 130px;min-height:41px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer}
+.studio-search-actions button.primary{background:var(--brand-2);color:white;border-color:transparent}
+.studio-search-actions button:disabled{opacity:.42;cursor:not-allowed}
+@media(max-width:700px){.code-panel .pane-actions .studio-find-btn{display:none}.studio-search-options{grid-template-columns:minmax(0,1fr)}.studio-search-options .studio-search-checkbox{min-height:28px}.studio-search-matches{max-height:28dvh}}
+
+/* V2.44: Auto CSS is opt-in, shown only with published Super Studio access. */
+.code-panel .pane-actions .studio-auto-css-btn:not([hidden]){display:inline-flex;align-items:center;justify-content:center;gap:1px;padding:0 4px;min-width:41px;width:auto;font:700 14px/1 system-ui,sans-serif;color:var(--ink);white-space:nowrap}
+.code-panel .pane-actions .studio-auto-css-btn small{font:800 9px/1.1 system-ui,sans-serif;letter-spacing:-.02em}
+.code-panel .pane-actions .studio-auto-css-btn[hidden],.code-panel .pane-actions .studio-auto-css-btn.hidden{display:none!important}
+.code-panel .pane-actions .studio-auto-css-btn:disabled{opacity:.4;cursor:not-allowed}
+.studio-auto-css-setting{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--surface-alt);color:var(--ink);margin:8px 0 12px}
+.studio-auto-css-setting span{display:grid;gap:4px}
+.studio-auto-css-setting strong{font-size:14px}
+.studio-auto-css-setting small{font-size:11px;color:var(--muted);line-height:1.4}
+.studio-auto-css-setting input{width:21px;height:21px;accent-color:var(--brand-2);flex:none}
+@media(max-width:700px){
+ .code-panel .pane-actions .studio-auto-css-btn:not([hidden]){min-width:39px;width:39px;flex-direction:column;gap:0;font-size:12px;padding:0}
+ /* File management remains in Files and Tools; keep active writing controls within mobile width. */
+ .code-panel .pane-actions #renameFile,.code-panel .pane-actions #deleteFile,.code-panel .pane-actions #clearTab{display:none}
+}
+@media(max-width:370px){.code-panel .pane-actions .studio-auto-css-btn:not([hidden]){width:35px;min-width:35px}}
