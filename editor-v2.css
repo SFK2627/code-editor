@@ -1104,3 +1104,72 @@ body.studio-loading-project .studio-loading-cover{display:flex}
 @media(max-width:600px){
  body[data-immersive="code"]:has(#filesPanel.open) #focusNav{z-index:1!important}
 }
+
+/* V2.40 — Align Full Code Editor header icons on phones only.
+   Draw baseline-independent vector shapes instead of font glyphs: the former
+   do not shift with the font's ascender, descent, or anonymous grid tracks.
+   Normal Editor, Full Preview, tablets, and desktop remain untouched. */
+@media (max-width:600px) {
+  body[data-immersive="code"] #focusNav #focusSwitch,
+  body[data-immersive="code"] #focusNav #focusMobileMore,
+  body[data-immersive="code"] #focusNav #focusExit {
+    position:relative!important;
+    display:flex!important;
+    flex:0 0 40px!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:40px!important;
+    height:40px!important;
+    min-width:40px!important;
+    min-height:40px!important;
+    max-width:40px!important;
+    max-height:40px!important;
+    padding:0!important;
+    margin:0!important;
+    box-sizing:border-box!important;
+    line-height:0!important;
+    font-size:0!important;
+    letter-spacing:0!important;
+    vertical-align:middle!important;
+  }
+  /* The button's original text remains available for accessibility via its
+     existing aria-label or title; the shape is positioned by layout, not font. */
+  body[data-immersive="code"] #focusNav #focusSwitch::before {
+    content:""!important;
+    display:block!important;
+    width:17px!important;
+    height:18px!important;
+    flex:0 0 auto!important;
+    background:currentColor!important;
+    clip-path:polygon(8% 0, 8% 100%, 100% 50%)!important;
+    transform:translateX(1px)!important;
+  }
+  body[data-immersive="code"] #focusNav #focusMobileMore::before {
+    content:""!important;
+    display:block!important;
+    width:5px!important;
+    height:5px!important;
+    flex:0 0 auto!important;
+    border-radius:50%!important;
+    background:currentColor!important;
+    box-shadow:-9px 0 0 currentColor,9px 0 0 currentColor!important;
+  }
+  body[data-immersive="code"] #focusNav #focusExit::before,
+  body[data-immersive="code"] #focusNav #focusExit::after {
+    content:""!important;
+    display:block!important;
+    position:absolute!important;
+    left:50%!important;
+    top:50%!important;
+    width:17px!important;
+    height:2px!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:2px!important;
+    background:currentColor!important;
+    transform:translate(-50%,-50%) rotate(45deg)!important;
+  }
+  body[data-immersive="code"] #focusNav #focusExit::after {
+    transform:translate(-50%,-50%) rotate(-45deg)!important;
+  }
+}
