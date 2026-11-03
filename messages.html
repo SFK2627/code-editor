@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content" />
 <meta name="color-scheme" content="light dark" />
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=43" />
+<link rel="stylesheet" href="messages.css?v=45" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -46,8 +46,9 @@
       <div class="g8m-tablet-filter"><label for="g8mTabletSectionSelect">Section</label><select id="g8mTabletSectionSelect" aria-label="Select section"><option value="*">All Sections</option></select></div><div id="g8mStudentList" class="g8m-student-list"></div>
     </aside>
     <main class="g8m-conversation" id="g8mConversation" aria-label="Conversation">
-      <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatMeta">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
+      <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatPresence" class="g8m-presence-line" aria-live="polite">Checking activity…</small><small id="g8mChatMeta" class="g8m-chat-extra">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
       <div class="g8m-feed-state" id="g8mFeedState" role="status" aria-live="polite">Connecting to chat…</div><div class="g8m-messages" id="g8mMessages" role="log" aria-live="polite" aria-relevant="additions text"><div class="g8m-empty">Select a conversation to begin.</div></div>
+      <div id="g8mTypingIndicator" class="g8m-typing-indicator" hidden aria-live="polite"><span class="g8m-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="g8mTypingText">Typing…</span></div>
       <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
       <div id="g8mAttachments" class="g8m-attachments" hidden></div><div id="g8mProjectSelected" class="g8m-project-selected" hidden></div>
       <div id="g8mSendStatus" class="g8m-send-status" role="status" aria-live="polite"></div>
@@ -91,8 +92,25 @@
       </div>
     </section>
   </div>
+<div id="g8mReactionPicker" class="g8m-reaction-picker" role="group" aria-label="Message reactions and actions" hidden>
+ <div id="g8mReactionOptions" class="g8m-reaction-options">
+  <button type="button" data-g8m-emoji="❤️" aria-label="React with heart">❤️</button>
+  <button type="button" data-g8m-emoji="😂" aria-label="React with laugh">😂</button>
+  <button type="button" data-g8m-emoji="😮" aria-label="React with surprise">😮</button>
+  <button type="button" data-g8m-emoji="😢" aria-label="React with sad">😢</button>
+  <button type="button" data-g8m-emoji="😡" aria-label="React with angry">😡</button>
+  <button type="button" data-g8m-emoji="👍" aria-label="React with thumbs up">👍</button>
+ </div>
+ <div class="g8m-reaction-actions"><button type="button" id="g8mPickerReply">↩ Reply</button><button type="button" id="g8mPickerDetails">⋯ Message Details</button></div>
+</div>
+<div id="g8mMessageDetails" class="g8m-details-overlay" role="dialog" aria-modal="true" aria-labelledby="g8mDetailsTitle" hidden>
+ <section class="g8m-details-dialog"><header><strong id="g8mDetailsTitle">Message Details</strong><button type="button" id="g8mDetailsClose" aria-label="Close details">×</button></header>
+ <div id="g8mDetailsPreview" class="g8m-details-preview"></div>
+ <dl><div><dt>Sent</dt><dd id="g8mDetailsSent">—</dd></div><div><dt id="g8mDetailsSeenLabel">Seen by recipient</dt><dd id="g8mDetailsSeen">Not yet seen</dd></div><div><dt>Reactions</dt><dd id="g8mDetailsReactions">None</dd></div></dl>
+ </section>
+</div>
 </div>
 <div id="g8mImageViewer" class="g8m-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Image preview"><button id="g8mImageClose" type="button" aria-label="Close image">×</button><img id="g8mImageLarge" alt="Full-size student attachment" /></div>
-<script defer src="messages.js?v=43"></script>
+<script defer src="messages.js?v=45"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
 let initializeApp, getApps, getApp, getAuth, onAuthStateChanged, signInWithEmailAndPassword;
-let getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp;
+let getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect;
 let getFirestore, collection, doc, getDoc, getDocFromServer, getDocs;
 
 async function loadMessagesFirebaseSDK(){
@@ -19,7 +19,7 @@ async function loadMessagesFirebaseSDK(){
  const [a, au, d, f] = await Promise.race([load, timeout]);
  ({initializeApp, getApps, getApp} = a);
  ({getAuth, onAuthStateChanged, signInWithEmailAndPassword} = au);
- ({getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp} = d);
+ ({getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect} = d);
  ({getFirestore, collection, doc, getDoc, getDocFromServer, getDocs} = f);
 
 }
@@ -45,6 +45,15 @@ let olderMessages=[], hasOlder=false, olderLoading=false;
 let imageCache = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
 let photoVisibilityObserver = null;
 let pendingPhotoMessageKey = ''; // Preserve upload identity across retries.
+// V4.5: short-lived chat presence/typing, reactions, and independently stored read receipts.
+let activeReactions={}, activeReadReceipts={}, peerPresence=null, peerTyping=null;
+let ownPresencePath='', presenceHeartbeat=null, ownPresenceConnected=false;
+let typingPath='', typingIdleTimer=null, typingLastWrite=0, typingPulseBusy=false;
+let seenSyncBusy=false, priorOwnSeenAt=null, receiptCacheReady=false;
+let menuMessageId='', menuAnchor=null, detailsMessageId='';
+let longPressTimer=null, longPressFired=false, peerTypingExpiryTimer=null;
+const REACTION_EMOJIS=['❤️','😂','😮','😢','😡','👍'];
+
 // In-memory only: keep recent chats fast on conversation switching, without writing private text to browser storage.
 const conversationMemory = new Map();
 let selectedProject = null, savedProjects = [], projectViewerFiles = null, projectModalReturnFocus = null;
@@ -188,6 +197,7 @@ const summaryPath = uid => `${BASE}/summary/${uid}`;
 function role(){return teacher?'teacher':'student';}
 function roleDestination(){return teacher?'admin-v2.html?g8mBack=overview':'index.html?g8mBack=student';}
 function leaveMessages(){
+  stopTyping();
   if(sending){status('Finish sending before leaving Messages.',true);return;}
   window.location.replace(roleDestination());
 }
@@ -220,7 +230,10 @@ async function boot(){
   app=getApps().length?getApp():initializeApp(window.MCS_FIREBASE_CONFIG);
   auth=getAuth(app);rtdb=getDatabase(app,window.MCS_FIREBASE_DATABASE_URL);firestore=getFirestore(app);
   onAuthStateChanged(auth,async account=>{
-   clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
+   stopTyping();closeReactionPicker();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);
+   if(presenceHeartbeat){clearInterval(presenceHeartbeat);presenceHeartbeat=null;}
+   ownPresencePath='';ownPresenceConnected=false;
+   conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
    if(!account){showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);setConnection(false,'Sign in required');return;}
    $('g8mQuickLogin').hidden=true;
    teacher=isTeacher(account);
@@ -234,6 +247,7 @@ async function boot(){
      if(profile.accountStatus==='disabled')throw new Error('This student account is disabled.');
     }
     await initWorkspace();
+    setupOwnPresence();
    }catch(error){console.error('Messages sign-in:',error);showGate('Messages unavailable',friendlyError(error));setConnection(false,'Not available');}
   },error=>{console.error('Messages auth state:',error);showGate('Authentication unavailable',friendlyError(error));setConnection(false,'Authentication error');});
  }catch(error){console.error('G8Code Messages startup:',error);showGate('Messages unavailable',friendlyError(error));setConnection(false,'Connection error');}
@@ -388,9 +402,9 @@ function renderStudents(){if(!teacher)return;
  });
  if(!people.length)list.append(notice('No students match this filter. Try All or another section.'));
 }
-function switchMobile(view){mobileView=view;workspace.dataset.mobileView=view;}
+function switchMobile(view){mobileView=view;workspace.dataset.mobileView=view;root.dataset.mobileChat=(view==='chat'?'true':'false');closeReactionPicker();}
 $('g8mSectionBack').addEventListener('click',()=>{if(!sending)switchMobile('sections');});
-$('g8mChatBack').addEventListener('click',()=>{if(!sending)switchMobile('students');});
+$('g8mChatBack').addEventListener('click',()=>{if(sending)return;if(teacher)switchMobile('students');else leaveMessages();});
 $('g8mSectionSearch').addEventListener('input',e=>{search=e.target.value.trim().toLowerCase();renderSections();renderStudents();});
 $('g8mTabletSectionSelect').addEventListener('change',e=>{currentSection=e.target.value;renderSections();renderStudents();});
 $('g8mGlobalFilters').addEventListener('click',e=>{const b=e.target.closest('[data-filter]');if(!b)return;filter=b.dataset.filter;for(const x of $('g8mGlobalFilters').querySelectorAll('button'))x.classList.toggle('active',x===b);renderSections();renderStudents();});
@@ -398,12 +412,13 @@ function openChat(uid){
  if(sending){status('Your message is still sending. Finish the upload before switching conversations.',true);return;}
  if(teacher && !students.has(uid) && !summaries[uid])return;
  if(uid===openedUid && activeUnsubs.length){switchMobile('chat');return;}
+ stopTyping();closeReactionPicker();
  if(openedUid && activeMessages.length){
   conversationMemory.delete(openedUid);
   conversationMemory.set(openedUid,{messages:activeMessages.slice(-120),older:olderMessages.slice(-80),acks:{...activeAcks},seenAt,hasOlder});
   if(conversationMemory.size>10)conversationMemory.delete(conversationMemory.keys().next().value);
  }
- clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';
+ clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
  hasOlder=warm?.hasOlder||false;olderLoading=false;activeAcks=warm?.acks||{};seenAt=warm?.seenAt||0;reply=null;renderReply();
@@ -431,16 +446,245 @@ function openChat(uid){
   // A one-time read can still work when a realtime listener is interrupted.
   refreshConversation(false);
  }));
+ activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/reactions`),snap=>{if(uid!==openedUid)return;activeReactions=snap.val()||{};updateReactionBadges();updateDetails();},err=>console.warn('Reactions listener:',err)));
+ activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/readReceipts`),snap=>{if(uid!==openedUid)return;activeReadReceipts=snap.val()||{};receiptCacheReady=true;refreshSeenLabels();updateDetails();},err=>console.warn('Read receipt listener:',err)));
+ activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/typing/${teacher?'student':'teacher'}`),snap=>{if(uid!==openedUid)return;peerTyping=snap.val();updateTypingIndicator();},err=>console.warn('Typing listener:',err)));
+ activeUnsubs.push(onValue(ref(rtdb,teacher?`${BASE}/presence/students/${uid}`:`${BASE}/presence/teacher`),snap=>{if(uid!==openedUid)return;peerPresence=snap.val();updatePresenceLine();},err=>console.warn('Presence listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/acks`),snap=>{if(uid!==openedUid)return;activeAcks=snap.val()||{};renderMessages();},err=>status(friendlyError(err),true)));
- activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/seen/${teacher?'student':'teacher'}`),snap=>{seenAt=Number(snap.val()||0);renderMessages();}));
+ activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/seen/${teacher?'student':'teacher'}`),snap=>{seenAt=Number(snap.val()||0);refreshSeenLabels();updateDetails();}));
 }
-async function markSeen(uid){if(uid!==openedUid)return;const path=studentPath(uid);
- const at=Date.now();
+async function markSeen(uid){
+ if(uid!==openedUid||document.visibilityState!=='visible'||seenSyncBusy||!user)return;
+ seenSyncBusy=true;
+ const path=studentPath(uid);
  try{
+  // Preserve historical read state: don't invent "first seen" timestamps for old
+  // messages whose conversation-level Seen timestamp predates V4.5.
+  if(priorOwnSeenAt===null){
+   const old=await get(ref(rtdb,`${path}/seen/${role()}`));
+   if(uid!==openedUid)return;
+   priorOwnSeenAt=Number(old.val()||0);
+  }
+  // Messages can arrive before the first receipt listener snapshot. Load the
+  // receipt set before writing immutable first-seen values, otherwise a delayed
+  // listener could cause a rejected batch for an already-read message.
+  if(!receiptCacheReady){
+   const saved=await get(ref(rtdb,`${path}/readReceipts`));
+   if(uid!==openedUid)return;
+   activeReadReceipts=saved.val()||{};
+   receiptCacheReady=true;
+  }
+  const unreadItems=activeMessages.filter(msg=>msg.senderUid!==user.uid && messageTime(msg)>priorOwnSeenAt && !activeReadReceipts[msg.id]?.[role()]);
+  if(unreadItems.length){
+   const patch={};for(const msg of unreadItems.slice(0,120))patch[`${msg.id}/${role()}`]=serverTimestamp();
+   try{await update(ref(rtdb,`${path}/readReceipts`),patch);}
+   catch(error){console.warn('A per-message first-seen receipt may already exist on another device:',error);}
+   // Even when another session recorded the precise receipt first, the
+   // conversation-level Seen state must still advance below.
+  }
+  const at=Date.now();
   await set(ref(rtdb,`${path}/seen/${role()}`),serverTimestamp());
+  priorOwnSeenAt=at;
   await set(ref(rtdb,`${summaryPath(uid)}/${teacher?'unreadTeacher':'unreadStudent'}`),0);
  }catch(error){console.warn('Read receipt not yet confirmed:',error);}
+ finally{seenSyncBusy=false;}
 }
+// ——— V4.5 — per-message reactions, first-view receipts, live typing and presence ———
+function peerRole(){return teacher?'student':'teacher';}
+function messageById(id){return [...activeMessages,...olderMessages].find(msg=>msg.id===String(id));}
+function absoluteTime(value){
+ const n=Number(value);if(!Number.isFinite(n)||n<=0)return 'Unavailable';
+ return new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit',timeZone:'Asia/Manila'}).format(new Date(n));
+}
+function relativeActivity(value){
+ const ms=Date.now()-Number(value||0);
+ if(!Number.isFinite(ms)||ms<0||!value)return 'Last active unavailable';
+ if(ms<60000)return 'Active just now';
+ if(ms<3600000)return `Active ${Math.floor(ms/60000)}m ago`;
+ if(ms<86400000)return `Active ${Math.floor(ms/3600000)}h ago`;
+ if(ms<172800000)return 'Active yesterday';
+ return `Active ${Math.floor(ms/86400000)}d ago`;
+}
+function updatePresenceLine(){
+ const line=$('g8mChatPresence');if(!line)return;
+ if(!openedUid){line.textContent='Select a conversation';line.classList.remove('online');return;}
+ const seen=Number(peerPresence?.lastAtMs||0);
+ const online=peerPresence?.online===true && seen>0 && Date.now()-seen<95000;
+ line.textContent=online?'● Active now':(seen?relativeActivity(seen):'Activity status unavailable');
+ line.classList.toggle('online',online);
+}
+function ownPresenceRef(){return teacher?`${BASE}/presence/teacher`:`${BASE}/presence/students/${user.uid}`;}
+async function publishPresence(online){
+ if(!user||!rtdb)return;
+ const path=ownPresenceRef();
+ try{
+  if(online){
+   await onDisconnect(ref(rtdb,path)).set({uid:user.uid,online:false,lastAtMs:serverTimestamp()});
+  }
+  await set(ref(rtdb,path),{uid:user.uid,online:!!online,lastAtMs:serverTimestamp()});
+ }catch(error){console.warn('Presence update:',error);}
+}
+function setupOwnPresence(){
+ if(!user||!rtdb)return;
+ ownPresencePath=ownPresenceRef();
+ rootUnsubs.push(onValue(ref(rtdb,'.info/connected'),snap=>{
+  ownPresenceConnected=snap.val()===true;
+  if(ownPresenceConnected && document.visibilityState==='visible')void publishPresence(true);
+ }));
+ if(presenceHeartbeat)clearInterval(presenceHeartbeat);
+ presenceHeartbeat=setInterval(()=>{
+  if(ownPresenceConnected&&document.visibilityState==='visible')void publishPresence(true);
+  updatePresenceLine();updateTypingIndicator();
+ },30000);
+}
+document.addEventListener('visibilitychange',()=>{
+ if(!user||!rtdb)return;
+ if(document.visibilityState==='hidden'){stopTyping();void publishPresence(false);}
+ else {if(ownPresenceConnected)void publishPresence(true);if(openedUid)void markSeen(openedUid);}
+});
+function updateTypingIndicator(){
+ const area=$('g8mTypingIndicator');if(!area)return;
+ if(peerTypingExpiryTimer){clearTimeout(peerTypingExpiryTimer);peerTypingExpiryTimer=null;}
+ const expires=Number(peerTyping?.expiresAtMs||0);
+ const visible=!!openedUid && !!peerTyping && peerTyping.uid!==user?.uid && expires>Date.now();
+ area.hidden=!visible;
+ if(visible){
+  $('g8mTypingText').textContent=`${teacher?'Student':'Teacher'} is typing…`;
+  peerTypingExpiryTimer=setTimeout(updateTypingIndicator,Math.max(40,Math.min(10000,expires-Date.now()+30)));
+ }
+}
+function stopTyping(){
+ if(typingIdleTimer){clearTimeout(typingIdleTimer);typingIdleTimer=null;}
+ const old=typingPath;typingPath='';typingLastWrite=0;
+ if(old&&rtdb){remove(ref(rtdb,old)).catch(error=>console.warn('Typing cleanup:',error));}
+}
+function pulseTyping(){
+ if(!user||!rtdb||!openedUid||document.visibilityState!=='visible'||sending)return;
+ if(typingIdleTimer)clearTimeout(typingIdleTimer);
+ typingIdleTimer=setTimeout(stopTyping,3200);
+ const path=`${studentPath(openedUid)}/typing/${role()}`;
+ const t=Date.now();
+ if(typingPulseBusy||(typingPath===path&&t-typingLastWrite<1900))return;
+ typingPath=path;typingLastWrite=t;typingPulseBusy=true;
+ (async()=>{
+  try{
+   await onDisconnect(ref(rtdb,path)).remove();
+   if(typingPath===path)await set(ref(rtdb,path),{uid:user.uid,atMs:serverTimestamp(),expiresAtMs:Date.now()+6500});
+  }catch(error){console.warn('Typing indicator:',error);}
+  finally{typingPulseBusy=false;}
+ })();
+}
+function seenLabelFor(msg){
+ const exact=Number(activeReadReceipts?.[msg.id]?.[peerRole()]||0);
+ const fallback=Number(seenAt||0)>=messageTime(msg) && messageTime(msg)>0;
+ return exact>0||fallback?'✓✓ Seen':'✓ Sent';
+}
+function refreshSeenLabels(){
+ for(const node of $('g8mMessages')?.querySelectorAll('.g8m-message.own')||[]){
+  const m=messageById(node.dataset.messageId);
+  const el=node.querySelector('.g8m-seen-label');if(m&&el)el.textContent=seenLabelFor(m);
+ }
+}
+function reactionSummary(id){
+ const raw=activeReactions[id]||{};
+ const entries=Object.entries(raw).filter(([uid,emoji])=>uid && REACTION_EMOJIS.includes(emoji));
+ const emojis=[...new Set(entries.map(([uid,emoji])=>emoji))];
+ return {entries,emojis,count:entries.length,own:raw[user?.uid]||''};
+}
+function updateOneReactionBadge(node,id){
+ const badge=node.querySelector('.g8m-reaction-chip');if(!badge)return;
+ const r=reactionSummary(id);badge.hidden=!r.count;
+ badge.textContent=r.emojis.slice(0,3).join('')+(r.count>1?' '+r.count:'');
+ badge.classList.toggle('mine',!!r.own);
+ badge.title=r.count?`${r.count} reaction${r.count!==1?'s':''}`:'React';
+}
+function updateReactionBadges(){
+ for(const node of $('g8mMessages')?.querySelectorAll('.g8m-message[data-message-id]')||[])updateOneReactionBadge(node,node.dataset.messageId);
+}
+function replyToMessage(id){
+ const msg=messageById(id);if(!msg)return;
+ reply={id:msg.id,text:msg.type==='project'?String(msg.projectName||'Shared project'):(msg.text||(msg.attachments?'Photo attachment':'Message'))};
+ renderReply();closeReactionPicker();$('g8mTextInput').focus();
+}
+const reactionPicker=$('g8mReactionPicker'),detailsOverlay=$('g8mMessageDetails');
+function closeReactionPicker(){reactionPicker.hidden=true;menuMessageId='';menuAnchor=null;}
+function openReactionPicker(id,anchor){
+ if(!messageById(id))return;
+ menuMessageId=id;menuAnchor=anchor||messageNode(id);
+ reactionPicker.hidden=false;
+ const emoji=activeReactions[id]?.[user?.uid]||'';
+ for(const b of reactionPicker.querySelectorAll('[data-g8m-emoji]'))b.classList.toggle('selected',b.dataset.g8mEmoji===emoji);
+ const r=menuAnchor?.getBoundingClientRect()||{top:110,left:16,width:180,bottom:150};
+ const width=reactionPicker.offsetWidth,height=reactionPicker.offsetHeight;
+ const left=Math.max(8,Math.min(innerWidth-width-8,r.left+r.width/2-width/2));
+ let top=r.top-height-9;
+ if(top<7)top=Math.min(innerHeight-height-8,r.bottom+8);
+ reactionPicker.style.left=`${Math.round(left)}px`;reactionPicker.style.top=`${Math.round(Math.max(7,top))}px`;
+}
+async function reactToMessage(id,emoji){
+ if(!openedUid||!user||!REACTION_EMOJIS.includes(emoji))return;
+ const uid=openedUid, refPath=ref(rtdb,`${studentPath(uid)}/reactions/${id}/${user.uid}`);
+ const old=activeReactions[id]?.[user.uid]||'';
+ closeReactionPicker();
+ try{
+  if(old===emoji)await remove(refPath);else await set(refPath,emoji);
+ }catch(error){status(`Could not save reaction: ${friendlyError(error)}`,true);}
+}
+reactionPicker.addEventListener('click',event=>{
+ const emojiButton=event.target.closest('[data-g8m-emoji]');
+ if(emojiButton&&menuMessageId)void reactToMessage(menuMessageId,emojiButton.dataset.g8mEmoji);
+});
+$('g8mPickerReply').addEventListener('click',()=>{if(menuMessageId)replyToMessage(menuMessageId);});
+$('g8mPickerDetails').addEventListener('click',()=>{if(menuMessageId)openDetailsFor(menuMessageId);});
+function openDetailsFor(id){
+ if(!messageById(id))return;
+ detailsMessageId=id;closeReactionPicker();updateDetails();detailsOverlay.hidden=false;
+ $('g8mDetailsClose').focus();
+}
+function updateDetails(){
+ if(!detailsMessageId)return;
+ const msg=messageById(detailsMessageId);if(!msg)return;
+ const own=msg.senderUid===user?.uid;
+ $('g8mDetailsPreview').textContent=short(msg.type==='project'?msg.projectName:msg.text||(msg.attachments?'Photo attachment':'Message'),260);
+ $('g8mDetailsSent').textContent=absoluteTime(msg.createdAtMs);
+ $('g8mDetailsSeenLabel').textContent=own?`Seen by ${teacher?'Student':'Teacher'}`:'Seen by you';
+ const exact=Number(activeReadReceipts[detailsMessageId]?.[own?peerRole():role()]||0);
+ const oldSeen=own?Number(seenAt||0)>=messageTime(msg)&&messageTime(msg)>0:Number(priorOwnSeenAt||0)>=messageTime(msg)&&messageTime(msg)>0;
+ $('g8mDetailsSeen').textContent=exact?absoluteTime(exact):(oldSeen?'Previously seen · exact time not recorded':'Not yet seen');
+ const r=reactionSummary(detailsMessageId);
+ $('g8mDetailsReactions').textContent=r.count?r.entries.map(([uid,emoji])=>`${emoji} ${uid===user.uid?'You':teacher?'Student':'Teacher'}`).join(' · '):'None';
+}
+function closeDetails(){detailsOverlay.hidden=true;detailsMessageId='';}
+$('g8mDetailsClose').addEventListener('click',closeDetails);
+detailsOverlay.addEventListener('click',event=>{if(event.target===detailsOverlay)closeDetails();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeReactionPicker();if(!detailsOverlay.hidden)closeDetails();}});
+document.addEventListener('pointerdown',event=>{
+ if(!reactionPicker.hidden&&!reactionPicker.contains(event.target)&&!event.target.closest('.g8m-hover-actions,.g8m-reaction-chip'))closeReactionPicker();
+});
+$('g8mMessages').addEventListener('scroll',()=>{if(!reactionPicker.hidden)closeReactionPicker();},{passive:true});
+function installLongPress(item,id){
+ let x=0,y=0;
+ item.addEventListener('pointerdown',event=>{
+  if(event.pointerType==='mouse'||event.target.closest('.g8m-hover-actions,.g8m-msg-meta,.g8m-reaction-chip'))return;
+  x=event.clientX;y=event.clientY;longPressFired=false;
+  if(longPressTimer)clearTimeout(longPressTimer);
+  longPressTimer=setTimeout(()=>{longPressTimer=null;longPressFired=true;openReactionPicker(id,item);if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}},440);
+ });
+ item.addEventListener('pointermove',event=>{if(Math.abs(event.clientX-x)>11||Math.abs(event.clientY-y)>11){clearTimeout(longPressTimer);longPressTimer=null;}});
+ for(const evt of ['pointerup','pointercancel','pointerleave'])item.addEventListener(evt,()=>{clearTimeout(longPressTimer);longPressTimer=null;if(longPressFired)setTimeout(()=>{longPressFired=false;},300);});
+ item.addEventListener('contextmenu',event=>{if(event.pointerType!=='mouse'){event.preventDefault();openReactionPicker(id,item);}});
+ item.addEventListener('click',event=>{if(longPressFired&&!event.target.closest('.g8m-msg-meta,.g8m-hover-actions,.g8m-reaction-chip')){event.preventDefault();event.stopImmediatePropagation();longPressFired=false;}},true);
+}
+function syncChatViewport(){
+ if(!window.visualViewport)return;
+ root.style.setProperty('--g8m-visual-height',`${Math.round(window.visualViewport.height)}px`);
+ root.style.setProperty('--g8m-visual-top',`${Math.max(0,Math.round(window.visualViewport.offsetTop||0))}px`);
+}
+if(window.visualViewport){visualViewport.addEventListener('resize',syncChatViewport);visualViewport.addEventListener('scroll',syncChatViewport);}
+window.addEventListener('resize',syncChatViewport);
+syncChatViewport();
+$('g8mTextInput').addEventListener('focus',()=>setTimeout(()=>{const feed=$('g8mMessages');if(feed)feed.scrollTop=feed.scrollHeight;},120));
+
 function renderMessages(){
  if(!openedUid)return;
  if(photoVisibilityObserver){photoVisibilityObserver.disconnect();photoVisibilityObserver=null;}
@@ -510,10 +754,21 @@ function renderMessages(){
     item.append(textEl('div','g8m-text','Message content unavailable'));
    }
    const meta=textEl('div','g8m-msg-meta','');meta.append(textEl('span','',formatTime(at)));
-   if(mine)meta.append(textEl('span','',at<=seenAt?'✓✓ Seen':'✓ Sent'));
+   if(mine){const seenLabel=textEl('span','g8m-seen-label',seenLabelFor(msg));meta.append(seenLabel);}
    const replyBtn=textEl('button','g8m-reply-btn','↩ Reply');replyBtn.type='button';
    replyBtn.addEventListener('click',()=>{reply={id:msg.id,text:msg.type==='project'?String(msg.projectName||'Shared project'):(msg.text||(attachments.length?'Photo attachment':'Message'))};renderReply();$('g8mTextInput').focus();});
-   meta.append(replyBtn);item.append(meta);content.append(item);
+   meta.append(replyBtn);
+   const more=textEl('button','g8m-msg-more','⋯');more.type='button';more.title='Message Details';more.setAttribute('aria-label','Message Details');more.addEventListener('click',event=>{event.stopPropagation();openDetailsFor(msg.id);});meta.append(more);
+   item.append(meta);
+   const actions=textEl('div','g8m-hover-actions','');
+   const reactButton=textEl('button','','☺');reactButton.type='button';reactButton.title='React';reactButton.setAttribute('aria-label','React to message');reactButton.addEventListener('click',()=>openReactionPicker(msg.id,item));
+   const quickReply=textEl('button','','↩');quickReply.type='button';quickReply.title='Reply';quickReply.setAttribute('aria-label','Reply to message');quickReply.addEventListener('click',()=>replyToMessage(msg.id));
+   const quickMore=textEl('button','','⋯');quickMore.type='button';quickMore.title='More / Message Details';quickMore.setAttribute('aria-label','More message actions');quickMore.addEventListener('click',()=>openDetailsFor(msg.id));
+   actions.append(reactButton,quickReply,quickMore);item.append(actions);
+   const reactionChip=textEl('button','g8m-reaction-chip','');reactionChip.type='button';reactionChip.setAttribute('aria-label','View or change reactions');reactionChip.addEventListener('click',()=>openReactionPicker(msg.id,item));item.append(reactionChip);
+   updateOneReactionBadge(item,msg.id);
+   installLongPress(item,msg.id);
+   content.append(item);
   }catch(error){
    console.error('Could not render chat item:',msg?.id,error);
    const fallback=textEl('div','g8m-msg-render-error','A saved message could not be displayed.');
@@ -622,7 +877,7 @@ function renderSelections(){const cont=$('g8mAttachments');cont.hidden=!selectio
  frame.append(img,x);cont.append(frame);
  });setSendEnabled();}
 function setSendEnabled(){$('g8mSend').disabled=sending||!openedUid||(!$('g8mTextInput').value.trim()&&!selections.length&&!selectedProject);$('g8mFileInput').disabled=sending;const p=$('g8mAttachMenuToggle');if(p)p.disabled=sending;}
-$('g8mTextInput').addEventListener('input',()=>{const t=$('g8mTextInput');t.style.height='38px';t.style.height=Math.min(120,t.scrollHeight)+'px';setSendEnabled();});
+$('g8mTextInput').addEventListener('input',()=>{const t=$('g8mTextInput');t.style.height='38px';t.style.height=Math.min(120,t.scrollHeight)+'px';setSendEnabled();if(t.value.trim())pulseTyping();else stopTyping();});
 $('g8mTextInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!$('g8mSend').disabled)$('g8mComposer').requestSubmit();}});
 function summaryData(uid){const personInfo=teacher?person(uid):profile;
  return {name:short(personInfo?.name||'Student',100),studentId:short(personInfo?.studentId||'',50),section:short(personInfo?.section||'Unassigned',100)};
@@ -745,7 +1000,7 @@ async function uploadFile(uid,msgKey,file,index){
 async function sendMessage(event){event.preventDefault();if(sending||!openedUid||!user)return;
  const uid=openedUid, text=$('g8mTextInput').value.trim(),queued=selections.slice(),currentReply=reply,sharedProject=selectedProject;
  if(!text&&!queued.length&&!sharedProject)return;
- sending=true;setSendEnabled();status('Sending…');
+ sending=true;stopTyping();setSendEnabled();status('Sending…');
  const key=queued.length?(pendingPhotoMessageKey || push(ref(rtdb,`${studentPath(uid)}/messages`)).key):push(ref(rtdb,`${studentPath(uid)}/messages`)).key;
  if(queued.length)pendingPhotoMessageKey=key;
  try{
@@ -1215,5 +1470,5 @@ $('g8mViewerCopy').addEventListener('click',async()=>{
 // === End Messages V4.0 ===
 
 $('g8mComposer').addEventListener('submit',sendMessage);
-window.addEventListener('beforeunload',()=>{clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);selections.forEach(s=>URL.revokeObjectURL(s.url));imageCache.forEach(url=>URL.revokeObjectURL(url));});
+window.addEventListener('beforeunload',()=>{stopTyping();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);selections.forEach(s=>URL.revokeObjectURL(s.url));imageCache.forEach(url=>URL.revokeObjectURL(url));});
 boot();

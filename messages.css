@@ -147,3 +147,74 @@
 /* V4.3: show complete upload failures and progress instead of clipping them. */
 .g8m-send-status{max-height:76px;min-height:0;overflow-y:auto;overflow-wrap:anywhere;line-height:1.4;padding-top:3px;padding-bottom:3px}
 .g8m-send-status.error{font-weight:650}
+
+/* G8Code Messages V4.5 — bounded chat viewport, live status, reactions and details.
+   Keep the chat header/composer anchored. The conversation feed is the ONLY
+   vertical scrolling surface of the chat screen. */
+html,body{overflow:hidden;overscroll-behavior:none}
+.g8m-app{min-height:0;max-height:100dvh}
+.g8m-conversation{min-height:0;overflow:hidden;isolation:isolate}
+.g8m-chat-head{position:relative;z-index:4;min-height:72px;height:auto;flex:0 0 72px}
+.g8m-chat-identity{display:flex;flex-direction:column;justify-content:center;gap:1px;min-width:0;overflow:hidden}
+.g8m-chat-identity small{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g8m-chat-identity .g8m-presence-line{font-weight:650;color:var(--muted)}
+.g8m-chat-identity .g8m-presence-line.online{color:var(--success)}
+.g8m-chat-identity .g8m-chat-extra{font-size:10px;opacity:.85}
+.g8m-messages{min-height:0;min-width:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y}
+.g8m-compose{position:relative;z-index:4;min-height:48px;border-top:1px solid var(--line)}
+.g8m-reply,.g8m-attachments,.g8m-project-selected,.g8m-send-status,.g8m-disclaimer{position:relative;flex-shrink:0;z-index:3}
+.g8m-typing-indicator{display:flex;align-items:center;gap:8px;flex:0 0 30px;padding:3px 17px;background:var(--paper);color:var(--muted);font-size:11px;border-top:1px solid var(--line)}
+.g8m-typing-dots{display:inline-flex;align-items:center;gap:3px;padding:6px 8px;border-radius:15px;background:var(--bubble)}
+.g8m-typing-dots i{display:block;width:5px;height:5px;border-radius:50%;background:var(--accent);animation:g8m-dot-bounce 1.05s ease-in-out infinite alternate}
+.g8m-typing-dots i:nth-child(2){animation-delay:.16s}.g8m-typing-dots i:nth-child(3){animation-delay:.32s}
+@keyframes g8m-dot-bounce{0%{transform:translateY(1px);opacity:.5}100%{transform:translateY(-3px);opacity:1}}
+.g8m-message{position:relative;isolation:isolate;overflow:visible;min-width:0}
+.g8m-hover-actions{position:absolute;z-index:9;top:3px;left:calc(100% - 4px);display:flex;align-items:center;gap:2px;padding:4px;background:var(--paper);border:1px solid var(--line);border-radius:15px;box-shadow:0 8px 25px #0002;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(5px);transition:opacity .14s,transform .14s}
+.g8m-message.own .g8m-hover-actions{left:auto;right:calc(100% - 4px)}
+@media(hover:hover) and (pointer:fine){.g8m-message:hover .g8m-hover-actions,.g8m-message:focus-within .g8m-hover-actions{opacity:1;visibility:visible;pointer-events:auto;transform:none}}
+.g8m-hover-actions button{display:grid;place-items:center;flex:none;width:30px;height:30px;border:0;border-radius:9px;background:transparent;color:var(--ink);font-size:19px}
+.g8m-hover-actions button:hover{background:var(--accent-soft);color:var(--accent)}
+.g8m-reaction-chip{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;width:max-content;min-height:23px;border-radius:99px;padding:2px 8px;background:var(--paper);border:1px solid var(--line);box-shadow:0 1px 6px #0001;color:var(--ink);font-size:12px}
+.g8m-reaction-chip.mine{border-color:var(--accent);background:var(--accent-soft)}
+.g8m-message.own .g8m-reaction-chip{align-self:flex-end}
+.g8m-msg-more{border:0;background:transparent;color:var(--muted);font-weight:750;padding:1px 6px;font-size:15px;display:none}
+.g8m-reaction-picker{position:fixed;z-index:6200;max-width:calc(100vw - 14px);width:max-content;min-width:230px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:8px;box-shadow:0 12px 45px #0005;animation:g8m-popup .15s ease-out both}
+.g8m-reaction-options{display:flex;justify-content:space-around;gap:1px}
+.g8m-reaction-options button{flex:none;border:0;border-radius:14px;background:transparent;padding:7px 4px;font-size:25px;line-height:1.1;transition:transform .14s,background .14s}
+.g8m-reaction-options button:hover,.g8m-reaction-options button.selected{background:var(--accent-soft);transform:translateY(-3px) scale(1.12)}
+.g8m-reaction-actions{margin-top:4px;padding-top:7px;border-top:1px solid var(--line);display:flex;gap:5px}
+.g8m-reaction-actions button{flex:1;border:0;background:var(--field);color:var(--ink);border-radius:10px;padding:8px;font-size:11px;font-weight:750}
+@keyframes g8m-popup{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+.g8m-details-overlay{position:fixed;inset:0;z-index:6500;display:flex;align-items:center;justify-content:center;background:rgba(5,12,27,.68);padding:16px}
+.g8m-details-dialog{width:min(430px,100%);max-height:90dvh;overflow:auto;border-radius:19px;background:var(--paper);color:var(--ink);box-shadow:0 20px 70px #0005}
+.g8m-details-dialog header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:16px 18px;font-size:15px}
+.g8m-details-dialog header button{border:0;border-radius:9px;background:var(--field);color:var(--ink);font-size:24px;width:34px;height:34px}
+.g8m-details-preview{margin:14px 16px 4px;border-radius:12px;background:var(--field);padding:12px;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.g8m-details-dialog dl{margin:8px 16px 18px}.g8m-details-dialog dl>div{display:flex;justify-content:space-between;align-items:start;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+.g8m-details-dialog dt{color:var(--muted);font-size:12px;flex-shrink:0}.g8m-details-dialog dd{margin:0;text-align:right;font-size:12px;line-height:1.5;font-weight:650;overflow-wrap:anywhere}
+@media(max-width:700px){
+ html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden}
+ .g8m-app{position:fixed;top:var(--g8m-visual-top,0px);left:0;right:0;height:var(--g8m-visual-height,100dvh);min-height:0;max-height:100dvh;overflow:hidden}
+ .g8m-app[data-mobile-chat=true] .g8m-top{display:none}
+ .g8m-workspace,.g8m-conversation{min-height:0;height:100%;overflow:hidden}
+ .g8m-workspace.student .g8m-chat-head .g8m-mobile-back{display:grid;place-items:center}
+ .g8m-chat-head{min-height:62px;flex:0 0 62px;padding:7px 10px}
+ .g8m-chat-identity strong{font-size:13px}
+ .g8m-chat-identity small{font-size:10px}
+ .g8m-chat-identity .g8m-chat-extra{font-size:9px}
+ .g8m-lock{display:none}
+ .g8m-messages{flex:1 1 0;min-height:0;max-height:none;padding:13px 11px 20px}
+ .g8m-message{max-width:89%;touch-action:pan-y}
+ .g8m-hover-actions{display:none!important}
+ .g8m-msg-more{display:inline-flex}
+ .g8m-compose{padding:7px 9px calc(7px + env(safe-area-inset-bottom));gap:8px;align-items:center}
+ .g8m-compose textarea{font-size:16px;line-height:20px;min-height:39px;max-height:min(95px,24dvh)}
+ .g8m-typing-indicator{flex-basis:28px;padding:2px 11px}
+ .g8m-disclaimer{display:none}
+ .g8m-send-status{max-height:48px;overflow:hidden;overflow-wrap:anywhere;line-height:1.25;padding:2px 10px;word-break:break-word}
+ .g8m-reaction-picker{min-width:min(290px,calc(100vw - 16px))}
+ .g8m-reaction-options button{font-size:23px;padding:7px 3px}
+ .g8m-details-overlay{align-items:flex-end;padding:0}
+ .g8m-details-dialog{width:100%;max-height:82dvh;border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+}
+@media(prefers-reduced-motion:reduce){.g8m-typing-dots i{animation:none}.g8m-hover-actions,.g8m-reaction-picker,.g8m-reaction-options button{transition:none;animation:none}}
