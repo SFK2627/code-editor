@@ -14053,11 +14053,22 @@ function installQuizModeControls() {
   // Do not count window blur: embedded PDF viewers legitimately receive focus.
 }
 async function openQuizMonitor(activityId) {
-  if (!isTeacherAuthenticated()) return;
+  // Admin V2 is a standalone route; an expired teacher session must never fail silently.
+  if (!isTeacherAuthenticated()) {
+    await appAlert('Please sign in as a teacher to monitor quiz attempts.', { title: 'Quiz Monitoring' });
+    return;
+  }
+  const overlay = quizNode('quizMonitorOverlay');
+  if (!overlay || !quizNode('quizMonitorList')) {
+    await appAlert('Quiz monitoring is unavailable in this page. Reopen Admin V2 and try again.', { title: 'Quiz Monitoring' });
+    return;
+  }
   quizModeState.monitorActivityId = activityId;
   const item = givenActivityState.items.find(row => row.id === activityId);
-  quizNode('quizMonitorTitle').textContent = `${item?.title || 'Quiz'} · Attempts`;
-  quizNode('quizMonitorSearch').value = '';
+  const title = quizNode('quizMonitorTitle');
+  const search = quizNode('quizMonitorSearch');
+  if (title) title.textContent = `${item?.title || 'Quiz'} · Attempts`;
+  if (search) search.value = '';
   quizOverlay('quizMonitorOverlay', true);
   await loadQuizMonitorRows();
 }
