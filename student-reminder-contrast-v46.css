@@ -1,0 +1,146 @@
+/* G8Code V4.6 — student after-login reminder: one contrast role system.
+   Intentionally scoped to this dialog; the published theme shapes, accent,
+   title effects, progress fill, grade color coding, and behavior are retained. */
+#loginLackingReminderOverlay[data-appearance="light"]{
+ --lrm-panel:#f3f6fa; --lrm-header:#edf3fa; --lrm-surface:#ffffff;
+ --lrm-surface-alt:#f0f5fb; --lrm-group-head:#eaf1f9;
+ --lrm-text:#14263e; --lrm-muted:#425873; --lrm-border:#b9cadc;
+ --lrm-warning-bg:#fff1d5; --lrm-warning-text:#753d05;
+}
+#loginLackingReminderOverlay[data-appearance="dark"]{
+ --lrm-panel:#142033; --lrm-header:#1b293e; --lrm-surface:#22334b;
+ --lrm-surface-alt:#293d57; --lrm-group-head:#304761;
+ --lrm-text:#f4f8ff; --lrm-muted:#cdd9eb; --lrm-border:#58708d;
+ --lrm-warning-bg:#473519; --lrm-warning-text:#ffe4aa;
+}
+/* Override earlier high-specificity/important legacy themes where content
+   (especially task labels) had the same ink color as the background. */
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-panel{
+ background:var(--lrm-panel)!important;color:var(--lrm-text)!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] :is(
+ .login-reminder-fixed-header,.login-reminder-scroll-region,.login-lacking-reminder-actions
+){background:var(--lrm-panel)!important;color:var(--lrm-text)!important;border-color:var(--lrm-border)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-fixed-header{
+ background:var(--lrm-header)!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] :is(
+ .login-reminder-progress-widget,.login-reminder-standing,.login-lacking-reminder-recitation,
+ .login-reminder-requirements-group,.login-reminder-standing-details,
+ #loginReminderExpandedLegend,.login-lacking-reminder-nav-card
+){background:var(--lrm-surface)!important;color:var(--lrm-text)!important;border-color:var(--lrm-border)!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-group-header{
+ background:var(--lrm-group-head)!important;color:var(--lrm-text)!important;
+ border-color:var(--lrm-border)!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-group ol{
+ background:var(--lrm-surface)!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-group li,
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-group li+li{
+ background:transparent!important;border-color:var(--lrm-border)!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] :is(
+ .login-reminder-requirements-head h3,.login-reminder-requirements-overline,
+ .login-reminder-requirements-group-header strong,.login-reminder-requirements-group-header span,
+ .login-reminder-requirements-group li span,.login-lacking-reminder-list-title,
+ .login-reminder-standing-copy strong,.login-lacking-reminder-recitation-label strong,
+ .login-lacking-reminder-nav-head span,.login-lacking-reminder-nav-card strong,
+ .login-reminder-progress-title,.login-reminder-progress-title b,
+ .login-reminder-color-legend b
+){color:var(--lrm-text)!important;opacity:1!important;text-shadow:none!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] :is(
+ .login-reminder-requirements-group li small,.login-reminder-requirements-group li em,
+ .login-lacking-reminder-student,.login-reminder-standing-copy small,
+ .login-lacking-reminder-recitation-label small,.login-lacking-reminder-nav-head small,
+ .login-lacking-reminder-nav-card small,.login-reminder-standing-details p,
+ .login-reminder-grade-privacy,.login-reminder-color-legend small,
+ .login-reminder-progress-breakdown,.login-reminder-requirements-group-header i
+){color:var(--lrm-muted)!important;opacity:1!important;text-shadow:none!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-count{
+ background:var(--lrm-warning-bg)!important;color:var(--lrm-warning-text)!important;
+ border:1px solid color-mix(in srgb,var(--lrm-warning-text) 25%,transparent)!important;
+ opacity:1!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-head{
+ display:flex!important;align-items:center!important;gap:8px!important;
+ min-width:0;padding:3px 0 2px!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-head>div{min-width:0;flex:1}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-overline{
+ display:block!important;line-height:1.35!important;margin:0 0 4px!important;font-size:.69rem!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-head h3{
+ display:block!important;line-height:1.3!important;margin:0!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-group-header{
+ min-height:40px;align-items:center!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-group-header:focus-visible{
+ outline:2px solid #60a5fa!important;outline-offset:-2px!important;
+}
+/* Preserve contrast on the warning banner and its link/action. */
+#loginLackingReminderOverlay[data-state="missing"][data-appearance="light"] .login-lacking-reminder-message{
+ background:#fff3de!important;color:#713c08!important;border-color:#dfa34c!important;
+}
+#loginLackingReminderOverlay[data-state="missing"][data-appearance="dark"] .login-lacking-reminder-message{
+ background:#483317!important;color:#ffebc5!important;border-color:#c69a50!important;
+}
+#loginLackingReminderOverlay[data-appearance="light"] .login-reminder-view-status{
+ background:#fff2d5!important;color:#754209!important;border-color:#d09d4f!important;
+}
+#loginLackingReminderOverlay[data-appearance="dark"] .login-reminder-view-status{
+ background:#4c391d!important;color:#ffe7b7!important;border-color:#bb9352!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-view-status{opacity:1!important}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-standing-details,
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-color-legend>div{
+ background:var(--lrm-surface-alt)!important;border-color:var(--lrm-border)!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-color-legend b,
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-color-legend small{
+ color:var(--lrm-text)!important;
+}
+/* Keeps the progress track but makes its button text readable in dark mode. */
+#loginLackingReminderOverlay[data-theme][data-appearance] #loginReminderProgressToggle,
+#loginLackingReminderOverlay[data-theme][data-appearance] #loginReminderProgressToggle span,
+#loginLackingReminderOverlay[data-theme][data-appearance] #loginReminderProgressToggle b{
+ color:var(--lrm-text)!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-nav-card:hover,
+#loginLackingReminderOverlay[data-theme][data-appearance] .login-lacking-reminder-nav-card:focus-visible{
+ background:var(--lrm-surface-alt)!important;color:var(--lrm-text)!important;
+}
+@media(max-width:600px){
+ #loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-head{align-items:center!important}
+ #loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-head h3{font-size:.9rem!important}
+ #loginLackingReminderOverlay[data-theme][data-appearance] .login-reminder-requirements-count{white-space:nowrap;font-size:.71rem!important}
+}
+/* Final small contrast gaps exposed during phone/desktop review. */
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] .login-reminder-standing-hint,
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] .login-reminder-standing-hint :is(span,i){
+ color:#b4d5ff!important;opacity:1!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance="light"] .login-reminder-standing-hint,
+#loginLackingReminderOverlay[data-theme][data-appearance="light"] .login-reminder-standing-hint :is(span,i){
+ color:#1d5288!important;opacity:1!important;
+}
+#loginLackingReminderOverlay[data-theme][data-state="missing"][data-appearance="light"] .login-lacking-reminder-message{
+ background:#fff2d9!important;color:#75420b!important;border-color:#dfae65!important;
+}
+#loginLackingReminderOverlay[data-theme][data-state="missing"][data-appearance="dark"] .login-lacking-reminder-message{
+ background:#46341e!important;color:#ffe9bd!important;border-color:#c29a56!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] .login-lacking-reminder-meta span:not(.warning):not(.success){
+ background:#30425a!important;color:#f3f7ff!important;border-color:#6a819d!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] .login-lacking-reminder-recitation-label :is(strong,small),
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] .login-lacking-reminder-recitation-score :is(strong,span){
+ color:#f1f6ff!important;opacity:1!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance="dark"] .login-reminder-requirements-group li::before{
+ background:#edb445!important;color:#19233b!important;
+}
+#loginLackingReminderOverlay[data-theme][data-appearance="light"] .login-reminder-requirements-group li::before{
+ background:#b86b06!important;color:#fff!important;
+}

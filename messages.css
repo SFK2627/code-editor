@@ -218,3 +218,40 @@ html,body{overflow:hidden;overscroll-behavior:none}
  .g8m-details-dialog{width:100%;max-height:82dvh;border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom)}
 }
 @media(prefers-reduced-motion:reduce){.g8m-typing-dots i{animation:none}.g8m-hover-actions,.g8m-reaction-picker,.g8m-reaction-options button{transition:none;animation:none}}
+
+
+/* V4.6 — Reaction + action controls anchored tightly to the actual bubble.
+   This avoids the giant gap seen beside short messages; the metadata row is
+   intentionally outside this anchor and does not shift it. */
+.g8m-message .g8m-bubble-anchor{
+ position:relative;display:flex;flex-direction:column;align-items:flex-start;
+ width:max-content;max-width:100%;min-width:0;isolation:isolate;
+}
+.g8m-message.own .g8m-bubble-anchor{align-items:flex-end}
+.g8m-message .g8m-bubble-anchor > :is(.g8m-text,.g8m-quoted,.g8m-photo-grid,.g8m-project-card,.g8m-ack-actions){max-width:100%}
+.g8m-message .g8m-bubble-anchor .g8m-hover-actions{
+ left:calc(100% - 1px);right:auto;top:50%;transform:translateY(calc(-50% + 4px));
+ gap:0;padding:2px;border-radius:12px;white-space:nowrap;
+ box-shadow:0 4px 16px #0002;
+}
+.g8m-message.own .g8m-bubble-anchor .g8m-hover-actions{left:auto;right:calc(100% - 1px)}
+.g8m-message:hover .g8m-bubble-anchor .g8m-hover-actions,
+.g8m-message:focus-within .g8m-bubble-anchor .g8m-hover-actions{transform:translateY(-50%)}
+.g8m-message .g8m-bubble-anchor .g8m-hover-actions button{
+ width:28px;height:29px;border-radius:8px;font-size:18px;
+}
+.g8m-message .g8m-bubble-anchor .g8m-reaction-chip{
+ position:absolute;right:-7px;left:auto;bottom:-9px;z-index:2;
+ min-height:21px;min-width:24px;padding:1px 5px;
+ box-shadow:0 2px 9px #0003;
+ font-size:13px;line-height:18px;
+}
+.g8m-message .g8m-reaction-chip[hidden]{display:none!important}
+.g8m-message.has-reaction .g8m-bubble-anchor{margin-bottom:9px}
+.g8m-message.has-reaction .g8m-msg-meta{margin-top:1px}
+/* Keep the toolbar within easy reach on mid-size screens; mobile uses long press. */
+@media(max-width:700px){
+ .g8m-message .g8m-bubble-anchor .g8m-hover-actions{display:none!important}
+ .g8m-message .g8m-bubble-anchor .g8m-reaction-chip{right:-4px;bottom:-8px}
+}
+@media(prefers-reduced-motion:reduce){.g8m-message .g8m-bubble-anchor .g8m-hover-actions{transition:none}}

@@ -596,6 +596,7 @@ function updateOneReactionBadge(node,id){
  const r=reactionSummary(id);badge.hidden=!r.count;
  badge.textContent=r.emojis.slice(0,3).join('')+(r.count>1?' '+r.count:'');
  badge.classList.toggle('mine',!!r.own);
+ node.classList.toggle('has-reaction',!!r.count);
  badge.title=r.count?`${r.count} reaction${r.count!==1?'s':''}`:'React';
 }
 function updateReactionBadges(){
@@ -668,11 +669,11 @@ function installLongPress(item,id){
   if(event.pointerType==='mouse'||event.target.closest('.g8m-hover-actions,.g8m-msg-meta,.g8m-reaction-chip'))return;
   x=event.clientX;y=event.clientY;longPressFired=false;
   if(longPressTimer)clearTimeout(longPressTimer);
-  longPressTimer=setTimeout(()=>{longPressTimer=null;longPressFired=true;openReactionPicker(id,item);if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}},440);
+  longPressTimer=setTimeout(()=>{longPressTimer=null;longPressFired=true;openReactionPicker(id,item.querySelector('.g8m-bubble-anchor')||item);if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}},440);
  });
  item.addEventListener('pointermove',event=>{if(Math.abs(event.clientX-x)>11||Math.abs(event.clientY-y)>11){clearTimeout(longPressTimer);longPressTimer=null;}});
  for(const evt of ['pointerup','pointercancel','pointerleave'])item.addEventListener(evt,()=>{clearTimeout(longPressTimer);longPressTimer=null;if(longPressFired)setTimeout(()=>{longPressFired=false;},300);});
- item.addEventListener('contextmenu',event=>{if(event.pointerType!=='mouse'){event.preventDefault();openReactionPicker(id,item);}});
+ item.addEventListener('contextmenu',event=>{if(event.pointerType!=='mouse'){event.preventDefault();openReactionPicker(id,item.querySelector('.g8m-bubble-anchor')||item);}});
  item.addEventListener('click',event=>{if(longPressFired&&!event.target.closest('.g8m-msg-meta,.g8m-hover-actions,.g8m-reaction-chip')){event.preventDefault();event.stopImmediatePropagation();longPressFired=false;}},true);
 }
 function syncChatViewport(){
@@ -753,6 +754,11 @@ function renderMessages(){
     // Malformed older data must not silently remove a message from chat.
     item.append(textEl('div','g8m-text','Message content unavailable'));
    }
+   // Anchor the tools and reaction to the rendered bubble/content itself, not
+   // the outer message row (which can be wider than a short one-word message).
+   const bubbleAnchor=textEl('div','g8m-bubble-anchor','');
+   while(item.firstChild)bubbleAnchor.append(item.firstChild);
+   item.append(bubbleAnchor);
    const meta=textEl('div','g8m-msg-meta','');meta.append(textEl('span','',formatTime(at)));
    if(mine){const seenLabel=textEl('span','g8m-seen-label',seenLabelFor(msg));meta.append(seenLabel);}
    const replyBtn=textEl('button','g8m-reply-btn','↩ Reply');replyBtn.type='button';
@@ -761,11 +767,11 @@ function renderMessages(){
    const more=textEl('button','g8m-msg-more','⋯');more.type='button';more.title='Message Details';more.setAttribute('aria-label','Message Details');more.addEventListener('click',event=>{event.stopPropagation();openDetailsFor(msg.id);});meta.append(more);
    item.append(meta);
    const actions=textEl('div','g8m-hover-actions','');
-   const reactButton=textEl('button','','☺');reactButton.type='button';reactButton.title='React';reactButton.setAttribute('aria-label','React to message');reactButton.addEventListener('click',()=>openReactionPicker(msg.id,item));
+   const reactButton=textEl('button','','☺');reactButton.type='button';reactButton.title='React';reactButton.setAttribute('aria-label','React to message');reactButton.addEventListener('click',()=>openReactionPicker(msg.id,bubbleAnchor));
    const quickReply=textEl('button','','↩');quickReply.type='button';quickReply.title='Reply';quickReply.setAttribute('aria-label','Reply to message');quickReply.addEventListener('click',()=>replyToMessage(msg.id));
    const quickMore=textEl('button','','⋯');quickMore.type='button';quickMore.title='More / Message Details';quickMore.setAttribute('aria-label','More message actions');quickMore.addEventListener('click',()=>openDetailsFor(msg.id));
-   actions.append(reactButton,quickReply,quickMore);item.append(actions);
-   const reactionChip=textEl('button','g8m-reaction-chip','');reactionChip.type='button';reactionChip.setAttribute('aria-label','View or change reactions');reactionChip.addEventListener('click',()=>openReactionPicker(msg.id,item));item.append(reactionChip);
+   actions.append(reactButton,quickReply,quickMore);bubbleAnchor.append(actions);
+   const reactionChip=textEl('button','g8m-reaction-chip','');reactionChip.type='button';reactionChip.setAttribute('aria-label','View or change reactions');reactionChip.addEventListener('click',()=>openReactionPicker(msg.id,bubbleAnchor));bubbleAnchor.append(reactionChip);
    updateOneReactionBadge(item,msg.id);
    installLongPress(item,msg.id);
    content.append(item);
