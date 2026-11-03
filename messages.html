@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=41" />
+<link rel="stylesheet" href="messages.css?v=42" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -65,14 +65,34 @@
       <div id="g8mViewerLoading" class="g8m-viewer-loader">Loading latest project from Firestore…</div>
       <p id="g8mViewerError" class="g8m-viewer-error" hidden></p>
       <div id="g8mViewerWorkspace" class="g8m-viewer-workspace" hidden>
-        <div class="g8m-viewer-toolbar"><label>HTML page <select id="g8mViewerPage"></select></label><label>Code file <select id="g8mViewerSourceFile"></select></label><label id="g8mViewerDeviceLabel" hidden>Device <select id="g8mViewerDevice"><option value="desktop">Desktop</option><option value="phone">Phone</option></select></label><span>🔒 View only</span></div>
-        <p id="g8mViewerWireframeNotice" class="g8m-viewer-error" hidden>Wireframe project: use the existing Admin Student Projects viewer for its canvas. Project metadata shown here is read-only.</p>
-        <div class="g8m-viewer-columns"><section><h3>Desktop Output <small id="g8mViewerViewportNote">1280px desktop view · scroll inside preview</small></h3><div class="g8m-preview-host" id="g8mViewerPreviewHost"><iframe id="g8mViewerPreview" title="Read-only desktop project output, scroll to explore entire webpage" sandbox="allow-scripts" referrerpolicy="no-referrer" scrolling="yes"></iframe></div></section><section><h3>Source Code</h3><pre id="g8mViewerSource"></pre></section></div>
+        <div class="g8m-viewer-toolbar">
+          <div class="g8m-viewer-tabs" role="group" aria-label="Project viewer layout">
+            <button type="button" data-g8m-view="output" class="active" aria-pressed="true">◉ Output</button>
+            <button type="button" data-g8m-view="source" aria-pressed="false">⌘ Source Code</button>
+            <button type="button" data-g8m-view="split" aria-pressed="false">▤ Split</button>
+          </div>
+          <label>Page <select id="g8mViewerPage" aria-label="Preview HTML page"></select></label>
+          <label class="g8m-source-choice">File <select id="g8mViewerSourceFile" aria-label="Source code file"></select></label>
+          <label class="g8m-zoom-control">Zoom <select id="g8mViewerZoom" aria-label="Output zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label>
+          <button type="button" class="g8m-viewer-reload" id="g8mViewerReload" title="Restart the student's output">↻ Rerun</button>
+          <label id="g8mViewerDeviceLabel" hidden>Device <select id="g8mViewerDevice"><option value="desktop">Desktop</option><option value="phone">Phone</option></select></label>
+          <span class="g8m-viewer-lock">🔒 Read only</span>
+        </div>
+        <p id="g8mViewerWireframeNotice" class="g8m-viewer-error" hidden></p>
+        <div class="g8m-viewer-columns" id="g8mViewerColumns" data-view="output">
+          <section class="g8m-viewer-output-pane" id="g8mViewerOutputPane"><h3>Desktop Output <small id="g8mViewerViewportNote">1280px · full-page scrolling</small></h3>
+            <div class="g8m-preview-host" id="g8mViewerPreviewHost"><div class="g8m-preview-stage" id="g8mViewerPreviewStage"><iframe id="g8mViewerPreview" title="Read-only interactive desktop project output" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" scrolling="no"></iframe></div></div>
+            <p class="g8m-viewer-status" id="g8mViewerStatus" role="status" aria-live="polite">Preparing preview…</p>
+          </section>
+          <section class="g8m-viewer-source-pane" id="g8mViewerSourcePane"><h3>Source Code <span class="g8m-source-tools"><button type="button" id="g8mViewerWrap" class="g8m-viewer-copy" aria-pressed="true">Wrap: On</button><button type="button" id="g8mViewerCopy" class="g8m-viewer-copy">Copy code</button></span></h3>
+            <pre id="g8mViewerSource" class="g8m-source-wrapped" tabindex="0" aria-label="Read-only source code"><code id="g8mViewerCode"></code></pre>
+          </section>
+        </div>
       </div>
     </section>
   </div>
 </div>
 <div id="g8mImageViewer" class="g8m-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Image preview"><button id="g8mImageClose" type="button" aria-label="Close image">×</button><img id="g8mImageLarge" alt="Full-size student attachment" /></div>
-<script defer src="messages.js?v=41"></script>
+<script defer src="messages.js?v=42"></script>
 </body>
 </html>

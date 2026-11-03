@@ -808,6 +808,8 @@ async function openSharedProject(studentUid,projectId){
   $('g8mViewerTitle').textContent=short(project.name||'G8Code Project',120);
   $('g8mViewerMeta').textContent=`${teacher?person(studentUid).name:'My Project'} · Last saved ${stampLabel(project.updatedAt)} · Read-only`;
   projectViewerFiles=normalizeViewerProject(project);
+  viewerHeight=800;viewerZoom='fit';viewerView='output';viewerPreviewReady=false;
+  $('g8mViewerZoom').value='fit';setViewerMode(window.matchMedia('(min-width:1050px)').matches?'split':'output');
   populateViewerPages();populateViewerSource();
   $('g8mViewerWorkspace').hidden=false;
   $('g8mViewerLoading').hidden=true;
@@ -842,7 +844,7 @@ function normalizeViewerProject(project){
     +['html','css','js'].reduce((sum,key)=>sum+(typeof entry[key]==='string'?entry[key].trim().length:0),0);
  };
  const preferred=raw&&project.selectedActivityId&&raw[project.selectedActivityId];
- const chosen=preferred||stores.sort((a,b)=>codeWeight(b[1])-codeWeight(a[1]))[0]?.[1]||project;
+ const chosen=(codeWeight(preferred)>0?preferred:null)||stores.sort((a,b)=>codeWeight(b[1])-codeWeight(a[1]))[0]?.[1]||project;
  const src=chosen&&typeof chosen==='object'?chosen:project;
  const html=projectMap(src,'pages','html','html');
  const css=projectMap(src,'cssFiles','css','css');
@@ -875,6 +877,7 @@ function populateViewerSource(){
    const option=document.createElement('option');option.value=lang+'|'+name;option.textContent=name;selector.append(option);
   }
  }
+ if(!projectViewerFiles.wireframe){const value='html|'+projectViewerFiles.selectedHtml; if([...selector.options].some(o=>o.value===value))selector.value=value;}
  renderViewerSource();
 }
 function renderViewerSource(){
@@ -882,75 +885,123 @@ function renderViewerSource(){
  if(projectViewerFiles.wireframe){
   const page=projectViewerFiles.wireframePages.find(p=>String(p.id)===$('g8mViewerPage').value)||projectViewerFiles.wireframePages[0];
   const list=Array.isArray(page?.elements)?page.elements:[];
-  $('g8mViewerSource').textContent=[`Page: ${page?.name||'Home'}`,`Elements: ${list.length}`,'',...list.map((e,i)=>`${i+1}. ${String(e.type||'element')} · ${String(e.text||e.name||'').slice(0,120)}`)].join('\n');
+  drawViewerCode([`Page: ${page?.name||'Home'}`,`Elements: ${list.length}`,'',...list.map((e,i)=>`${i+1}. ${String(e.type||'element')} · ${String(e.text||e.name||'').slice(0,120)}`)].join('\n'));
   return;
  }
  const value=$('g8mViewerSourceFile').value||'';const boundary=value.indexOf('|');
  const lang=value.slice(0,boundary),name=value.slice(boundary+1);
- $('g8mViewerSource').textContent=projectViewerFiles[lang]?.[name]||'';
+ drawViewerCode(projectViewerFiles[lang]?.[name]||'');
 }
 // Render the same local-file references that the G8Code Editor uses. The old
 // renderer injected all styles at </head> and scripts at </body>, but sometimes
 // left broken local references and malformed document shells. That could result
 // in blank or wrong output, especially with multiple linked CSS/JS files.
-function previewIsExternalAsset(address) {
- return /^(?:https?:)?\/\/|^(?:data:|blob:)/i.test(String(address||'').trim());
+// V4.2: Adapted from the Code Editor V2 opaque-iframe preview bridge.
+// A project is never trusted to access Firebase, student records, or parent DOM.
+function previewIsExternalAsset(address) {return /^(?:https?:)?\/\/|^(?:data:|blob:)/i.test(String(address||'').trim());}
+function previewFileName(address){let raw=String(address||'').trim().split(/[?#]/)[0].replace(/\\/g,'/');try{raw=decodeURIComponent(raw);}catch(_){}return raw.replace(/^\.\//,'').split('/').pop()||'';}
+function viewerSafeScript(value){return String(value||'').replace(/<\/script/gi,'<\\/script');}
+function viewerBridgeScript(page,allPages,token){
+ return `(()=>{'use strict';
+ const PAGE=${JSON.stringify(page)}, TOKEN=${JSON.stringify(token)}, ALL=${JSON.stringify(allPages)};
+ const pages=new Set(ALL);let lastHeight=0,queued=false;
+ const notify=(data)=>parent.postMessage(Object.assign({g8mProjectBridge:true,token:TOKEN},data),'*');
+ function docHeight(){
+  const root=document.documentElement,body=document.body;
+  let h=Math.max(800,body?.scrollHeight||0,body?.offsetHeight||0,root?.scrollHeight||0);
+  // Include tall absolutely positioned blocks that do not influence body height.
+  for(const el of document.querySelectorAll('body>*')){const box=el.getBoundingClientRect();h=Math.max(h,Math.ceil(box.bottom+window.scrollY));}
+  return Math.min(180000,Math.max(800,Math.ceil(h)));
+ }
+ function measure(){queued=false;const h=docHeight();if(Math.abs(lastHeight-h)>3){lastHeight=h;notify({height:h});}}
+ function schedule(){if(!queued){queued=true;requestAnimationFrame(measure);}}
+ const ro=typeof ResizeObserver==='function'?new ResizeObserver(schedule):null;
+ function init(){ro?.observe(document.documentElement);if(document.body)ro?.observe(document.body);
+  const mo=new MutationObserver(schedule);mo.observe(document.documentElement,{childList:true,subtree:true,attributes:true,characterData:true});
+  schedule();notify({ready:true,page:PAGE});setTimeout(schedule,180);setTimeout(schedule,900);}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+ addEventListener('load',schedule);document.addEventListener('transitionend',schedule,true);
+ const format=(raw)=>{try{return decodeURIComponent(raw)}catch{return raw}};
+ function local(raw){
+  let path=raw.split(/[?#]/)[0];if(!path||path[0]==='/'||path.startsWith('//')||/^[a-z][\\w+.-]*:/i.test(path))return '';
+  path=format(path).replace(/\\\\/g,'/').replace(/^\\.\\//,'');
+  if(pages.has(path))return path;
+  const short=path.split('/').pop();return pages.has(short)?short:'';
+ }
+ function anchorScroll(hash){
+  let id=format(String(hash||'').replace(/^#/,''));
+  const target=id?(document.getElementById(id)||document.getElementsByName(id)[0]):null;
+  if(target){const rect=target.getBoundingClientRect();notify({anchorY:Math.max(0,rect.top+window.scrollY)});return true;}
+  if(!id){notify({anchorY:0});return true;}return false;
+ }
+ document.addEventListener('click',function(e){
+  const link=e.target?.closest?.('a[href],area[href]');if(!link)return;
+  const raw=(link.getAttribute('href')||'').trim();
+  if(!raw||link.hasAttribute('download'))return;
+  if(raw.startsWith('#')){e.preventDefault();queueMicrotask(()=>anchorScroll(raw));return;}
+  const name=local(raw);
+  if(name){e.preventDefault();if(name===PAGE){if(raw.includes('#'))queueMicrotask(()=>anchorScroll(raw.slice(raw.indexOf('#'))));else notify({anchorY:0});}
+   else notify({navigate:name,hash:raw.includes('#')?raw.slice(raw.indexOf('#')):''});return;}
+  if(raw.startsWith('//')||/^(?:https?:|mailto:|tel:|sms:)/i.test(raw)){link.target='_blank';link.rel='noopener noreferrer';return;}
+  // Never allow an unresolved relative href to load the parent G8Code origin.
+  if(!/^(?:javascript:|data:|blob:)/i.test(raw)){e.preventDefault();notify({warning:'Missing saved page: '+raw.slice(0,120)});}
+ },true);
+ document.addEventListener('submit',function(e){
+  const form=e.target;if(!(form instanceof HTMLFormElement))return;
+  const method=(form.getAttribute('method')||'get').toLowerCase();
+  const action=(form.getAttribute('action')||'').trim();
+  const page=local(action)||(!action||action[0]==='?'||action[0]==='#'?PAGE:'');
+  if(method==='get'&&page){e.preventDefault();const q=new URLSearchParams(new FormData(form));notify({navigate:page,hash:action.includes('#')?action.slice(action.indexOf('#')):'',query:q.toString()});}
+ },true);
+ // The iframe grows to the entire project document height. In an opaque iframe
+ // wheel/touch input does not reliably scroll the embedding container, so relay
+ // only gestures that are not consumed by an inner overflow-scrolling element.
+ function innerScrollable(target,delta){for(let el=target;el&&el!==document.documentElement;el=el.parentElement){
+   const st=getComputedStyle(el);if(!/(auto|scroll)/.test(st.overflowY))continue;
+   if(el.scrollHeight>el.clientHeight+2&&((delta>0&&el.scrollTop+el.clientHeight<el.scrollHeight-2)||(delta<0&&el.scrollTop>2)))return true;
+ }return false;}
+ document.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey||innerScrollable(e.target,e.deltaY))return;
+   e.preventDefault();notify({scrollY:e.deltaY,scrollX:e.deltaX});},{passive:false});
+ let touch=null;
+ document.addEventListener('touchstart',e=>{if(e.touches.length===1)touch={x:e.touches[0].clientX,y:e.touches[0].clientY};else touch=null;},{passive:true});
+ document.addEventListener('touchmove',e=>{if(!touch||e.touches.length!==1)return;const next={x:e.touches[0].clientX,y:e.touches[0].clientY};const dy=touch.y-next.y,dx=touch.x-next.x;
+   touch=next;if(innerScrollable(e.target,dy))return;e.preventDefault();notify({scrollY:dy,scrollX:dx});},{passive:false});
+ document.addEventListener('touchend',()=>touch=null,{passive:true});
+ addEventListener('error',e=>{if(e.message)notify({warning:'JavaScript: '+String(e.message).slice(0,150)});},true);
+ addEventListener('message',e=>{if(e.source!==parent||!e.data?.g8mViewerParent||e.data.token!==TOKEN)return;
+  if(e.data.anchor!==undefined){if(!anchorScroll(e.data.anchor))requestAnimationFrame(()=>anchorScroll(e.data.anchor));}},false);
+ })();`;
 }
-function previewFileName(address) {
- let raw=String(address||'').trim().split(/[?#]/)[0].replace(/\\/g,'/');
- try {raw=decodeURIComponent(raw);} catch (_){}
- return raw.split('/').pop()||'';
-}
-function findProjectAsset(files,address) {
- const name=previewFileName(address), keys=Object.keys(files||{});
- const target=keys.find(key=>key===name)||keys.find(key=>key.toLowerCase()===name.toLowerCase());
- return target?String(files[target]||''):null;
-}
-function buildIsolatedPreview(project,pageName){
+function buildIsolatedPreview(project,pageName,token){
  const source=String(project.html[pageName]||'');
- // Parse either a full document or a fragment into one valid HTML shell.
- const parsed=new DOMParser().parseFromString(source||'<p>No HTML in this project yet.</p>','text/html');
+ const parsed=new DOMParser().parseFromString(source||'<main style="padding:30px">No HTML saved in this file.</main>','text/html');
  parsed.querySelectorAll('base').forEach(el=>el.remove());
- const cssNames=new Set(), jsNames=new Set();
- for(const link of [...parsed.querySelectorAll('link[rel][href]')]){
-  if(!String(link.getAttribute('rel')||'').toLowerCase().split(/\s+/).includes('stylesheet'))continue;
-  const address=link.getAttribute('href');
-  if(previewIsExternalAsset(address))continue;
-  const name=previewFileName(address);
-  const match=Object.keys(project.css).find(n=>n.toLowerCase()===name.toLowerCase());
-  if(match){const style=parsed.createElement('style');style.setAttribute('data-g8m-project-css',match);style.textContent=project.css[match];link.replaceWith(style);cssNames.add(match);}
-  else link.remove(); // Never resolve a local file against G8Code's own website.
+ // Mirrors Editor V2: inline matching virtual-project assets, then fallback to
+ // its CSS/JS bundle if there is no matching local source in the document.
+ const styleUsed=new Set(),scriptUsed=new Set();
+ for(const link of [...parsed.querySelectorAll('link[rel~="stylesheet"][href]')]){
+  const href=previewFileName(link.getAttribute('href'));
+  const match=Object.keys(project.css).find(n=>n.toLowerCase()===href.toLowerCase());
+  if(match){const style=parsed.createElement('style');style.textContent=project.css[match];style.dataset.g8mCss=match;link.replaceWith(style);styleUsed.add(match);}
+  else if(!previewIsExternalAsset(link.getAttribute('href')))link.remove();
  }
- for(const original of [...parsed.querySelectorAll('script[src]')]){
-  const address=original.getAttribute('src');
-  if(previewIsExternalAsset(address))continue;
-  const name=previewFileName(address),match=Object.keys(project.js).find(n=>n.toLowerCase()===name.toLowerCase());
-  if(match){const script=parsed.createElement('script');script.setAttribute('data-g8m-project-js',match);script.textContent=String(project.js[match]||'').replace(/<\/script/gi,'<\\/script');original.replaceWith(script);jsNames.add(match);}
-  else original.remove();
+ for(const el of [...parsed.querySelectorAll('script[src]')]){
+  const name=previewFileName(el.getAttribute('src'));
+  const match=Object.keys(project.js).find(n=>n.toLowerCase()===name.toLowerCase());
+  if(match){const script=parsed.createElement('script');script.textContent=viewerSafeScript(project.js[match]);el.replaceWith(script);scriptUsed.add(match);}
+  else if(!previewIsExternalAsset(el.getAttribute('src')))el.remove();
  }
- // G8Code editor falls back to the active style/script when none is linked.
- if(!cssNames.size){
-  const active=project.activeCss&&project.css[project.activeCss]!==undefined?project.activeCss:Object.keys(project.css)[0];
-  if(active&&project.css[active]){const el=parsed.createElement('style');el.textContent=project.css[active];parsed.head.append(el);}
+ const cssSources=Object.values(project.css||{}).filter(x=>typeof x==='string'&&x.trim());
+ if(!styleUsed.size&&cssSources.length&&!Array.from(parsed.querySelectorAll('style')).some(el=>cssSources.includes(el.textContent))){
+  const style=parsed.createElement('style');style.textContent=cssSources.join('\n');parsed.head.append(style);
  }
- if(!jsNames.size){
-  const active=project.activeJs&&project.js[project.activeJs]!==undefined?project.activeJs:Object.keys(project.js)[0];
-  if(active&&project.js[active]){const el=parsed.createElement('script');el.textContent=String(project.js[active]).replace(/<\/script/gi,'<\\/script');parsed.body.append(el);}
+ const jsSources=Object.values(project.js||{}).filter(x=>typeof x==='string'&&x.trim());
+ if(!scriptUsed.size&&jsSources.length&&!Array.from(parsed.querySelectorAll('script:not([src])')).some(el=>jsSources.includes(el.textContent))){
+  const script=parsed.createElement('script');script.textContent=viewerSafeScript(jsSources.join('\n'));parsed.body.append(script);
  }
- const meta=parsed.querySelector('meta[name="viewport"]');
- if(!meta){const viewport=parsed.createElement('meta');viewport.name='viewport';viewport.content='width=device-width,initial-scale=1';parsed.head.prepend(viewport);}
- // Internal page navigation stays inside this read-only preview (not G8Code).
- const bridge=parsed.createElement('script');
- bridge.textContent=`document.addEventListener('click',function(event){
-   var link=event.target&&event.target.closest?event.target.closest('a[href]'):null;
-   if(!link)return;
-   var href=link.getAttribute('href')||'';
-   if(/^(?:https?:|mailto:|tel:|data:|blob:|\\/\\/|#)/i.test(href))return;
-   var page=href.split('#')[0].split('?')[0].replace(/\\\\/g,'/').split('/').pop();
-   if(!/\\.html?$/i.test(page))return;
-   event.preventDefault();parent.postMessage({type:'g8m-project-preview-nav',page:page},'*');
- },true);`;
- parsed.head.append(bridge);
+ if(!parsed.querySelector('meta[name="viewport"]')){const meta=parsed.createElement('meta');meta.name='viewport';meta.content='width=device-width,initial-scale=1';parsed.head.prepend(meta);}
+ // The only bridge inside the sandbox: reports height/navigation, no Firebase.
+ const bridge=parsed.createElement('script');bridge.textContent=viewerSafeScript(viewerBridgeScript(pageName,Object.keys(project.html),token));parsed.head.prepend(bridge);
  return '<!doctype html>\n'+parsed.documentElement.outerHTML;
 }
 function wireframeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -972,52 +1023,100 @@ function buildWireframePreview(project,pageId,device){
  }).join('');
  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8"><style>*{box-sizing:border-box}body{margin:0;padding:15px;background:#e9eef8;font-family:Arial,sans-serif;display:flex;justify-content:center}.page{background:${wireframeColor(page.canvasBackground,'#fff')};width:100%;max-width:${size.width}px;aspect-ratio:${size.width}/${size.height};position:relative;box-shadow:0 8px 32px #0002;overflow:hidden}.item{position:absolute;display:flex;align-items:center;justify-content:center;padding:2px;font-size:clamp(7px,1.2vw,18px);overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere}.item img{max-width:100%;max-height:100%}</style></head><body><div class="page">${blocks}</div></body></html>`;
 }
-// A fixed 1280px layout viewport ensures that phone viewers see the SAME
-// desktop layout as the teacher on a laptop. Only the visual scale changes.
+// V4.2: viewport scaling is presentation-only; the scroll surface represents
+// the ENTIRE webpage. This avoids clipped bottoms and keeps output interactive.
 const PROJECT_DESKTOP_WIDTH=1280;
-let previewResizeObserver=null;
+let previewResizeObserver=null,viewerHeight=800,viewerZoom='fit',viewerView='output';
+let viewerPreviewToken=0,viewerPreviewReady=false,viewerAnchorPending='';
+function setViewerStatus(message,error=false){const el=$('g8mViewerStatus');if(el){el.textContent=message;el.classList.toggle('error',error);}}
+function drawViewerCode(source){
+ const code=$('g8mViewerCode');if(!code)return;
+ code.replaceChildren();const lines=String(source||'').split(/\r?\n/);
+ if(lines.length===1&&!lines[0]){const empty=textEl('span','g8m-source-empty','This saved code file is empty. Select another file or ask the student to save the project first.');code.append(empty);return;}
+ // Real line numbers; do not execute, interpret, or modify any student code.
+ const fragment=document.createDocumentFragment();
+ for(const line of lines){const el=document.createElement('span');el.className='g8m-source-line';el.textContent=line||' ';fragment.append(el);}
+ code.append(fragment);
+ $('g8mViewerSource').scrollTop=0;
+}
+function setViewerMode(mode){
+ viewerView=['output','source','split'].includes(mode)?mode:'output';
+ const panel=$('g8mViewerColumns');panel.dataset.view=viewerView;
+ document.querySelectorAll('[data-g8m-view]').forEach(btn=>{const active=btn.dataset.g8mView===viewerView;btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',String(active));});
+ $('g8mViewerZoom').closest('label').hidden=viewerView==='source';
+ $('g8mViewerReload').hidden=viewerView==='source';
+ const showSource=viewerView!=='output';
+ $('g8mViewerSourceFile').closest('label').hidden=!showSource;
+ requestAnimationFrame(sizeDesktopProjectPreview);
+}
 function sizeDesktopProjectPreview(){
- const host=$('g8mViewerPreviewHost'),frame=$('g8mViewerPreview');
- if(!host||!frame||projectViewer.hidden||!projectViewerFiles)return;
- const width=host.clientWidth,height=host.clientHeight;
- if(width<20||height<20)return;
- const scale=Math.min(1,width/PROJECT_DESKTOP_WIDTH);
- frame.style.width=PROJECT_DESKTOP_WIDTH+'px';
- frame.style.height=Math.max(800,Math.ceil(height/scale))+'px';
- frame.style.transformOrigin='top left';
+ const host=$('g8mViewerPreviewHost'),frame=$('g8mViewerPreview'),stage=$('g8mViewerPreviewStage');
+ if(!host||!frame||!stage||projectViewer.hidden||!projectViewerFiles||viewerView==='source')return;
+ const width=host.clientWidth;if(width<20)return;
+ const scale=viewerZoom==='fit'?Math.min(1,width/PROJECT_DESKTOP_WIDTH):Number(viewerZoom);
+ const previousScale=Number(stage.dataset.scale)||scale;
+ // Preserve the student's scroll position when changing zoom.
+ const oldX=host.scrollLeft/previousScale,oldY=host.scrollTop/previousScale;
+ stage.style.width=Math.ceil(PROJECT_DESKTOP_WIDTH*scale)+'px';
+ stage.style.height=Math.ceil(viewerHeight*scale)+'px';
+ stage.dataset.scale=String(scale);
+ frame.style.width=PROJECT_DESKTOP_WIDTH+'px';frame.style.height=viewerHeight+'px';
  frame.style.transform='scale('+scale+')';
- host.dataset.scale=Math.round(scale*100)+'%';
- $('g8mViewerViewportNote').textContent='Desktop output · '+Math.round(scale*100)+'% fit · scroll inside the preview';
+ $('g8mViewerViewportNote').textContent=`Desktop 1280px · ${Math.round(scale*100)}% · scroll ↕ ↔`;
+ if(Math.abs(scale-previousScale)>.001){host.scrollLeft=oldX*scale;host.scrollTop=oldY*scale;}
 }
-if(typeof ResizeObserver!=='undefined'){
- previewResizeObserver=new ResizeObserver(()=>sizeDesktopProjectPreview());
- previewResizeObserver.observe($('g8mViewerPreviewHost'));
-}
-window.addEventListener('resize',sizeDesktopProjectPreview);
-function renderViewerPreview(){
+function renderViewerPreview(pendingAnchor=''){
  if(!projectViewerFiles)return;
+ viewerAnchorPending=pendingAnchor||'';
+ viewerHeight=800;viewerPreviewReady=false;viewerPreviewToken+=1;
  const content=projectViewerFiles.wireframe
   ?buildWireframePreview(projectViewerFiles,$('g8mViewerPage').value,'desktop')
-  :buildIsolatedPreview(projectViewerFiles,$('g8mViewerPage').value);
- // Reset page scroll when switching HTML files; the frame itself scrolls for
- // pages longer than the visible region (vertical and horizontal if needed).
+  :buildIsolatedPreview(projectViewerFiles,$('g8mViewerPage').value,viewerPreviewToken);
+ const host=$('g8mViewerPreviewHost');host.scrollTop=0;host.scrollLeft=0;
+ $('g8mViewerPreview').style.height='800px';
  $('g8mViewerPreview').srcdoc=content;
  renderViewerSource();
- sizeDesktopProjectPreview();
- requestAnimationFrame(sizeDesktopProjectPreview);
+ setViewerStatus('Rendering saved project…');
+ sizeDesktopProjectPreview();requestAnimationFrame(sizeDesktopProjectPreview);
+ if(projectViewerFiles.wireframe){setViewerStatus('Wireframe desktop preview · view only');}
 }
 window.addEventListener('message',event=>{
  const frame=$('g8mViewerPreview');
  if(projectViewer.hidden||!frame||event.source!==frame.contentWindow)return;
  const data=event.data;
- if(!data||data.type!=='g8m-project-preview-nav'||typeof data.page!=='string')return;
- const name=previewFileName(data.page);
- if(projectViewerFiles?.html[name]!==undefined){
-  $('g8mViewerPage').value=name;renderViewerPreview();
- }
+ if(!data?.g8mProjectBridge||data.token!==viewerPreviewToken)return;
+ const host=$('g8mViewerPreviewHost'),scale=Number($('g8mViewerPreviewStage').dataset.scale)||1;
+ if(data.height){const height=Number(data.height);if(Number.isFinite(height)&&height>=800&&height<=180000&&Math.abs(height-viewerHeight)>3){viewerHeight=height;sizeDesktopProjectPreview();}}
+ if(data.ready){viewerPreviewReady=true;setViewerStatus('Output ready · interactive · full page scroll available');
+  if(viewerAnchorPending){const anchor=viewerAnchorPending;viewerAnchorPending='';frame.contentWindow.postMessage({g8mViewerParent:true,token:viewerPreviewToken,anchor},'*');}}
+ if(data.anchorY!==undefined){const n=Number(data.anchorY);if(Number.isFinite(n))host.scrollTop=Math.max(0,n*scale);}
+ if(data.scrollY!==undefined){const y=Number(data.scrollY)||0,x=Number(data.scrollX)||0;host.scrollBy(x,y);}
+ if(data.navigate){const name=String(data.navigate);if(projectViewerFiles?.html[name]!==undefined){$('g8mViewerPage').value=name;renderViewerPreview(String(data.hash||''));}
+  else setViewerStatus('Page not available in saved project: '+name,true);}
+ if(data.warning)setViewerStatus(String(data.warning),true);
 });
-$('g8mViewerPage').addEventListener('change',renderViewerPreview);
+if(typeof ResizeObserver!=='undefined'){
+ previewResizeObserver=new ResizeObserver(()=>sizeDesktopProjectPreview());
+ previewResizeObserver.observe($('g8mViewerPreviewHost'));
+}
+window.addEventListener('resize',sizeDesktopProjectPreview);
+$('g8mViewerPage').addEventListener('change',()=>renderViewerPreview());
 $('g8mViewerSourceFile').addEventListener('change',renderViewerSource);
+$('g8mViewerZoom').addEventListener('change',event=>{viewerZoom=event.target.value;sizeDesktopProjectPreview();});
+$('g8mViewerReload').addEventListener('click',()=>renderViewerPreview());
+document.querySelectorAll('[data-g8m-view]').forEach(btn=>btn.addEventListener('click',()=>setViewerMode(btn.dataset.g8mView)));
+$('g8mViewerWrap').addEventListener('click',()=>{
+ const pre=$('g8mViewerSource'),btn=$('g8mViewerWrap');const enabled=!pre.classList.contains('g8m-source-wrapped');
+ pre.classList.toggle('g8m-source-wrapped',enabled);btn.textContent=enabled?'Wrap: On':'Wrap: Off';btn.setAttribute('aria-pressed',String(enabled));
+});
+$('g8mViewerCopy').addEventListener('click',async()=>{
+ const textValue=$('g8mViewerSource').innerText.split('\n').join('\n');
+ const selection=$('g8mViewerSourceFile').value;
+ const divider=selection.indexOf('|');const lang=selection.slice(0,divider),name=selection.slice(divider+1);
+ const source=projectViewerFiles?.wireframe?textValue:projectViewerFiles?.[lang]?.[name]||'';
+ try{await navigator.clipboard.writeText(source);setViewerStatus('Source code copied.');}
+ catch(_){setViewerStatus('Clipboard blocked. Select and copy the source manually.',true);}
+});
 // === End Messages V4.0 ===
 
 $('g8mComposer').addEventListener('submit',sendMessage);
