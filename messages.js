@@ -3,7 +3,7 @@
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
 let initializeApp, getApps, getApp, getAuth, onAuthStateChanged, signInWithEmailAndPassword;
-let getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, runTransaction, serverTimestamp;
+let getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp;
 let getFirestore, collection, doc, getDoc, getDocFromServer, getDocs;
 
 async function loadMessagesFirebaseSDK(){
@@ -19,7 +19,7 @@ async function loadMessagesFirebaseSDK(){
  const [a, au, d, f] = await Promise.race([load, timeout]);
  ({initializeApp, getApps, getApp} = a);
  ({getAuth, onAuthStateChanged, signInWithEmailAndPassword} = au);
- ({getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, runTransaction, serverTimestamp} = d);
+ ({getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp} = d);
  ({getFirestore, collection, doc, getDoc, getDocFromServer, getDocs} = f);
 
 }
@@ -31,7 +31,10 @@ const safeSet = (key,value) => { try { window.localStorage.setItem(key,value); }
 const $ = id => document.getElementById(id);
 const root = $('g8mApp'), workspace = $('g8mWorkspace'), gate = $('g8mGate');
 const BASE = 'g8MessagesV1';
-const MAX_FILES = 3, MAX_SIZE = 5 * 1024 * 1024;
+// Accept original images up to 30 MB; optimize large photos client-side before
+// transport so Apps Script receives a much smaller image and chats load quickly.
+const MAX_FILES = 3, MAX_SIZE = 30 * 1024 * 1024;
+const DRIVE_UPLOAD_TARGET = 3 * 1024 * 1024;
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const teacherEmails = (window.MCS_TEACHER_EMAILS || []).map(x => String(x).toLowerCase());
 let app, auth, rtdb, firestore, user, teacher = false, profile = null;
@@ -40,6 +43,8 @@ let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], a
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
 let olderMessages=[], hasOlder=false, olderLoading=false;
 let imageCache = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
+let photoVisibilityObserver = null;
+let pendingPhotoMessageKey = ''; // Preserve upload identity across retries.
 // In-memory only: keep recent chats fast on conversation switching, without writing private text to browser storage.
 const conversationMemory = new Map();
 let selectedProject = null, savedProjects = [], projectViewerFiles = null, projectModalReturnFocus = null;
@@ -438,6 +443,7 @@ async function markSeen(uid){if(uid!==openedUid)return;const path=studentPath(ui
 }
 function renderMessages(){
  if(!openedUid)return;
+ if(photoVisibilityObserver){photoVisibilityObserver.disconnect();photoVisibilityObserver=null;}
  const log=$('g8mMessages');
  const nearBottom=log.scrollHeight-log.scrollTop-log.clientHeight<150;
  const previousHeight=log.scrollHeight;
@@ -516,7 +522,21 @@ function renderMessages(){
  }
  // Commit only after all rows are built. One malformed row cannot blank the chat.
  log.replaceChildren(content);
- for(const {att,button} of photosToLoad)showPhoto(att,button,version);
+ // Lazy-load private photo bytes only when a message approaches the viewport.
+ // This avoids dozens of Drive/RTDB reads on large or older conversations.
+ if(typeof IntersectionObserver==='function'){
+  const byButton=new Map(photosToLoad.map(x=>[x.button,x.att]));
+  photoVisibilityObserver=new IntersectionObserver(entries=>{
+   for(const entry of entries){
+    if(entry.isIntersecting){
+     photoVisibilityObserver?.unobserve(entry.target);
+     const att=byButton.get(entry.target);
+     if(att)showPhoto(att,entry.target,version);
+    }
+   }
+  },{root:log,rootMargin:'300px 0px'});
+  for(const {button} of photosToLoad)photoVisibilityObserver.observe(button);
+ }else for(const {att,button} of photosToLoad)showPhoto(att,button,version);
  if(nearBottom||!lastSnapshotKey)log.scrollTop=log.scrollHeight;
  else log.scrollTop+=log.scrollHeight-previousHeight;
  lastSnapshotKey=shown.map(x=>x.id).join(':');
@@ -589,15 +609,16 @@ $('g8mFileInput').addEventListener('change',e=>{
  if(selectedProject){selectedProject=null;renderProjectSelection();status('Project removed · sending images separately.');}
  for(const f of Array.from(e.target.files||[])){
   if(!allowedTypes.has(f.type)){status('Only JPG, PNG, or WEBP images are allowed.',true);continue;}
-  if(f.size>MAX_SIZE){status(`${f.name}: image exceeds 5 MB.`,true);continue;}
+  if(f.size>MAX_SIZE){status(`${f.name}: image exceeds 30 MB.`,true);continue;}
   if(selections.length>=MAX_FILES){status('Maximum 3 images per message.',true);break;}
+  pendingPhotoMessageKey='';
   selections.push({file:f,url:URL.createObjectURL(f)});
  }
  e.target.value='';renderSelections();
 });
 function renderSelections(){const cont=$('g8mAttachments');cont.hidden=!selections.length;cont.replaceChildren();selections.forEach((s,i)=>{
  const frame=textEl('div','g8m-attachment-preview','');const img=document.createElement('img');img.src=s.url;img.alt=s.file.name;
- const x=textEl('button','','×');x.type='button';x.setAttribute('aria-label','Remove image');x.addEventListener('click',()=>{URL.revokeObjectURL(s.url);selections.splice(i,1);renderSelections();});
+ const x=textEl('button','','×');x.type='button';x.setAttribute('aria-label','Remove image');x.addEventListener('click',()=>{URL.revokeObjectURL(s.url);selections.splice(i,1);pendingPhotoMessageKey='';renderSelections();});
  frame.append(img,x);cont.append(frame);
  });setSendEnabled();}
 function setSendEnabled(){$('g8mSend').disabled=sending||!openedUid||(!$('g8mTextInput').value.trim()&&!selections.length&&!selectedProject);$('g8mFileInput').disabled=sending;const p=$('g8mAttachMenuToggle');if(p)p.disabled=sending;}
@@ -606,54 +627,127 @@ $('g8mTextInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey
 function summaryData(uid){const personInfo=teacher?person(uid):profile;
  return {name:short(personInfo?.name||'Student',100),studentId:short(personInfo?.studentId||'',50),section:short(personInfo?.section||'Unassigned',100)};
 }
-// Workspace Drive bridge uses a normal HTML form in a hidden iframe. This avoids
-// the cross-origin fetch/redirect issue with Apps Script web-app endpoints.
-// The Apps Script server verifies the Firebase ID token BEFORE touching Drive.
+// V4.3: Cross-origin Apps Script HTML iframe responses can be blocked by browsers.
+// Send a no-CORS POST, but NEVER trust its opaque response. The authenticated
+// Apps Script writes a private receipt to RTDB, which is the ONLY success signal.
 function driveUrl(){return String(window.MCS_G8_MESSAGES_DRIVE_URL||'').trim();}
-function driveRequest(action,args){
- return new Promise(async(resolve,reject)=>{
+let driveBridgeReady = false;
+const driveTransferRoot = uid => `${BASE}/driveTransfers/${uid}`;
+function driveRequest(action,args={},maxWait=45000){
+ return new Promise(async (resolve,reject)=>{
   const endpoint=driveUrl();
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(endpoint)){
-   reject(new Error('Google Workspace Drive is not configured. Configure the existing G8Code Apps Script /exec URL in firebase-config.js.'));return;
+   reject(new Error('Missing Apps Script /exec URL. Check firebase-config.js and g8code-messages-drive-config.js.'));return;
   }
-  if(!user){reject(new Error('Sign in before accessing private Drive attachments.'));return;}
-  if(location.protocol==='file:'){reject(new Error('Private Drive attachments need the deployed HTTPS G8Code website (not file://).'));return;}
+  if(!user){reject(new Error('Sign in to G8Code before using private photo attachments.'));return;}
+  if(location.protocol!=='https:'){
+   reject(new Error('Photos need the deployed HTTPS website. file:// pages do not support private Drive transfers.'));return;
+  }
   let token;
-  try{token=await user.getIdToken();}catch(e){reject(e);return;}
-  const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);const nonce=[...bytes].map(x=>x.toString(16).padStart(2,'0')).join('');
-  const frame=document.createElement('iframe');frame.name=`g8m_drive_${nonce}`;frame.title='Private Google Drive transfer';frame.hidden=true;frame.style.display='none';
-  const form=document.createElement('form');form.method='POST';form.action=endpoint;form.target=frame.name;form.style.display='none';
-  const data={g8mBridge:'1',action,nonce,origin:location.origin,idToken:token,...args};
-  for(const [key,value] of Object.entries(data)){const field=document.createElement('input');field.type='hidden';field.name=key;field.value=String(value??'');form.append(field);}
-  let finished=false;
-  const cleanup=()=>{window.removeEventListener('message',receive);clearTimeout(timeout);form.remove();frame.remove();};
-  const finish=(err,payload)=>{if(finished)return;finished=true;cleanup();err?reject(err):resolve(payload);};
-  const receive=event=>{
-   if(!/^https:\/\/(?:[a-z0-9-]+\.)*(?:googleusercontent\.com|script\.google\.com)$/.test(event.origin))return;
-   const msg=event.data;if(!msg||msg.g8mDrive!==true||msg.nonce!==nonce)return;
-   if(msg.ok)finish(null,msg.data);else finish(new Error(msg.error||'Workspace Drive request failed'));
+  try{token=await user.getIdToken();}catch(error){reject(error);return;}
+  const nonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
+  const receiptRef=ref(rtdb,`${driveTransferRoot(user.uid)}/${nonce}`);
+  let finished=false,unsub=()=>{},timeout=null;
+  const cleanup=()=>{try{unsub();}catch(_){} if(timeout)clearTimeout(timeout);};
+  const finish=(error,data)=>{
+   if(finished)return;finished=true;cleanup();
+   if(!error){remove(receiptRef).catch(()=>{});resolve(data||{});}
+   else{reject(error);}
   };
-  window.addEventListener('message',receive);
-  const timeout=setTimeout(()=>finish(new Error('Workspace Drive timed out. Confirm the Apps Script deployment and Workspace access.')),90000);
-  document.body.append(frame,form);
-  try{form.submit();}catch(err){finish(err);}
+  const actionLabel=action==='read'?'photo viewing':action==='probe'?'connection check':'photo upload';
+  timeout=setTimeout(()=>finish(new Error(`No confirmation from Workspace Drive after ${Math.ceil(maxWait/1000)}s (${actionLabel}). Check Apps Script Executions and the private RTDB transfer rules. Do not retry repeatedly until checking Drive for an existing photo.`)),maxWait);
+  try{
+   unsub=onValue(receiptRef,snapshot=>{
+    if(!snapshot.exists())return;
+    const receipt=snapshot.val()||{};
+    if(receipt.action!==action)return;
+    finish(receipt.ok?null:new Error(receipt.error||'Workspace Drive rejected this request.'),receipt.data);
+    if(!receipt.ok)remove(receiptRef).catch(()=>{});
+   },error=>{
+    finish(new Error(`Cannot receive private Drive confirmation from RTDB: ${error?.message||error}. Add the driveTransfers security rule.`));
+   },{onlyOnce:false});
+   // Request content is POSTED only; token and photo contents are never in URLs.
+   const fields=new URLSearchParams({g8mBridge:'1',action,nonce,origin:location.origin,idToken:token});
+   for(const [key,value] of Object.entries(args))fields.append(key,String(value??''));
+   fetch(endpoint,{method:'POST',mode:'no-cors',credentials:'omit',body:fields,redirect:'follow',cache:'no-store'})
+    .catch(error=>{console.warn('Workspace transfer POST did not return a usable network result; awaiting RTDB receipt:',String(error));});
+  }catch(error){finish(error);}
  });
 }
-function fileBase64(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]||'');r.onerror=()=>reject(r.error||new Error('Could not read photo'));r.readAsDataURL(file);});}
+async function checkDriveBridge(){
+ if(driveBridgeReady)return;
+ status('Checking secure Workspace Drive connection…');
+ const res=await driveRequest('probe',{},16000);
+ if(!res||res.version!==43)throw new Error('Messages Drive bridge is outdated. Deploy the updated G8CodeMessagesDrive.gs in the existing Apps Script deployment.');
+ driveBridgeReady=true;
+}
+function canvasBlob(canvas,type,quality){
+ return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Image optimization failed.')),type,quality));
+}
+async function imageBitmapForFile(file){
+ if(typeof createImageBitmap==='function')return await createImageBitmap(file);
+ return await new Promise((resolve,reject)=>{
+  const image=new Image(),url=URL.createObjectURL(file);
+  image.onload=()=>{URL.revokeObjectURL(url);resolve(image);};
+  image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('The selected picture could not be decoded.'));};
+  image.src=url;
+ });
+}
+// 30 MB INPUT limit. For uploads over 3 MB, preserve legibility while sending
+// a smaller WebP (where supported) or JPEG. Drive retains the optimized image.
+async function prepareImageForUpload(file){
+ if(file.size<=DRIVE_UPLOAD_TARGET)return file;
+ status(`Optimizing ${file.name} for faster private upload…`);
+ const bitmap=await imageBitmapForFile(file);
+ try{
+  const width=bitmap.width||bitmap.naturalWidth,height=bitmap.height||bitmap.naturalHeight;
+  if(!width||!height)throw new Error('Image dimensions are unavailable.');
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{alpha:true});
+  if(!ctx)throw new Error('Your browser cannot optimize this image.');
+  let largest=Math.min(3600,Math.max(width,height));
+  let result=null;
+  for(let round=0;round<8;round++){
+   const scale=Math.min(1,largest/Math.max(width,height));
+   canvas.width=Math.max(1,Math.round(width*scale));
+   canvas.height=Math.max(1,Math.round(height*scale));
+   ctx.clearRect(0,0,canvas.width,canvas.height);
+   ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+   for(const quality of [0.94,0.86,0.77]){
+    const blob=await canvasBlob(canvas,'image/webp',quality);
+    result=blob.type==='image/webp'?blob:await canvasBlob(canvas,'image/jpeg',quality);
+    if(result.size<=DRIVE_UPLOAD_TARGET){
+     const type=result.type==='image/webp'?'image/webp':'image/jpeg';
+     const ext=type==='image/webp'?'.webp':'.jpg';
+     return new File([result],file.name.replace(/\.[^.]+$/, '')+ext,{type,lastModified:Date.now()});
+    }
+   }
+   largest=Math.max(500,Math.floor(largest*.78));
+  }
+  throw new Error('This image could not be reduced to a safe transfer size. Try another image format.');
+ }finally{if(typeof bitmap.close==='function')bitmap.close();}
+}
+function fileBase64(file){return new Promise((resolve,reject)=>{
+ const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]||'');
+ r.onerror=()=>reject(r.error||new Error('Could not read the photo'));
+ r.readAsDataURL(file);
+});}
 async function uploadFile(uid,msgKey,file,index){
- if(!allowedTypes.has(file.type)||file.size>MAX_SIZE)throw new Error('Invalid image type or file larger than 5 MB');
- status(`Preparing photo ${index+1} for private Drive…`);
- const data=await fileBase64(file);
- status(`Saving photo ${index+1} to Google Workspace Drive…`);
- const result=await driveRequest('upload',{studentUid:uid,messageId:msgKey,fileName:short(file.name,120),contentType:file.type,fileSize:file.size,fileData:data,section:short(summaryData(uid).section,100)});
- if(!result||!result.driveFileId)throw new Error('Drive did not confirm the photo upload');
- return {path:`g8Messages/${uid}/${msgKey}/${result.driveFileId}`,name:short(file.name,120),size:file.size,contentType:file.type,provider:'drive',driveFileId:result.driveFileId};
+ if(!allowedTypes.has(file.type)||file.size>MAX_SIZE||file.size===0)throw new Error('Images must be JPG, PNG, or WEBP and 30 MB or smaller.');
+ await checkDriveBridge();
+ const prepared=await prepareImageForUpload(file);
+ status(`Photo ${index+1}: uploading ${Math.max(.01,prepared.size/1048576).toFixed(2)} MB to private Workspace Drive…`);
+ const encoded=await fileBase64(prepared);
+ const result=await driveRequest('upload',{studentUid:uid,messageId:msgKey,fileName:short(prepared.name,120),contentType:prepared.type,fileSize:prepared.size,fileData:encoded,section:short(summaryData(uid).section,100)},70000);
+ if(!result?.driveFileId)throw new Error('Workspace Drive returned no verified file ID.');
+ status(`Photo ${index+1}: saved securely ✓`);
+ return {path:`g8Messages/${uid}/${msgKey}/${result.driveFileId}`,name:short(file.name,120),size:prepared.size,contentType:prepared.type,provider:'drive',driveFileId:result.driveFileId};
 }
 async function sendMessage(event){event.preventDefault();if(sending||!openedUid||!user)return;
  const uid=openedUid, text=$('g8mTextInput').value.trim(),queued=selections.slice(),currentReply=reply,sharedProject=selectedProject;
  if(!text&&!queued.length&&!sharedProject)return;
  sending=true;setSendEnabled();status('Sending…');
- const key=push(ref(rtdb,`${studentPath(uid)}/messages`)).key;
+ const key=queued.length?(pendingPhotoMessageKey || push(ref(rtdb,`${studentPath(uid)}/messages`)).key):push(ref(rtdb,`${studentPath(uid)}/messages`)).key;
+ if(queued.length)pendingPhotoMessageKey=key;
  try{
   const attachments=[];
   for(let i=0;i<queued.length;i++)attachments.push(await uploadFile(uid,key,queued[i].file,i));
@@ -701,7 +795,8 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
    });}catch(error){syncIssue=true;console.warn('Directory sync pending',error);}
   }
   if(attachments.length&&!teacher){try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.min(9999,Number(n||0)+1));}catch(error){syncIssue=true;console.warn('Photo saved; Needs Checking badge sync pending',error);}}
-  $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';selections.forEach(x=>URL.revokeObjectURL(x.url));selections=[];selectedProject=null;renderSelections();renderProjectSelection();reply=null;renderReply();
+  pendingPhotoMessageKey='';
+ $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';selections.forEach(x=>URL.revokeObjectURL(x.url));selections=[];selectedProject=null;renderSelections();renderProjectSelection();reply=null;renderReply();
   if(uid===openedUid)pinMessage(key);
   // After rendering and layout, confirm that the current message is truly in the
   // visible chat viewport. A hidden DOM node is NOT a successful display.

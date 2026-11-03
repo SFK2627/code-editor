@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=42" />
+<link rel="stylesheet" href="messages.css?v=43" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -51,7 +51,7 @@
       <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
       <div id="g8mAttachments" class="g8m-attachments" hidden></div><div id="g8mProjectSelected" class="g8m-project-selected" hidden></div>
       <div id="g8mSendStatus" class="g8m-send-status" role="status" aria-live="polite"></div>
-      <form class="g8m-compose" id="g8mComposer"><div class="g8m-attach-wrap"><button class="g8m-attach-btn" id="g8mAttachMenuToggle" type="button" aria-label="Attach a photo or saved G8Code project" title="Attach photo or project">⊕</button><div id="g8mAttachMenu" class="g8m-attach-menu" hidden><button type="button" id="g8mChoosePhoto">▧ Photo / Screenshot</button><button type="button" id="g8mChooseProject">⌘ My Saved Project</button></div><input id="g8mFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /></div><textarea id="g8mTextInput" placeholder="Message your teacher…" rows="1" maxlength="3000" aria-label="Message text"></textarea><button type="submit" id="g8mSend" class="g8m-send" aria-label="Send message" disabled>➤</button></form>
+      <form class="g8m-compose" id="g8mComposer"><div class="g8m-attach-wrap"><button class="g8m-attach-btn" id="g8mAttachMenuToggle" type="button" aria-label="Attach a photo or saved G8Code project" title="Attach photo or project">⊕</button><div id="g8mAttachMenu" class="g8m-attach-menu" hidden><button type="button" id="g8mChoosePhoto">▧ Photo / Screenshot · 30 MB max</button><button type="button" id="g8mChooseProject">⌘ My Saved Project</button></div><input id="g8mFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /></div><textarea id="g8mTextInput" placeholder="Message your teacher…" rows="1" maxlength="3000" aria-label="Message text"></textarea><button type="submit" id="g8mSend" class="g8m-send" aria-label="Send message" disabled>➤</button></form>
       <p class="g8m-disclaimer">Received / Checked acknowledges photos only. It does not change official grades or requirements.</p>
     </main>
   </div>
@@ -93,6 +93,6 @@
   </div>
 </div>
 <div id="g8mImageViewer" class="g8m-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Image preview"><button id="g8mImageClose" type="button" aria-label="Close image">×</button><img id="g8mImageLarge" alt="Full-size student attachment" /></div>
-<script defer src="messages.js?v=42"></script>
+<script defer src="messages.js?v=43"></script>
 </body>
 </html>

@@ -143,3 +143,7 @@
 .g8m-source-tools{display:flex;align-items:center;gap:5px}
 .g8m-source-wrapped code{min-width:0!important}
 .g8m-source-wrapped .g8m-source-line{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+
+/* V4.3: show complete upload failures and progress instead of clipping them. */
+.g8m-send-status{max-height:76px;min-height:0;overflow-y:auto;overflow-wrap:anywhere;line-height:1.4;padding-top:3px;padding-bottom:3px}
+.g8m-send-status.error{font-weight:650}
