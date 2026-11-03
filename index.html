@@ -457,6 +457,7 @@
 .g8-connect-to-admin-v2:hover {text-decoration:underline!important;text-underline-offset:.13em!important}
 .g8-connect-to-admin-v2:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:2px}
 </style>
+<link rel="stylesheet" href="messages-bridge.css?v=2" />
 </head>
 <body class="entry-gate-active">
   <div id="g8codePwaWritingSplash" aria-hidden="true">
@@ -709,7 +710,7 @@
             <h1 id="studentHomeTitle">Welcome back, <span class="sh-greeting-name"><span id="studentHomeFirstName">Student</span><span class="sh-hello" aria-hidden="true"> 👋</span></span></h1>
             <p>Everything you need for ICT is right here. Pick up where you left off!</p>
             <div class="sh-profile-pills"><span id="studentHomeSection">Grade 8</span><span id="studentHomeStudentId">My learning hub</span></div>
-            <div class="sh-welcome-actions"><button type="button" class="sh-cta" data-home-action="explorer">🚀 Continue Learning <span aria-hidden="true">→</span></button><button type="button" class="sh-ghost" data-home-action="projects">My Projects <span aria-hidden="true">↗</span></button></div>
+            <div class="sh-welcome-actions"><button type="button" class="sh-cta" data-home-action="explorer">🚀 Continue Learning <span aria-hidden="true">→</span></button><button type="button" class="sh-ghost" data-home-action="projects">My Projects <span aria-hidden="true">↗</span></button><a href="messages.html" id="studentHomeMsgBtn" class="g8-home-messages" data-g8-messages-open="student" aria-label="Open private Messages"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9.3 9.3 0 0 1-4-.9L3 21l1.9-5.2a8.7 8.7 0 0 1-.9-4.3A8.5 8.5 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8.5z"/></svg><span>Messages</span><b id="studentHomeMessagesBadge" class="g8-home-msg-badge" hidden>0</b></a></div>
           </div>
           <div class="sh-hero-art" aria-hidden="true"><div class="sh-orbit sh-orbit-one"></div><div class="sh-orbit sh-orbit-two"></div><div class="sh-art-code">&lt;/&gt;</div><div class="sh-art-tag sh-art-tag-a">{ CSS }</div><div class="sh-art-tag sh-art-tag-b">HTML ✓</div><div class="sh-art-spark">✳</div></div>
         </section>
@@ -5642,7 +5643,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261103-v30-admin-connect-link"></script>
+  <script src="script.js?v=20261103-v41-messages-return-home"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
@@ -5984,5 +5985,6 @@ https://example.com/song3.mp3"></textarea>
   }, true);
 })();
 </script>
+<script defer src="messages-bridge.js?v=2"></script>
 </body>
 </html>

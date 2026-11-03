@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<meta name="description" content="Private G8Code student and teacher messages" />
+<title>Messages · G8Code</title>
+<link rel="icon" href="favicon.png" />
+<link rel="stylesheet" href="messages.css?v=41" />
+<script src="firebase-config.js"></script>
+<script src="g8code-messages-drive-config.js"></script>
+</head>
+<body>
+<div class="g8m-app" id="g8mApp" data-mode="loading">
+  <header class="g8m-top">
+    <a class="g8m-back" id="g8mBack" href="index.html" aria-label="Go back to G8Code">‹</a>
+    <div class="g8m-brand"><span class="g8m-logo">8<span>›</span></span><span><strong>G8Code <em>Messages</em></strong><small id="g8mHeaderNote">Private teacher–student conversations</small></span></div>
+    <div class="g8m-top-actions"><button id="g8mTheme" type="button" aria-label="Toggle light or dark theme" title="Toggle light or dark theme">☼</button><span id="g8mConnection" class="g8m-connection">Connecting…</span></div>
+  </header>
+  <section class="g8m-gate" id="g8mGate" role="status" aria-live="polite">
+    <span class="g8m-gate-icon">✉</span><h1>Opening Messages</h1>
+    <p id="g8mGateText">Checking your G8Code account…</p>
+    <form id="g8mQuickLogin" class="g8m-quick-login" hidden>
+      <label for="g8mLoginRole">Sign in as</label>
+      <select id="g8mLoginRole"><option value="student">Student</option><option value="teacher">Teacher / Admin</option></select>
+      <label id="g8mLoginIdentityLabel" for="g8mLoginIdentity">Student ID</label>
+      <input id="g8mLoginIdentity" type="text" autocomplete="username" placeholder="Enter Student ID" required />
+      <label for="g8mLoginPassword">Password</label>
+      <input id="g8mLoginPassword" type="password" autocomplete="current-password" required />
+      <p id="g8mLoginError" class="g8m-login-error" hidden role="alert"></p>
+      <button id="g8mLoginSubmit" type="submit">Sign in to Messages</button>
+    </form>
+    <a href="index.html" class="g8m-gate-link">Go to G8Code login</a>
+  </section>
+  <div class="g8m-workspace" id="g8mWorkspace" hidden>
+    <aside class="g8m-sections" id="g8mSectionsPane" aria-label="Sections">
+      <div class="g8m-panel-head"><strong>Inbox <span class="g8m-count" id="g8mTeacherTotal" hidden>0</span></strong><small>Teacher conversations</small></div>
+      <label class="g8m-search"><span aria-hidden="true">⌕</span><input id="g8mSectionSearch" type="search" placeholder="Search students or sections" aria-label="Search students or sections" autocomplete="off"></label>
+      <div class="g8m-pills" id="g8mGlobalFilters" role="group" aria-label="Filter conversations"><button type="button" data-filter="all" class="active">All</button><button type="button" data-filter="unread">Unread</button><button type="button" data-filter="checking">Needs Checking</button></div>
+      <div class="g8m-section-list" id="g8mSectionList"></div>
+      <div class="g8m-panel-foot">Only teacher-to-student messaging is supported.</div>
+    </aside>
+    <aside class="g8m-students" id="g8mStudentsPane" aria-label="Students">
+      <div class="g8m-panel-head g8m-split"><button id="g8mSectionBack" type="button" class="g8m-mobile-back" aria-label="Back to sections">‹</button><span><strong id="g8mCurrentSection">All conversations</strong><small id="g8mStudentCount">Select a student</small></span></div>
+      <div class="g8m-tablet-filter"><label for="g8mTabletSectionSelect">Section</label><select id="g8mTabletSectionSelect" aria-label="Select section"><option value="*">All Sections</option></select></div><div id="g8mStudentList" class="g8m-student-list"></div>
+    </aside>
+    <main class="g8m-conversation" id="g8mConversation" aria-label="Conversation">
+      <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatMeta">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
+      <div class="g8m-feed-state" id="g8mFeedState" role="status" aria-live="polite">Connecting to chat…</div><div class="g8m-messages" id="g8mMessages" role="log" aria-live="polite" aria-relevant="additions text"><div class="g8m-empty">Select a conversation to begin.</div></div>
+      <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
+      <div id="g8mAttachments" class="g8m-attachments" hidden></div><div id="g8mProjectSelected" class="g8m-project-selected" hidden></div>
+      <div id="g8mSendStatus" class="g8m-send-status" role="status" aria-live="polite"></div>
+      <form class="g8m-compose" id="g8mComposer"><div class="g8m-attach-wrap"><button class="g8m-attach-btn" id="g8mAttachMenuToggle" type="button" aria-label="Attach a photo or saved G8Code project" title="Attach photo or project">⊕</button><div id="g8mAttachMenu" class="g8m-attach-menu" hidden><button type="button" id="g8mChoosePhoto">▧ Photo / Screenshot</button><button type="button" id="g8mChooseProject">⌘ My Saved Project</button></div><input id="g8mFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /></div><textarea id="g8mTextInput" placeholder="Message your teacher…" rows="1" maxlength="3000" aria-label="Message text"></textarea><button type="submit" id="g8mSend" class="g8m-send" aria-label="Send message" disabled>➤</button></form>
+      <p class="g8m-disclaimer">Received / Checked acknowledges photos only. It does not change official grades or requirements.</p>
+    </main>
+  </div>
+  <div id="g8mProjectPicker" class="g8m-project-modal" role="dialog" aria-modal="true" aria-labelledby="g8mPickTitle" hidden>
+    <section class="g8m-project-dialog"><header><div><h2 id="g8mPickTitle">Share My G8Code Project</h2><p>Choose a saved project. Teacher will see its latest saved version.</p></div><button id="g8mPickClose" type="button" aria-label="Close project picker">×</button></header>
+    <label class="g8m-project-search"><span>⌕</span><input id="g8mProjectSearch" type="search" placeholder="Search saved projects" aria-label="Search saved projects" /></label>
+    <div id="g8mProjectList" class="g8m-project-list"></div></section>
+  </div>
+  <div id="g8mProjectViewer" class="g8m-project-modal g8m-project-view-modal" role="dialog" aria-modal="true" aria-labelledby="g8mViewerTitle" hidden>
+    <section class="g8m-project-dialog g8m-project-view-dialog"><header><div><h2 id="g8mViewerTitle">Project Preview</h2><p id="g8mViewerMeta">Latest saved G8Code project · Read-only</p></div><button id="g8mViewerClose" type="button" aria-label="Close project viewer">×</button></header>
+      <div id="g8mViewerLoading" class="g8m-viewer-loader">Loading latest project from Firestore…</div>
+      <p id="g8mViewerError" class="g8m-viewer-error" hidden></p>
+      <div id="g8mViewerWorkspace" class="g8m-viewer-workspace" hidden>
+        <div class="g8m-viewer-toolbar"><label>HTML page <select id="g8mViewerPage"></select></label><label>Code file <select id="g8mViewerSourceFile"></select></label><label id="g8mViewerDeviceLabel" hidden>Device <select id="g8mViewerDevice"><option value="desktop">Desktop</option><option value="phone">Phone</option></select></label><span>🔒 View only</span></div>
+        <p id="g8mViewerWireframeNotice" class="g8m-viewer-error" hidden>Wireframe project: use the existing Admin Student Projects viewer for its canvas. Project metadata shown here is read-only.</p>
+        <div class="g8m-viewer-columns"><section><h3>Desktop Output <small id="g8mViewerViewportNote">1280px desktop view · scroll inside preview</small></h3><div class="g8m-preview-host" id="g8mViewerPreviewHost"><iframe id="g8mViewerPreview" title="Read-only desktop project output, scroll to explore entire webpage" sandbox="allow-scripts" referrerpolicy="no-referrer" scrolling="yes"></iframe></div></section><section><h3>Source Code</h3><pre id="g8mViewerSource"></pre></section></div>
+      </div>
+    </section>
+  </div>
+</div>
+<div id="g8mImageViewer" class="g8m-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Image preview"><button id="g8mImageClose" type="button" aria-label="Close image">×</button><img id="g8mImageLarge" alt="Full-size student attachment" /></div>
+<script defer src="messages.js?v=41"></script>
+</body>
+</html>

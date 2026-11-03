@@ -7026,6 +7026,13 @@ async function startFirebaseMode() {
     return;
   }
   await initFirebaseSync();
+  if (g8mStudentReturnRequested()) {
+    // Student returning from Messages should not wait for the entire Activities
+    // catalogue before Firebase confirms the still-active login.
+    await watchTeacherAuth();
+    loadActivitiesFromCloud().catch(error => console.warn('Activities will load after Messages return.', error));
+    return;
+  }
   await loadActivitiesFromCloud();
   // v461: do not attach a second, always-on Firestore listener to the same root
   // document. The initial root read already loads assistance/login/term settings.
@@ -9788,6 +9795,35 @@ function syncVerifiedStudentContinue(user = getFirebaseActiveUser(), profile = n
   return canResume;
 }
 
+// V4.1: Messages returns must resume the authenticated student session, not just
+// show a Continue button on the login gate. No URL/local cache alone grants access.
+let g8mStudentReturnStarted = false;
+function g8mStudentReturnRequested() {
+  try { return new URLSearchParams(window.location.search).get('g8mBack') === 'student'; }
+  catch (_) { return false; }
+}
+async function g8mResumeStudentReturn(user, profile) {
+  if (!g8mStudentReturnRequested() || g8mStudentReturnStarted || !user ||
+      !profile || profile.uid !== user.uid || profile.accountStatus === 'disabled') return;
+  g8mStudentReturnStarted = true;
+  try {
+    if (appSession.mode !== 'student' || appSession.student?.uid !== user.uid) {
+      await activateStudentSession(profile, { suppressStatusReminder: true, resumeSession: true });
+    } else {
+      await showStudentHome({ suppressStatusReminder: true, skipVisitReminder: true, deferRefresh: true });
+    }
+    if (document.body.classList.contains('student-home-active')) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('g8mBack');
+      history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+    }
+  } catch (error) {
+    g8mStudentReturnStarted = false;
+    console.warn('Could not automatically return from Messages to Student Home.', error);
+    // Keep the verified Continue as Student fallback; never silently log out.
+  }
+}
+
 async function handleStudentAuthObserver(user) {
   appSession.authReady = true;
   if (!user) {
@@ -9818,6 +9854,7 @@ async function handleStudentAuthObserver(user) {
     if (getFirebaseActiveUser()?.uid !== user.uid) return;
     if (appSession.mode !== 'student') appSession.student = profile;
     syncVerifiedStudentContinue(user, profile);
+    if (g8mStudentReturnRequested()) await g8mResumeStudentReturn(user, profile);
   } catch (error) {
     syncVerifiedStudentContinue(null);
     console.warn('Could not verify the saved student session.', error);

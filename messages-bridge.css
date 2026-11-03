@@ -1,0 +1,14 @@
+/* Additive styling only: does not override existing G8Code themes or layouts. */
+#studentHomeScreen .g8-home-messages{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:9px 13px;border:1px solid currentColor;border-radius:13px;font-size:12px;font-weight:750;white-space:nowrap;cursor:pointer;background:transparent;color:inherit;box-shadow:none}
+#studentHomeScreen .g8-home-messages svg{width:18px;height:18px;flex:none}
+#studentHomeScreen .g8-home-messages:hover{background:rgba(105,93,224,.12)}
+#studentHomeScreen .g8-home-msg-badge,#adminOverlay .g8-admin-msg-badge{position:absolute;right:-7px;top:-9px;min-width:20px;height:20px;border-radius:99px;background:#e83f67;color:white;display:inline-grid;place-items:center;padding:0 4px;font-size:10px;line-height:20px;font-weight:850;font-style:normal;box-shadow:0 0 0 2px var(--bg,#fff)}
+#adminOverlay .adm-nav-btn[data-page="messages"]{position:relative}
+#adminOverlay .g8-admin-msg-badge{top:50%;right:10px;transform:translateY(-50%);box-shadow:none}
+#adminOverlay .g8-admin-msg-badge[hidden],#studentHomeScreen .g8-home-msg-badge[hidden]{display:none!important}
+@media(max-width:600px){#studentHomeScreen .sh-welcome-actions{flex-wrap:wrap!important}#studentHomeScreen .g8-home-messages{min-height:39px;font-size:12px;padding:8px 12px}}
+
+#adminOverlay .adm-bottom-btn.g8-messages-more{position:relative}
+#adminOverlay .adm-bottom-btn.g8-messages-more .g8-admin-msg-badge{top:3px;right:9px;transform:none;min-width:17px;height:17px;font-size:9px;line-height:17px}
+
+#studentHomeScreen a.g8-home-messages{text-decoration:none!important}
