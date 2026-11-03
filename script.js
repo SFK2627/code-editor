@@ -8948,6 +8948,17 @@ function scheduleDesktopHeaderTypewriter(force = false) {
 }
 
 
+function makeAdminV2ConnectLink() {
+  const link = document.createElement('a');
+  link.className = 'g8-connect-to-admin-v2';
+  link.href = 'admin-v2.html';
+  link.textContent = 'Connect';
+  link.setAttribute('aria-label', 'Open Admin V2');
+  link.addEventListener('click', event => event.stopPropagation());
+  link.addEventListener('keydown', event => event.stopPropagation());
+  return link;
+}
+
 function makeIct8ConnectBrandCycleElement(extraClass = '') {
   const wrapper = document.createElement('span');
   wrapper.className = `brand-cycle ${extraClass}`.trim();
@@ -8955,11 +8966,11 @@ function makeIct8ConnectBrandCycleElement(extraClass = '') {
 
   const name = document.createElement('span');
   name.className = 'brand-cycle-face brand-cycle-name';
-  name.textContent = 'ICT 8 Connect';
+  name.append('ICT 8 ', makeAdminV2ConnectLink());
 
   const tagline = document.createElement('span');
   tagline.className = 'brand-cycle-face brand-cycle-tagline';
-  tagline.textContent = 'Learn, Code, Connect';
+  tagline.append('Learn, Code, ', makeAdminV2ConnectLink());
 
   wrapper.append(name, tagline);
   return wrapper;
@@ -16045,7 +16056,7 @@ function renderAdminStudentTracker() {
     const hasRosterRecord = adminStudentHasRosterRecord(student);
     const repairableProfile = getSafeRosterRepairProfile(student);
     const rosterRepairNote = !hasRosterRecord && profileUids.length
-      ? `<span class="student-cell-sub">Roster mirror missing${repairableProfile ? ' · safe repair available' : ' · use Recovery for linked profiles'}</span>`
+      ? `<span class="student-cell-sub">Roster mirror missing${repairableProfile ? ' · safe repair available' : ' · linked profiles need a roster review'}</span>`
       : '';
     const studentKey = getAdminStudentRenderKey(student);
     const expanded = adminStudentExpandedKeys.has(studentKey);
@@ -16083,7 +16094,7 @@ function renderAdminStudentTracker() {
         <td data-student-detail="account"><span class="student-account-pill ${pillClass}">${accountLabel}</span><span class="student-cell-sub">${loggedIn ? `${Number(student.loginCount || 0)} login${Number(student.loginCount || 0) === 1 ? '' : 's'}` : 'Never logged in'}</span></td>
         <td data-student-detail="projects"><strong>${projectCount}</strong><span class="student-cell-sub">${escapeHTML(student.lastProjectName || 'No project yet')}</span></td>
         <td data-student-detail="activity">${escapeHTML(lastActivity)}</td>
-        <td data-student-detail="actions"><div class="student-action-stack">${viewProjectsButton}<button class="ghost-btn student-compact-action diagnose-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Login Check</button>${repairRosterButton}${rosterOnly ? '' : `<button class="ghost-btn student-compact-action reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Pass</button>`}<button class="ghost-btn student-compact-action recovery-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Recovery</button><button class="ghost-btn danger-btn student-compact-action delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
+        <td data-student-detail="actions"><div class="student-action-stack">${viewProjectsButton}${repairRosterButton}${rosterOnly ? '' : `<button class="ghost-btn student-compact-action reset-student-login-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Reset Pass</button>`}<button class="ghost-btn danger-btn student-compact-action delete-student-account-btn" type="button" data-student-id="${escapeAttribute(student.studentId || '')}" data-student-uid="${escapeAttribute(student.uid || profileUids[0] || '')}">Delete</button></div></td>
       </tr>`;
   });
 
@@ -30179,8 +30190,12 @@ function addCriterion() {
   renderCriteriaEditor(currentCriteria);
 }
 
+// Prevent repeated submits while a Firebase save is still in progress.
+let adminRubricSaveInProgress = false;
+
 async function saveRubric(event) {
   event.preventDefault();
+  if (adminRubricSaveInProgress) return;
 
   if (!isAdminPanelUnlocked()) {
     showAdminForm();
@@ -30189,46 +30204,93 @@ async function saveRubric(event) {
   }
 
   const criteria = collectCriteriaFromEditor();
-
   if (!criteria.length) {
     await appAlert('Please add at least one rubric criterion.', { title: 'Rubric needed' });
     return;
   }
 
-  const savedActivity = normalizeActivity({
-    id: adminEditingActivityId || createId(),
-    title: adminActivityTitle.value.trim() || `Activity ${activities.length + 1}`,
-    description: adminActivityDescription.value.trim() || 'Complete the activity based on the teacher rubric.',
-    passingScore: Number(adminPassingScore.value) || 75,
-    term: adminActivityTermSelect?.value || currentAcademicTerm(),
-    criteria
-  });
+  const isStandaloneAdminV2 = document.body.classList.contains('admin-v2-standalone');
+  const notify = detail => window.dispatchEvent(new CustomEvent('g8:rubric-save-result', { detail }));
+  let locallySaved = false;
+  adminRubricSaveInProgress = true;
+  try {
+    const savedActivity = normalizeActivity({
+      id: adminEditingActivityId || createId(),
+      title: adminActivityTitle.value.trim() || `Activity ${activities.length + 1}`,
+      description: adminActivityDescription.value.trim() || 'Complete the activity based on the teacher rubric.',
+      passingScore: Number(adminPassingScore.value) || 75,
+      term: adminActivityTermSelect?.value || currentAcademicTerm(),
+      criteria
+    });
 
-  const existingIndex = activities.findIndex(item => item.id === savedActivity.id);
-  if (existingIndex >= 0) {
-    activities[existingIndex] = savedActivity;
-  } else {
-    activities.push(savedActivity);
-  }
+    const existingIndex = activities.findIndex(item => item.id === savedActivity.id);
+    const wasEditing = existingIndex >= 0;
+    if (wasEditing) activities[existingIndex] = savedActivity;
+    else activities.push(savedActivity);
 
-  initManualRubricInputTable();
-  saveActivities({ cloud: false });
+    initManualRubricInputTable();
+    saveActivities({ cloud: false });
+    locallySaved = true;
 
-  if (isTeacherAuthenticated()) {
-    const cloudSaved = await saveActivitiesToCloud();
-    if (!cloudSaved && hasFirebaseConfig()) {
-      await appAlert('Saved locally, but Firebase rejected the online save. Check if you are logged in and if Firestore Rules were published.', { title: 'Firebase save issue', danger: true });
-      return;
+    if (isTeacherAuthenticated()) {
+      // Firestore can wait indefinitely while offline. Do not trap the Admin V2
+      // teacher behind a pending network request after the LOCAL save succeeded.
+      let syncTimer = null;
+      const cloud = isStandaloneAdminV2
+        ? await Promise.race([
+            saveActivitiesToCloud().then(ok => ({ ok: Boolean(ok), pending: false })),
+            new Promise(resolve => { syncTimer = window.setTimeout(() => resolve({ ok: false, pending: true }), 12000); })
+          ])
+        : { ok: await saveActivitiesToCloud(), pending: false };
+      if (syncTimer !== null) window.clearTimeout(syncTimer);
+
+      if (!cloud.ok && hasFirebaseConfig()) {
+        const message = cloud.pending
+          ? 'Activity saved on this device. Firebase has not confirmed syncing yet. Check your connection before using it on another device.'
+          : 'Activity saved on this device, but Firebase sync failed. Check teacher login and Firestore rules.';
+        // The standalone page remains usable; no extra blocking alert is shown.
+        if (isStandaloneAdminV2) {
+          renderAdminActivitySelect();
+          notify({ ok: false, local: true, kind: 'warning', message });
+          setStatus('Activity saved locally · Firebase sync not confirmed');
+        } else {
+          notify({ ok: false, local: true, kind: 'warning', message });
+          await appAlert('Saved locally, but Firebase rejected the online save. Check if you are logged in and if Firestore Rules were published.', { title: 'Firebase save issue', danger: true });
+        }
+        return;
+      }
+    } else if (adminQuickUnlocked) {
+      setStatus('Activity saved locally');
     }
-  } else if (adminQuickUnlocked) {
-    setStatus('Activity saved locally');
-  }
 
-  if (getRubricActivityTerm(savedActivity) === currentAcademicTerm()) {
-    selectActivity(savedActivity.id, { keepLanguage: true });
+    if (getRubricActivityTerm(savedActivity) === currentAcademicTerm()) {
+      selectActivity(savedActivity.id, { keepLanguage: true });
+    }
+    // Re-populate the dropdown so New/Duplicate becomes Edit and the next
+    // button reads Save Changes, without requiring a page reload.
+    if (isStandaloneAdminV2) renderAdminActivitySelect();
+    notify({
+      ok: true,
+      local: !isTeacherAuthenticated(),
+      message: `${savedActivity.title} ${wasEditing ? 'updated' : 'created'} successfully${isTeacherAuthenticated() ? ' and synced to Firebase' : ' on this device'}.`
+    });
+    // The original page was a modal, but Admin V2 is a standalone workspace.
+    // Closing the modal here made the entire standalone Admin UI disappear.
+    if (!isStandaloneAdminV2) closeAdminPanel();
+    setStatus(`${complianceTermFriendlyLabel(getRubricActivityTerm(savedActivity))} activity saved${isTeacherAuthenticated() ? '' : ' locally'}`);
+  } catch (error) {
+    console.error('[G8Code] Activity/rubric save failed:', error);
+    notify({
+      ok: false,
+      local: locallySaved,
+      kind: 'error',
+      message: locallySaved
+        ? 'Activity saved on this device, but completing the save failed. Check Firebase sync and try again.'
+        : 'Could not save activity. Your editor remains open; check the rubric and try again.'
+    });
+  } finally {
+    adminRubricSaveInProgress = false;
   }
-  closeAdminPanel();
-  setStatus(`${complianceTermFriendlyLabel(getRubricActivityTerm(savedActivity))} activity saved${isTeacherAuthenticated() ? '' : ' locally'}`);
 }
 
 function createNewActivity() {
@@ -30251,6 +30313,8 @@ function duplicateActivity() {
     appAlert('No saved activity to duplicate yet.', { title: 'Nothing to duplicate' });
     return;
   }
+  // A duplicate is an editable DRAFT until the teacher completes the rubric and saves.
+  // Do not publish it or alter the original just by clicking Duplicate.
   const copy = normalizeActivity({
     ...clone(source),
     id: createId(),
@@ -30258,15 +30322,16 @@ function duplicateActivity() {
     term: currentAcademicTerm(),
     criteria: source.criteria.map(criterion => normalizeCriterion({ ...criterion, id: createId() }))
   });
-
-  activities.push(copy);
-  saveActivities();
-  codeByActivity[copy.id] = normalizeCodeStore(codeByActivity[source.id] || starterCode);
-  saveCodeByActivity();
+  adminEditingActivityId = copy.id;
   if (adminRubricViewTermSelect) adminRubricViewTermSelect.value = 'current';
-  selectActivity(copy.id, { skipSave: true });
-  showAdminForm(copy.id);
-  setStatus('Activity duplicated');
+  renderAdminActivitySelect();
+  adminActivityTitle.value = copy.title;
+  adminActivityDescription.value = copy.description;
+  adminPassingScore.value = copy.passingScore;
+  if (adminActivityTermSelect) adminActivityTermSelect.value = copy.term;
+  renderCriteriaEditor(copy.criteria);
+  window.dispatchEvent(new CustomEvent('g8:rubric-duplicate-draft', {detail:{title:copy.title}}));
+  setStatus('Duplicate draft ready — review and click Save Activity to publish.');
 }
 
 async function deleteActivity() {

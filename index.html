@@ -445,6 +445,18 @@
       }
     }
   </style>
+
+<style id="g8-connect-admin-v2-link-style">
+.g8-connect-to-admin-v2 {
+  color:inherit!important;font:inherit!important;letter-spacing:inherit!important;
+  text-transform:inherit!important;text-decoration:none!important;
+  display:inline!important;cursor:pointer!important;position:relative;
+  padding:0!important;margin:0!important;border:0!important;
+  background:none!important;box-shadow:none!important;
+}
+.g8-connect-to-admin-v2:hover {text-decoration:underline!important;text-underline-offset:.13em!important}
+.g8-connect-to-admin-v2:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:2px}
+</style>
 </head>
 <body class="entry-gate-active">
   <div id="g8codePwaWritingSplash" aria-hidden="true">
@@ -493,10 +505,10 @@
       <section class="lg-brand-pane" aria-labelledby="entryGateTitle">
         <div class="lg-brand-top">
           <div class="entry-logo app-coded-eight" aria-hidden="true"><span class="logo-ict">ICT</span><span class="logo-eight">8</span><span class="logo-node node-a"></span><span class="logo-node node-b"></span><span class="logo-node node-c"></span></div>
-          <div class="lg-brand-name"><strong>G8Code</strong><span>ICT 8 CONNECT</span></div>
+          <div class="lg-brand-name"><strong>G8Code</strong><span>ICT 8 <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">CONNECT</a></span></div>
         </div>
-        <p class="section-kicker ict8-brand-kicker"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn. Code. Connect."><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn. Code. Connect.</span></span></p>
-        <h1 id="entryGateTitle">Your place to <span>learn, code &amp; connect.</span></h1>
+        <p class="section-kicker ict8-brand-kicker"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn. Code. Connect."><span class="brand-cycle-face brand-cycle-name">ICT 8 <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">Connect</a></span><span class="brand-cycle-face brand-cycle-tagline">Learn. Code. <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">Connect</a>.</span></span></p>
+        <h1 id="entryGateTitle">Your place to <span>learn, code &amp; <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">connect</a>.</span></h1>
         <p class="entry-lead">Welcome, Grade 8 MCSians! Continue your projects, explore lessons, and see your progress in one friendly space.</p>
         <div class="lg-subject-tags" aria-label="What you'll learn"><span><b>&lt;/&gt;</b> Web Development</span><span><b>⚡</b> Robotics</span><span><b>✦</b> Creativity</span></div>
         <p class="lg-brand-footer"><span class="lg-live-dot"></span> Your learning journey starts here.</p>
@@ -2109,7 +2121,7 @@
       <div class="brand-block">
         <div class="logo-mark app-coded-eight" aria-hidden="true"><span class="logo-ict">ICT</span><span class="logo-eight">8</span><span class="logo-node node-a"></span><span class="logo-node node-b"></span><span class="logo-node node-c"></span></div>
         <div>
-          <p id="adminBtn" class="eyebrow hidden-admin-trigger ict8-brand-kicker" role="button" tabindex="0" aria-label="Teacher admin access"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn. Code. Connect."><span class="brand-cycle-face brand-cycle-name">ICT 8 Connect</span><span class="brand-cycle-face brand-cycle-tagline">Learn. Code. Connect.</span></span></p>
+          <p id="adminBtn" class="eyebrow hidden-admin-trigger ict8-brand-kicker" role="button" tabindex="0" aria-label="Teacher admin access"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn. Code. Connect."><span class="brand-cycle-face brand-cycle-name">ICT 8 <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">Connect</a></span><span class="brand-cycle-face brand-cycle-tagline">Learn. Code. <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">Connect</a>.</span></span></p>
           <h1 id="appTitleText">A tool for every Grade 8 MCSian.</h1>
           <p id="appSubtitleText" class="subtitle">Developed by Sir JR</p>
         </div>
@@ -5630,7 +5642,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261102-v239-guest-lessons-toggle-contrast"></script>
+  <script src="script.js?v=20261103-v30-admin-connect-link"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
@@ -5961,5 +5973,16 @@ https://example.com/song3.mp3"></textarea>
       sync();
     })();
   </script>
+
+<script id="g8-connect-to-v2-nav">
+(() => {
+  document.getElementById('adminBtn')?.addEventListener('click', event => {
+    if (event.target.closest('a.g8-connect-to-admin-v2')) event.stopImmediatePropagation();
+  }, true);
+  document.getElementById('adminBtn')?.addEventListener('keydown', event => {
+    if (event.target.closest('a.g8-connect-to-admin-v2')) event.stopImmediatePropagation();
+  }, true);
+})();
+</script>
 </body>
 </html>
