@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=515-unsend-smooth-scroll" />
+<link rel="stylesheet" href="messages.css?v=516-scroll-bottom-dialog-ui" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -105,7 +105,7 @@
   <button type="button" data-g8m-emoji="😡" aria-label="React with angry">😡</button>
   <button type="button" data-g8m-emoji="👍" aria-label="React with thumbs up">👍</button>
  </div>
- <div class="g8m-reaction-actions"><button type="button" id="g8mPickerReply">↩ Reply</button><button type="button" id="g8mPickerDetails">⋯ Message Details</button><button type="button" id="g8mPickerDelete">🗑 Delete</button></div>
+ <div class="g8m-reaction-actions"><button type="button" id="g8mPickerReply">↩ Reply</button><button type="button" id="g8mPickerDetails">⋯ Details</button></div><button type="button" class="g8m-reaction-delete" id="g8mPickerDelete"><span aria-hidden="true">⌫</span> Delete message</button>
 </div>
 <div id="g8mMessageDetails" class="g8m-details-overlay" role="dialog" aria-modal="true" aria-labelledby="g8mDetailsTitle" hidden>
  <section class="g8m-details-dialog"><header><strong id="g8mDetailsTitle">Message Details</strong><button type="button" id="g8mDetailsClose" aria-label="Close details">×</button></header>
@@ -114,11 +114,14 @@
  <button type="button" id="g8mDetailsDelete" class="g8m-details-delete">🗑 Delete message</button>
  </section>
 </div>
-<div id="g8mDeleteOverlay" class="g8m-details-overlay" role="dialog" aria-modal="true" aria-labelledby="g8mDeleteTitle" hidden>
- <section class="g8m-details-dialog g8m-delete-dialog"><header><strong id="g8mDeleteTitle">Delete Message</strong></header>
-  <p id="g8mDeleteText">Choose how to delete this message.</p>
-  <div class="g8m-delete-choices"><button type="button" id="g8mDeleteForMe">Delete for you</button><button type="button" id="g8mDeleteForEveryone">Unsend for everyone</button><button type="button" id="g8mDeleteCancel">Cancel</button></div>
-  <small>Unsend replaces the message content with a deletion notice. It cannot undo screenshots or downloaded photos.</small>
+<div id="g8mDeleteOverlay" class="g8m-details-overlay g8m-delete-overlay" role="dialog" aria-modal="true" aria-labelledby="g8mDeleteTitle" aria-describedby="g8mDeleteText" hidden>
+ <section class="g8m-details-dialog g8m-delete-dialog">
+  <header class="g8m-delete-header"><div class="g8m-delete-header-icon" aria-hidden="true">⌫</div><div class="g8m-delete-heading"><strong id="g8mDeleteTitle">Delete message</strong><span>Choose who can still see this message</span></div><button type="button" id="g8mDeleteClose" aria-label="Close delete dialog">×</button></header>
+  <div class="g8m-delete-body"><p id="g8mDeleteText">Delete only for yourself, or unsend it for both people?</p>
+   <div class="g8m-delete-choices"><button type="button" id="g8mDeleteForMe"><span class="g8m-delete-option-icon" aria-hidden="true">◌</span><span class="g8m-delete-option-copy"><strong>Delete for you</strong><small>Removes it only from your chat</small></span><span class="g8m-delete-option-chevron" aria-hidden="true">›</span></button>
+   <button type="button" id="g8mDeleteForEveryone"><span class="g8m-delete-option-icon" aria-hidden="true">⌫</span><span class="g8m-delete-option-copy"><strong>Unsend for everyone</strong><small>Replaces it with a deleted-message notice</small></span><span class="g8m-delete-option-chevron" aria-hidden="true">›</span></button></div>
+  </div>
+  <footer class="g8m-delete-footer"><button type="button" id="g8mDeleteCancel">Cancel</button><p>Unsend cannot undo saved or downloaded copies.</p></footer>
  </section>
 </div>
 </div>
@@ -147,6 +150,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=515-unsend-smooth-scroll"></script>
+<script defer src="messages.js?v=516-scroll-bottom-dialog-ui"></script>
 </body>
 </html>

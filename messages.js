@@ -234,6 +234,12 @@ function displayMessagesFromSnapshot(snapshot,uid){
  if(conversationMemory.size>10)conversationMemory.delete(conversationMemory.keys().next().value);
  hasOlder=hasOlder||incoming.length>=100;
  renderMessages();
+ // On first server snapshot, the chat finally has real content/height. The
+ // initial bottom jump may have run while the mobile pane was still empty.
+ if(g8mAwaitingFirstSnapshotUid===uid){
+  g8mAwaitingFirstSnapshotUid='';
+  if(g8mFollowLatest)g8mJumpLatest({settle:true});
+ }
  updateChatFeedState(`${activeMessages.length+olderMessages.length} messages loaded · Live chat`);
 }
 async function refreshConversation(manual=false){
@@ -640,6 +646,7 @@ function openChat(uid){
   if(conversationMemory.size>10)conversationMemory.delete(conversationMemory.keys().next().value);
  }
  selectedMobileMetaMessageId='';
+ g8mAwaitingFirstSnapshotUid=uid;
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
  clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
@@ -860,6 +867,8 @@ function replyToMessage(id){
 // No MutationObserver or scroll-event bounce-to-bottom: both caused the V5.14 flicker.
 const G8M_LATEST_THRESHOLD = 48;
 let g8mFollowLatest=true,g8mSmoothLatest=false,g8mBottomFrame=0,g8mOpenScrollToken=0;
+// One guarded post-render landing per frame, never a scroll-event feedback loop.
+let g8mAwaitingFirstSnapshotUid='',g8mLayoutFollowLock=0,g8mLayoutFollowSequence=0;
 let g8mTouchStartY=0,g8mTouchStartX=0;
 function g8mBottomGap(){
  const feed=$('g8mMessages');
@@ -867,7 +876,7 @@ function g8mBottomGap(){
 }
 function g8mUpdateScrollLatest(){
  const button=$('g8mScrollLatest'),feed=$('g8mMessages');
- if(button&&feed)button.hidden=!(openedUid&&feed.clientHeight>0&&g8mBottomGap()>G8M_LATEST_THRESHOLD);
+ if(button&&feed)button.hidden=!(openedUid&&feed.clientHeight>0&&g8mBottomGap()>G8M_LATEST_THRESHOLD&&!(g8mLayoutFollowLock&&g8mFollowLatest));
 }
 function g8mCancelAutoScroll(){
  // Touchmove/wheel fire repeatedly during a real gesture. Never call scrollTo
@@ -875,6 +884,7 @@ function g8mCancelAutoScroll(){
  if(!g8mFollowLatest&&!g8mSmoothLatest)return;
  const wasSmooth=g8mSmoothLatest;
  g8mFollowLatest=false;g8mSmoothLatest=false;++g8mOpenScrollToken;
+ g8mAwaitingFirstSnapshotUid='';g8mLayoutFollowLock=0;++g8mLayoutFollowSequence;
  if(g8mBottomFrame){cancelAnimationFrame(g8mBottomFrame);g8mBottomFrame=0;}
  if(wasSmooth){
   const feed=$('g8mMessages');if(feed)feed.scrollTo({top:feed.scrollTop,behavior:'instant'});
@@ -885,6 +895,9 @@ function g8mJumpLatest({smooth=false,settle=false}={}){
  const feed=$('g8mMessages');if(!feed)return;
  const token=++g8mOpenScrollToken,uid=openedUid;
  g8mFollowLatest=true;
+ // Retain follow-latest across the two layout frames of this explicit jump.
+ const landingSequence=++g8mLayoutFollowSequence;
+ g8mLayoutFollowLock=landingSequence;
  g8mSmoothLatest=!!smooth&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
  const atBottom=()=>Math.max(0,feed.scrollHeight-feed.clientHeight);
  feed.scrollTo({top:atBottom(),behavior:g8mSmoothLatest?'smooth':'instant'});
@@ -895,7 +908,14 @@ function g8mJumpLatest({smooth=false,settle=false}={}){
    if(token===g8mOpenScrollToken&&uid===openedUid&&g8mFollowLatest&&!g8mSmoothLatest){
     feed.scrollTop=atBottom();g8mUpdateScrollLatest();
    }
+   if(g8mLayoutFollowLock===landingSequence)g8mLayoutFollowLock=0;
   }));
+ }else if(g8mSmoothLatest){
+  if(g8mLayoutFollowLock===landingSequence)g8mLayoutFollowLock=0;
+ }else{
+  requestAnimationFrame(()=>{
+   if(g8mLayoutFollowLock===landingSequence)g8mLayoutFollowLock=0;
+  });
  }
  if(g8mSmoothLatest){
   // Observe, do not force a hard snap at the end of the animation.
@@ -913,6 +933,27 @@ function g8mJumpLatest({smooth=false,settle=false}={}){
   requestAnimationFrame(finish);
  }
  g8mUpdateScrollLatest();
+}
+function g8mLandAtBottomAfterRender(){
+ if(!g8mFollowLatest||!openedUid)return;
+ const feed=$('g8mMessages'),uid=openedUid;
+ if(!feed)return;
+ const sequence=++g8mLayoutFollowSequence;
+ g8mLayoutFollowLock=sequence;
+ const land=()=>{
+  if(sequence!==g8mLayoutFollowSequence||uid!==openedUid||!g8mFollowLatest)return false;
+  feed.scrollTop=Math.max(0,feed.scrollHeight-feed.clientHeight);
+  return true;
+ };
+ // A single immediate alignment plus two layout frames handles the mobile
+ // panel reveal / late intrinsic image sizes, without a timer or scroll loop.
+ land();
+ requestAnimationFrame(()=>{
+  if(!land())return;
+  requestAnimationFrame(()=>{
+   if(land()&&g8mLayoutFollowLock===sequence){g8mLayoutFollowLock=0;g8mUpdateScrollLatest();}
+  });
+ });
 }
 function g8mScheduleBottomIfFollowing(){
  // Called after a new message or an image RESIZES, not by scroll or mutation
@@ -932,7 +973,9 @@ const g8mScrollFeed=$('g8mMessages');
 $('g8mScrollLatest').addEventListener('click',()=>g8mJumpLatest({smooth:true}));
 g8mScrollFeed.addEventListener('scroll',()=>{
  // A programmatic scroll can move upward during smooth scrolling. Never fight it.
- if(!g8mSmoothLatest)g8mFollowLatest=g8mBottomGap()<=G8M_LATEST_THRESHOLD;
+ // A DOM replacement can temporarily change scrollHeight and emit a scroll
+ // event before the new layout lands. Do not treat it as user backreading.
+ if(!g8mSmoothLatest&&!g8mLayoutFollowLock)g8mFollowLatest=g8mBottomGap()<=G8M_LATEST_THRESHOLD;
  g8mUpdateScrollLatest();
 },{passive:true});
 g8mScrollFeed.addEventListener('wheel',event=>{
@@ -1184,9 +1227,9 @@ function openDeleteDialog(id){
  const own=msg.senderUid===user.uid;
  $('g8mDeleteForEveryone').hidden=!own||isDeletedMessage(msg);
  $('g8mDeleteText').textContent=isDeletedMessage(msg)
-  ?'Hide this deleted-message placeholder from your own chat?'
-  :own?'Delete only for yourself, or unsend it for both people?':'Remove this message from your own view?';
- deleteOverlay.hidden=false;$('g8mDeleteCancel').focus();
+  ?'Hide the deleted-message notice from your view?'
+  :own?'Choose what happens to this message.':'This message will disappear from your chat only.';
+ deleteOverlay.hidden=false;$('g8mDeleteClose').focus();
 }
 function closeDeleteDialog(){if(deleteMessageBusy)return;deleteOverlay.hidden=true;deleteMessageTarget=null;}
 function g8mRemoveDeletedPhotoCache(previous){
@@ -1255,6 +1298,7 @@ async function unsendMessageForEveryone(){
  finally{deleteMessageBusy=false;}
 }
 $('g8mDeleteCancel').addEventListener('click',closeDeleteDialog);
+$('g8mDeleteClose').addEventListener('click',closeDeleteDialog);
 $('g8mDeleteForMe').addEventListener('click',()=>void deleteMessageForMe());
 $('g8mDeleteForEveryone').addEventListener('click',()=>void unsendMessageForEveryone());
 deleteOverlay.addEventListener('click',event=>{if(event.target===deleteOverlay)closeDeleteDialog();});
@@ -1618,7 +1662,7 @@ function renderMessages(){
   for(const {att,button} of photosToLoad)void showPhoto(att,button,version);
   void g8mFillStackBacks(stackedPhotosToLoad);
  }
- if(!olderLoading && g8mFollowLatest)g8mScheduleBottomIfFollowing();
+ if(!olderLoading && g8mFollowLatest)g8mLandAtBottomAfterRender();
  else if(readingAnchorId){
   const sameMessage=messageNode(readingAnchorId);
   if(sameMessage)log.scrollTop+=sameMessage.getBoundingClientRect().top-readingAnchorTop;
