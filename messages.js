@@ -67,7 +67,14 @@ const photoReadWaiting = [];
 const PHOTO_READ_CONCURRENCY = 2;
 const PHOTO_CACHE_MAX_ITEMS = 36;
 
-let pendingPhotoMessageKey = ''; // Preserve upload identity across retries.
+// V5.3: an optimistic photo is LOCAL to the sender until Drive + RTDB confirm.
+// Never publish a fake message to the receiver. Keep failed previews for retry.
+const pendingPhotoJobs = new Map();
+const PHOTO_JOBS_LIMIT = 2;
+let photoSendTail = Promise.resolve();
+let imagePreparationTail = Promise.resolve();
+let driveBridgeCheckPromise = null;
+
 // V4.5: short-lived chat presence/typing, reactions, and independently stored read receipts.
 let activeReactions={}, activeReadReceipts={}, peerPresence=null, peerTyping=null;
 let ownPresencePath='', presenceHeartbeat=null, ownPresenceConnected=false;
@@ -220,7 +227,9 @@ function role(){return teacher?'teacher':'student';}
 function roleDestination(){return teacher?'admin-v2.html?g8mBack=overview':'index.html?g8mBack=student';}
 function leaveMessages(){
   stopTyping();
-  if(sending){status('Finish sending before leaving Messages.',true);return;}
+  if(sending||[...pendingPhotoJobs.values()].some(job=>job.inProgress)){
+   status('A photo is still sending. Keep Messages open until it is confirmed.',true);return;
+  }
   window.location.replace(roleDestination());
 }
 function installSmartBackNavigation(){
@@ -747,7 +756,10 @@ function renderMessages(){
   previousPhotoButtons.set(button.dataset.photoPath,button);
  });
  const version=++renderVersion;
- const shown=[...olderMessages,...activeMessages]
+ const optimistic = [...pendingPhotoJobs.values()]
+  .filter(job=>job.uid===openedUid)
+  .map(job=>({id:job.id,senderUid:job.senderUid,createdAtMs:job.createdAtMs,__photoPending:job}));
+ const shown=[...olderMessages,...activeMessages,...optimistic]
   .filter((x,i,arr)=>x&&x.id&&arr.findIndex(y=>y&&y.id===x.id)===i)
   .sort(compareMessages);
  const content=document.createDocumentFragment();
@@ -769,6 +781,35 @@ function renderMessages(){
    const mine=msg.senderUid===user?.uid;
    const item=textEl('article','g8m-message'+(mine?' own':''),'');
    item.dataset.messageId=String(msg.id);
+   if(msg.__photoPending){
+    const job=msg.__photoPending;
+    item.classList.add('g8m-pending-photo');
+    const anchor=textEl('div','g8m-bubble-anchor','');
+    if(job.caption)anchor.append(textEl('div','g8m-text',job.caption));
+    const photos=textEl('div','g8m-local-photo-grid'+(job.queued.length>1?' is-multiple':''),'');
+    job.queued.forEach(entry=>{
+     const img=document.createElement('img');img.src=entry.url;img.alt=entry.file.name;
+     img.draggable=false;img.loading='eager';photos.append(img);
+    });
+    anchor.append(photos);
+    const label=textEl('div','g8m-photo-job-status','');
+    const copy=job.state==='failed'?`Not sent · ${job.error||'Upload failed'}`:
+      job.state==='queued'?'Waiting to send securely…':
+      job.state==='preparing'?'Preparing photo securely…':
+      job.state==='saving'?'Saving message…':'Sending securely…';
+    label.append(textEl('span','g8m-photo-job-status-text',copy));
+    if(job.state==='failed'){
+     const retry=textEl('button','g8m-photo-retry','Retry');retry.type='button';
+     retry.addEventListener('click',()=>queuePhotoJob(job));
+     const discard=textEl('button','g8m-photo-discard','Remove');discard.type='button';
+     discard.addEventListener('click',()=>discardPhotoJob(job));
+     label.append(retry,discard);
+    }else label.classList.add('in-progress');
+    anchor.append(label);item.append(anchor);
+    item.append(textEl('div','g8m-msg-meta',formatTime(job.createdAtMs)));
+    content.append(item);
+    continue;
+   }
    if(msg.replyText)item.append(textEl('div','g8m-quoted',short(['📷 Photo attachment','📸 Photo attachment'].includes(String(msg.replyText).trim())?'Photo':msg.replyText,180)));
    const visibleText=visibleMessageText(msg);
    if(visibleText && msg.type!=='project')item.append(textEl('div','g8m-text',visibleText));
@@ -1250,11 +1291,18 @@ function addPhotoFiles(files){
   if(!allowedTypes.has(file.type)){status('Camera/photo must be JPG, PNG, or WEBP. If your camera uses HEIC, change its format to JPEG.',true);rejected=true;continue;}
   if(file.size>MAX_SIZE){status(`${file.name}: image exceeds 30 MB.`,true);rejected=true;continue;}
   if(selections.length>=MAX_FILES){status('Maximum 3 images per message.',true);rejected=true;break;}
-  pendingPhotoMessageKey='';
-  selections.push({file,url:URL.createObjectURL(file)});
+  const entry={file,url:URL.createObjectURL(file),prepared:null,preparedPromise:null,preparing:false,prepareError:null};
+  selections.push(entry);
+  // Preparation starts WHEN selected, not only after the user taps Send.
+  void prepareSelectedPhoto(entry);
+ 
  }
  renderSelections();
- if(!rejected && incoming.length)status('Photo ready · review the preview, then tap Send.');
+ if(!rejected && incoming.length){
+  status('Photo ready · tap Send when ready. The chat will show it immediately.');
+  // Warm the Drive handshake while the student is reviewing the image.
+  if(!driveBridgeReady)void checkDriveBridge().catch(error=>console.warn('Photo bridge precheck:',friendlyError(error)));
+ }
 }
 $('g8mFileInput').addEventListener('change',event=>{addPhotoFiles(event.target.files);event.target.value='';});
 $('g8mCameraInput').addEventListener('change',event=>{addPhotoFiles(event.target.files);event.target.value='';});
@@ -1313,7 +1361,7 @@ $('g8mCameraCapture').addEventListener('click',()=>{
 });
 function renderSelections(){const cont=$('g8mAttachments');cont.hidden=!selections.length;cont.replaceChildren();selections.forEach((s,i)=>{
  const frame=textEl('div','g8m-attachment-preview','');const img=document.createElement('img');img.src=s.url;img.alt=s.file.name;
- const x=textEl('button','','×');x.type='button';x.setAttribute('aria-label','Remove image');x.addEventListener('click',()=>{URL.revokeObjectURL(s.url);selections.splice(i,1);pendingPhotoMessageKey='';renderSelections();});
+ const x=textEl('button','','×');x.type='button';x.setAttribute('aria-label','Remove image');x.addEventListener('click',()=>{URL.revokeObjectURL(s.url);selections.splice(i,1);renderSelections();});
  frame.append(img,x);cont.append(frame);
  });setSendEnabled();}
 function setSendEnabled(){$('g8mSend').disabled=sending||!openedUid||(!$('g8mTextInput').value.trim()&&!selections.length&&!selectedProject);$('g8mFileInput').disabled=sending;const p=$('g8mAttachMenuToggle');if(p)p.disabled=sending;}
@@ -1371,10 +1419,14 @@ function driveRequest(action,args={},maxWait=45000){
 }
 async function checkDriveBridge(){
  if(driveBridgeReady)return;
- status('Checking secure Workspace Drive connection…');
- const res=await driveRequest('probe',{},16000);
- if(!res||res.version!==43)throw new Error('Messages Drive bridge is outdated. Deploy the updated G8CodeMessagesDrive.gs in the existing Apps Script deployment.');
- driveBridgeReady=true;
+ if(!driveBridgeCheckPromise){
+  driveBridgeCheckPromise=(async()=>{
+   const res=await driveRequest('probe',{},16000);
+   if(!res||res.version!==43)throw new Error('Messages Drive bridge is outdated. Deploy the updated G8CodeMessagesDrive.gs in the existing Apps Script deployment.');
+   driveBridgeReady=true;
+  })().finally(()=>{driveBridgeCheckPromise=null;});
+ }
+ return driveBridgeCheckPromise;
 }
 function canvasBlob(canvas,type,quality){
  return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Image optimization failed.')),type,quality));
@@ -1392,7 +1444,6 @@ async function imageBitmapForFile(file){
 // a smaller WebP (where supported) or JPEG. Drive retains the optimized image.
 async function prepareImageForUpload(file){
  if(file.size<=DRIVE_UPLOAD_TARGET)return file;
- status(`Optimizing ${file.name} for faster private upload…`);
  const bitmap=await imageBitmapForFile(file);
  try{
   const width=bitmap.width||bitmap.naturalWidth,height=bitmap.height||bitmap.naturalHeight;
@@ -1426,31 +1477,168 @@ function fileBase64(file){return new Promise((resolve,reject)=>{
  r.onerror=()=>reject(r.error||new Error('Could not read the photo'));
  r.readAsDataURL(file);
 });}
-async function uploadFile(uid,msgKey,file,index){
- if(!allowedTypes.has(file.type)||file.size>MAX_SIZE||file.size===0)throw new Error('Images must be JPG, PNG, or WEBP and 30 MB or smaller.');
- await checkDriveBridge();
- const prepared=await prepareImageForUpload(file);
- status(`Photo ${index+1}: uploading ${Math.max(.01,prepared.size/1048576).toFixed(2)} MB to private Workspace Drive…`);
+// Pre-optimization is sequential and cached per selected File to limit phone memory
+// spikes with three large (up to 30 MB each) photos.
+function prepareSelectedPhoto(entry){
+ if(entry.prepared)return Promise.resolve(entry.prepared);
+ if(entry.preparedPromise)return entry.preparedPromise;
+ entry.preparing=true;
+ const task=imagePreparationTail.catch(()=>{}).then(()=>prepareImageForUpload(entry.file));
+ imagePreparationTail=task.catch(()=>{});
+ entry.preparedPromise=task.then(file=>{
+  entry.prepared=file;entry.preparing=false;entry.prepareError=null;
+  return file;
+ }).catch(error=>{
+  entry.preparing=false;entry.preparedPromise=null;entry.prepareError=error;
+  throw error;
+ });
+ // Prevent an unhandled rejection before Send when browser decoding fails.
+ entry.preparedPromise.catch(()=>{});
+ return entry.preparedPromise;
+}
+async function uploadFile(uid,msgKey,entry,index){
+ const file=entry.file;
+ if(!allowedTypes.has(file.type)||file.size>MAX_SIZE||file.size===0)
+  throw new Error('Images must be JPG, PNG, or WEBP and 30 MB or smaller.');
+ // These operations were already started after selection; await in parallel.
+ const [prepared]=await Promise.all([prepareSelectedPhoto(entry),checkDriveBridge()]);
  const encoded=await fileBase64(prepared);
- const result=await driveRequest('upload',{studentUid:uid,messageId:msgKey,fileName:short(prepared.name,120),contentType:prepared.type,fileSize:prepared.size,fileData:encoded,section:short(summaryData(uid).section,100)},70000);
+ // Number the uploaded files so two selected photos with the same local name
+ // cannot mistakenly share one retry-safe Drive file.
+ const result=await driveRequest('upload',{
+  studentUid:uid,messageId:msgKey,fileName:short(`${index+1}-${prepared.name}`,120),
+  contentType:prepared.type,fileSize:prepared.size,fileData:encoded,
+  section:short(summaryData(uid).section,100)
+ },70000);
  if(!result?.driveFileId)throw new Error('Workspace Drive returned no verified file ID.');
- status(`Photo ${index+1}: saved securely ✓`);
  return {path:`g8Messages/${uid}/${msgKey}/${result.driveFileId}`,name:short(file.name,120),size:prepared.size,contentType:prepared.type,provider:'drive',driveFileId:result.driveFileId};
+}
+function refreshPhotoJob(job){if(job.uid===openedUid)renderMessages();}
+function discardPhotoJob(job){
+ if(job.inProgress)return;
+ pendingPhotoJobs.delete(job.id);
+ for(const entry of job.queued)URL.revokeObjectURL(entry.url);
+ refreshPhotoJob(job);
+ status('Unsent photo removed.');
+}
+// A failed upload keeps its local preview, caption, and the SAME message key.
+// A retry can reuse confirmed Drive files without duplicate uploads.
+function queuePhotoJob(job){
+ if(job.inProgress)return;
+ job.state='queued';job.error='';job.inProgress=true;
+ refreshPhotoJob(job);
+ photoSendTail=photoSendTail.catch(()=>{}).then(()=>processPhotoJob(job));
+}
+async function updatePhotoInbox(job){
+ const uid=job.uid;
+ const senderRole=job.senderRole;
+ const data=job.summary;
+ const summaryPaths={
+  [`${summaryPath(uid)}/name`]:data.name,
+  [`${summaryPath(uid)}/studentId`]:data.studentId,
+  [`${summaryPath(uid)}/section`]:data.section,
+  [`${summaryPath(uid)}/lastText`]:short(job.caption||`📷 ${job.queued.length} photo${job.queued.length===1?'':'s'}`,160),
+  [`${summaryPath(uid)}/lastAtMs`]:serverTimestamp(),
+  [`${summaryPath(uid)}/lastRole`]:senderRole
+ };
+ try{await update(ref(rtdb),summaryPaths);}catch(error){console.warn('Photo sent; summary update pending:',error);}
+ try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/${job.senderRole==='teacher'?'unreadStudent':'unreadTeacher'}`),n=>Math.min(9999,Number(n||0)+1));}
+ catch(error){console.warn('Photo sent; unread sync pending:',error);}
+ if(job.senderRole==='student'){
+  try{await update(ref(rtdb),{
+   [`${BASE}/directory/${uid}/name`]:data.name,
+   [`${BASE}/directory/${uid}/studentId`]:data.studentId,
+   [`${BASE}/directory/${uid}/section`]:data.section
+  });}catch(error){console.warn('Photo sent; directory sync pending:',error);}
+  try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.min(9999,Number(n||0)+1));}
+  catch(error){console.warn('Photo sent; checking badge sync pending:',error);}
+ }
+}
+async function processPhotoJob(job){
+ try{
+  job.state='preparing';refreshPhotoJob(job);
+  // Decode/compress in advance; if already warmed this is instantaneous.
+  await Promise.all(job.queued.map(prepareSelectedPhoto));
+  job.state='uploading';refreshPhotoJob(job);
+  for(let i=0;i<job.queued.length;i++){
+   if(!job.uploaded[i])job.uploaded[i]=await uploadFile(job.uid,job.id,job.queued[i],i);
+  }
+  job.state='saving';refreshPhotoJob(job);
+  const messageRef=ref(rtdb,`${studentPath(job.uid)}/messages/${job.id}`);
+  // A previous attempt may have saved successfully just before its
+  // confirmation timed out. Never overwrite that message on Retry.
+  let confirmed=await get(messageRef);
+  if(!confirmed.exists()){
+   const payload={
+    text:short(job.caption,3000),type:'image',senderUid:job.senderUid,
+    senderRole:job.senderRole,createdAtMs:serverTimestamp(),
+    replyTo:job.replyTo||'',replyText:short(job.replyText||'',180),
+    attachments:job.uploaded
+   };
+   await set(messageRef,payload);
+   confirmed=await get(messageRef);
+  }
+  if(!confirmed.exists()||confirmed.val()?.senderUid!==job.senderUid)
+   throw new Error('Photo reached Drive, but the chat message could not be confirmed. Retry safely.');
+  // Reuse the LOCAL preview as a temporary sender-side Drive thumbnail.
+  // There is no unnecessary second Drive download after a verified send.
+  for(let i=0;i<job.uploaded.length;i++){
+   const att=job.uploaded[i],entry=job.queued[i];
+   if(att?.path&&entry?.url){
+    // Cache the optimized bytes, not a possibly 30 MB camera original.
+    // This keeps the sender preview instant without re-reading private Drive.
+    const cached=(entry.prepared&&entry.prepared!==entry.file)
+     ?URL.createObjectURL(entry.prepared):entry.url;
+    cachePhotoUrl(att.path,cached);
+    if(cached!==entry.url)URL.revokeObjectURL(entry.url);
+   }
+  }
+  pendingPhotoJobs.delete(job.id);
+  if(job.uid===openedUid){
+   if(!activeMessages.some(m=>m.id===job.id))activeMessages.push({id:job.id,...confirmed.val(),__confirmedLocal:true});
+   activeMessages.sort(compareMessages);
+   renderMessages();pinMessage(job.id);
+  }
+  if(job.uid===openedUid)status('Photo sent ✓ · Confirmed in Workspace Drive and Messages.');
+  // A badge failure can never roll back an already-confirmed photo message.
+  void updatePhotoInbox(job);
+ }catch(error){
+  console.error('Photo send could not be confirmed:',error);
+  job.state='failed';job.error=friendlyError(error);
+  refreshPhotoJob(job);
+  if(job.uid===openedUid)status(`Photo not sent: ${job.error}. Tap Retry on the photo bubble.`,true);
+ }finally{job.inProgress=false;}
 }
 async function sendMessage(event){event.preventDefault();if(sending||!openedUid||!user)return;
  const uid=openedUid, text=$('g8mTextInput').value.trim(),queued=selections.slice(),currentReply=reply,sharedProject=selectedProject;
  if(!text&&!queued.length&&!sharedProject)return;
+ if(queued.length){
+  if(sharedProject){status('Send a saved project separately from photos.',true);return;}
+  if(pendingPhotoJobs.size>=PHOTO_JOBS_LIMIT){status('Two photos are already pending. Send again after one finishes.',true);return;}
+  const key=push(ref(rtdb,`${studentPath(uid)}/messages`)).key;
+  const job={id:key,uid,senderUid:user.uid,senderRole:role(),caption:text,
+   createdAtMs:Date.now(),queued,uploaded:[],summary:summaryData(uid),
+   replyTo:currentReply?.id||'',replyText:currentReply?.text||'',
+   state:'queued',error:'',inProgress:false};
+  pendingPhotoJobs.set(key,job);
+  // The sender sees the picture instantly; the receiver sees it only AFTER
+  // a verified Drive upload and an independently confirmed RTDB write.
+  selections=[];reply=null;
+  $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';
+  renderSelections();renderReply();stopTyping();
+  renderMessages();pinMessage(key);setSendEnabled();
+  status('Photo added to chat · Sending securely…');
+  queuePhotoJob(job);
+  return;
+ }
  sending=true;stopTyping();setSendEnabled();status('Sending…');
- const key=queued.length?(pendingPhotoMessageKey || push(ref(rtdb,`${studentPath(uid)}/messages`)).key):push(ref(rtdb,`${studentPath(uid)}/messages`)).key;
- if(queued.length)pendingPhotoMessageKey=key;
+ const key=push(ref(rtdb,`${studentPath(uid)}/messages`)).key;
  try{
   const attachments=[];
-  for(let i=0;i<queued.length;i++)attachments.push(await uploadFile(uid,key,queued[i].file,i));
   const senderRole=role();
-  if(sharedProject && (teacher||uid!==user.uid||queued.length))throw new Error('Projects can only be shared by the student in their own chat, one project per message.');
-  const payload={text:short(text||(sharedProject?'💻 Shared a G8Code project':''),3000),type:sharedProject?'project':attachments.length?'image':'text',senderUid:user.uid,senderRole,createdAtMs:serverTimestamp(),replyTo:currentReply?.id||'',replyText:short(currentReply?.text||'',180)};
+  if(sharedProject && (teacher||uid!==user.uid))throw new Error('Projects can only be shared by the student in their own chat, one project per message.');
+  const payload={text:short(text||(sharedProject?'💻 Shared a G8Code project':''),3000),type:sharedProject?'project':'text',senderUid:user.uid,senderRole,createdAtMs:serverTimestamp(),replyTo:currentReply?.id||'',replyText:short(currentReply?.text||'',180)};
   if(sharedProject){payload.projectId=sharedProject.id;payload.projectName=short(sharedProject.name||'Untitled Project',120);}
-  if(attachments.length)payload.attachments=attachments;
   // Critical: save the MESSAGE independently. A denied summary/unread update
   // must never roll back a reply or make messages appear to silently disappear.
   const messageRef=ref(rtdb,`${studentPath(uid)}/messages/${key}`);
@@ -1490,7 +1678,6 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
    });}catch(error){syncIssue=true;console.warn('Directory sync pending',error);}
   }
   if(attachments.length&&!teacher){try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.min(9999,Number(n||0)+1));}catch(error){syncIssue=true;console.warn('Photo saved; Needs Checking badge sync pending',error);}}
-  pendingPhotoMessageKey='';
  $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';selections.forEach(x=>URL.revokeObjectURL(x.url));selections=[];selectedProject=null;renderSelections();renderProjectSelection();reply=null;renderReply();
   if(uid===openedUid)pinMessage(key);
   // After rendering and layout, confirm that the current message is truly in the
@@ -1915,5 +2102,13 @@ $('g8mViewerCopy').addEventListener('click',async()=>{
 // === End Messages V4.0 ===
 
 $('g8mComposer').addEventListener('submit',sendMessage);
-window.addEventListener('beforeunload',()=>{stopCameraStream();stopTyping();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);selections.forEach(s=>URL.revokeObjectURL(s.url));imageCache.forEach(url=>URL.revokeObjectURL(url));});
+window.addEventListener('beforeunload',event=>{
+ if([...pendingPhotoJobs.values()].some(job=>job.inProgress)){
+  event.preventDefault();event.returnValue='';
+ }
+ stopCameraStream();stopTyping();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);
+ selections.forEach(s=>URL.revokeObjectURL(s.url));
+ for(const job of pendingPhotoJobs.values())job.queued.forEach(entry=>URL.revokeObjectURL(entry.url));
+ imageCache.forEach(url=>URL.revokeObjectURL(url));
+});
 boot();

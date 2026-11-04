@@ -384,3 +384,19 @@ html,body{overflow:hidden;overscroll-behavior:none}
  .g8m-action-target > .g8m-photo-grid:not(.is-multiple){width:var(--g8m-action-width,190px);max-width:100%}
  .g8m-action-target > .g8m-photo-grid.is-multiple{width:min(100%,330px)}
 }
+
+/* V5.3: a local-only, instant sender preview. The backend is authoritative. */
+.g8m-pending-photo{opacity:1}
+.g8m-local-photo-grid{display:flex;flex-direction:column;align-items:flex-end;gap:6px;width:fit-content;max-width:100%;min-width:0}
+.g8m-local-photo-grid.is-multiple{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:min(100%,390px);align-items:start}
+.g8m-local-photo-grid img{display:block;width:auto;height:auto;max-width:min(100%,390px);max-height:450px;object-fit:contain;border-radius:13px;background:var(--field)}
+.g8m-local-photo-grid.is-multiple img{max-width:100%;max-height:290px;width:100%;height:auto;object-fit:contain}
+.g8m-photo-job-status{display:flex;align-items:center;flex-wrap:wrap;gap:7px;max-width:100%;padding:6px 8px;border:1px solid var(--line);background:var(--field);border-radius:12px;color:var(--muted);font-size:11px;line-height:1.4}
+.g8m-photo-job-status.in-progress::before{content:'';width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:g8m-photo-sending-spin .85s linear infinite;flex:none}
+@keyframes g8m-photo-sending-spin{to{transform:rotate(360deg)}}
+.g8m-photo-job-status-text{overflow-wrap:anywhere;min-width:0;flex:1}
+.g8m-photo-job-status button{border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font-size:11px;font-weight:700;padding:6px 9px}
+.g8m-photo-job-status .g8m-photo-retry{color:var(--accent);border-color:var(--accent)}
+.g8m-pending-photo .g8m-bubble-anchor{max-width:min(100%,390px)}
+@media(max-width:700px){.g8m-local-photo-grid.is-multiple{width:min(100%,330px)}}
+@media(prefers-reduced-motion:reduce){.g8m-photo-job-status.in-progress::before{animation:none}}
