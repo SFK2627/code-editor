@@ -89,6 +89,15 @@ const PHOTO_JOBS_LIMIT = 2;
 let photoSendTail = Promise.resolve();
 let imagePreparationTail = Promise.resolve();
 let driveBridgeCheckPromise = null;
+let imageKitBridgeCheckPromise=null, imageKitBridgeReady=false;
+// Five-minute signed links are kept ONLY in memory and scoped to the current login.
+const g8mIkSignedLinks=new Map();
+// New uploads stay on Drive by default. Only the verified teacher may opt in
+// to the ImageKit pilot using messages.html?from=admin&imagekitPilot=1.
+// Existing ImageKit photos remain readable by authorized users regardless.
+const g8mImageKitPilotRequested=new URLSearchParams(location.search).get('imagekitPilot')==='1';
+const g8mUseImageKit=()=>teacher===true && g8mImageKitPilotRequested &&
+ window.MCS_G8_MESSAGES_IMAGEKIT_PILOT_ENABLED===true;
 
 // V4.5: short-lived chat presence/typing, reactions, and independently stored read receipts.
 let activeReactions={}, activeReadReceipts={}, peerPresence=null, peerTyping=null;
@@ -1269,7 +1278,7 @@ function openDeleteDialog(id){
 function closeDeleteDialog(){if(deleteMessageBusy)return;deleteOverlay.hidden=true;deleteMessageTarget=null;}
 function g8mRemoveDeletedPhotoCache(previous){
  const attachments=Array.isArray(previous?.attachments)?previous.attachments:Object.values(previous?.attachments||{});
- for(const att of attachments)if(att?.path)deleteCachedPhoto(att.path,att.driveFileId);
+ for(const att of attachments)if(att?.path)deleteCachedPhoto(att.path,att.driveFileId||att.imagekitFileId);
  // The fullscreen viewer must never keep showing a photo after it was unsent.
  if(!imageViewer.hidden&&photoGallery.some(att=>att.messageId===previous?.id)){
   $('g8mImageClose').click();
@@ -1410,7 +1419,7 @@ function g8mCreateStackBacks(stack,items,uid,messageId,isLocal=false,backToLoad=
   const picture=document.createElement('img');picture.alt='';picture.draggable=false;
   if(isLocal)picture.src=entry.url;
   else{
-   const cached=cachedPhotoUrl(entry.path,entry.driveFileId);
+   const cached=cachedPhotoUrl(entry.path,entry.driveFileId||entry.imagekitFileId);
    if(cached)picture.src=cached;
    else if(backToLoad)backToLoad.push({att:{...entry,studentUid:uid,messageId},picture,back});
   }
@@ -1617,9 +1626,9 @@ function renderMessages(){
      const photos=textEl('div','g8m-photo-grid','');
      const att=validPhotos[0],path=att.path;
      const previous=previousPhotoButtons.get(path);
-     const button=(previous && previous.dataset.photoFile===String(att.driveFileId||''))
+     const button=(previous && previous.dataset.photoFile===String(att.driveFileId||att.imagekitFileId||''))
       ? previous : textEl('button','g8m-image-loading','Loading photo…');
-     button.type='button';button.dataset.photoPath=path;button.dataset.photoFile=String(att.driveFileId||'');
+     button.type='button';button.dataset.photoPath=path;button.dataset.photoFile=String(att.driveFileId||att.imagekitFileId||'');
      button.setAttribute('aria-label',validPhotos.length>1?`View ${validPhotos.length} photos`:`View ${att.name||'image'}`);
      button._g8mGalleryClick=()=>openPhotoGallery(validPhotos,0,openedUid,msg.id);
      if(button.dataset.photoState==='ready')button.onclick=button._g8mGalleryClick;
@@ -1819,7 +1828,12 @@ function photoTransient(error){
   && !/permission|denied|not authorized|invalid|not found|missing|different student|access another|sign in|origin|unauthorized/i.test(reason);
 }
 function cachedPhotoUrl(path,driveFileId=''){
- if(!imageCache.has(path))return '';
+ if(!imageCache.has(path)){
+  const signed=g8mIkSignedLinks.get(path);
+  if(signed && signed.expiresAt>Date.now()+20000)return signed.url;
+  if(signed)g8mIkSignedLinks.delete(path);
+  return '';
+ }
  if(driveFileId && imageCacheFileIds.get(path)!==String(driveFileId))return '';
  const url=imageCache.get(path);imageCache.delete(path);imageCache.set(path,url);
  return url;
@@ -1845,9 +1859,10 @@ function cachePhotoUrl(path,url,driveFileId=''){
 function clearMemoryPhotoCache(){
  // Called on Auth identity change, including sign-out and teacher/student swap.
  for(const url of imageCache.values())URL.revokeObjectURL(url);
- imageCache.clear();imageCacheFileIds.clear();photoQueue.clear();
+ imageCache.clear();imageCacheFileIds.clear();photoQueue.clear();g8mIkSignedLinks.clear();
 }
 function deleteCachedPhoto(path,driveFileId=''){
+ g8mIkSignedLinks.delete(path);
  const old=imageCache.get(path);
  if(old){imageCache.delete(path);imageCacheFileIds.delete(path);URL.revokeObjectURL(old);}
  if(driveFileId && photoCacheOwnerUid)void deletePhotoFromDisk({path,driveFileId},photoCacheOwnerUid);
@@ -1971,6 +1986,7 @@ async function prunePhotoDiskCache(owner){
 }
 function pausePhotoRetry(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 function privatePhotoURL(att,priority=10){
+ if(att?.provider==='imagekit')return imageKitPrivatePhotoURL(att,priority);
  const path=String(att?.path||'');
  const owner=photoCacheOwnerUid,epoch=photoAuthEpoch;
  if(!photoOwnerStillValid(owner,epoch))return Promise.reject(new Error('Sign in again before opening private photos.'));
@@ -2020,6 +2036,36 @@ function privatePhotoURL(att,priority=10){
  photoQueue.set(key,job);
  return job;
 }
+// ImageKit reads go through an authenticated Apps Script signature request.
+// Actual pixels are delivered by ImageKit CDN directly, not via RTDB/Apps Script.
+function imageKitPrivatePhotoURL(att,priority=10){
+ const path=String(att?.path||''),fid=String(att?.imagekitFileId||'');
+ const owner=photoCacheOwnerUid,epoch=photoAuthEpoch;
+ if(!photoOwnerStillValid(owner,epoch))return Promise.reject(new Error('Sign in again to view this photo.'));
+ if(!/^g8Messages\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/.test(path) || !/^[A-Za-z0-9_-]{12,128}$/.test(fid))
+  return Promise.reject(new Error('Private photo information is incomplete.'));
+ const cached=cachedPhotoUrl(path,fid);
+ if(cached)return Promise.resolve(cached);
+ const key=photoDiskKey({path,driveFileId:fid},owner);
+ if(photoQueue.has(key))return photoQueue.get(key);
+ const job=withPhotoReadSlot(async()=>{
+  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  const cachedNow=cachedPhotoUrl(path,fid);
+  if(cachedNow)return cachedNow;
+  const uid=att.studentUid||path.split('/')[1],messageId=att.messageId||path.split('/')[2];
+  const result=await driveRequest('ikSign',{studentUid:uid,messageId,imagekitFileId:fid},30000);
+  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  const link=String(result?.url||''),expiresAt=Number(result?.expiresAt||0);
+  const expected='https://ik.imagekit.io/86vf9fevzo/';
+  if(!link.startsWith(expected) || !/[?&]ik-s=[0-9a-f]{40}(?:&|$)/.test(link) ||
+     !/[?&]ik-t=\d+(?:&|$)/.test(link) || expiresAt<Date.now()+20000 || expiresAt>Date.now()+10*60*1000)
+   throw new Error('The private photo link could not be verified.');
+  g8mIkSignedLinks.set(path,{url:link,expiresAt});
+  return link;
+ },priority).finally(()=>photoQueue.delete(key));
+ photoQueue.set(key,job);
+ return job;
+}
 // G8Code Messages V5.0: isolated Fit-to-Screen photo viewer.
 // Zoom is relative to the fitted image (100% means the whole photo fits),
 // not the original image pixel count. Images are already cached in memory:
@@ -2057,7 +2103,7 @@ function showPhotoGalleryIndex(index){
  imageViewer.hidden=false;
  galleryControlState();
  if(att.localUrl){openFullPhoto(att.localUrl,true);return;}
- const url=cachedPhotoUrl(att.path,att.driveFileId);
+ const url=cachedPhotoUrl(att.path,att.driveFileId||att.imagekitFileId);
  if(url){openFullPhoto(url,true);return;}
  imageLarge.removeAttribute('src');imageViewerFitW=0;
  imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;
@@ -2301,21 +2347,21 @@ async function showPhoto(att,button,version){
   button.dataset.photoState='failed';button.classList.remove('g8m-image-loading','g8m-image-ready');button.classList.add('g8m-image-error');
   const reason=String(error?.message||error||'');
   button.textContent=/permission|denied|unauthorized/i.test(reason)?'Photo access denied · Retry':
-   /not found|missing/i.test(reason)?'Photo missing from Drive · Retry':'Could not load photo · Retry';
+   /not found|missing/i.test(reason)?'Photo unavailable · Retry':'Could not load photo · Retry';
   button.title=reason||'Retry photo';
   button.onclick=()=>{button.dataset.photoState='waiting';showPhoto(att,button,renderVersion);};
  };
- if(att.provider!=='drive'||!att.driveFileId){fail(new Error('Older attachment needs re-upload to Drive'));return;}
+ if(!((att.provider==='drive'&&att.driveFileId)||(att.provider==='imagekit'&&att.imagekitFileId))){fail(new Error('Photo attachment is unavailable'));return;}
  try{
   const url=await privatePhotoURL(att);
   if(!button.isConnected||button.dataset.photoPath!==path)return;
-  const img=document.createElement('img');img.alt=att.name||'Private Drive attachment';img.loading='eager';
+  const img=document.createElement('img');img.alt=att.name||'Private photo attachment';img.loading='eager';
   img.src=url;
   try{
    if(typeof img.decode==='function')await img.decode();
    else if(!img.complete)await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
    if(!img.naturalWidth||!img.naturalHeight)throw new Error('Photo image could not be decoded');
-  }catch(error){deleteCachedPhoto(path,att.driveFileId);throw error;}
+  }catch(error){deleteCachedPhoto(path,att.driveFileId||att.imagekitFileId);throw error;}
   if(!button.isConnected||button.dataset.photoPath!==path)return;
   const width=img.naturalWidth,height=img.naturalHeight;
   // Actual image ratio. A portrait stays portrait, a landscape stays wide.
@@ -2335,7 +2381,7 @@ async function showPhoto(att,button,version){
   button.onclick=()=>button._g8mGalleryClick?button._g8mGalleryClick():openFullPhoto(url);
   if(g8mFollowLatest)g8mScheduleBottomIfFollowing();
   else g8mUpdateScrollLatest();
- }catch(error){console.warn('Private Drive photo:',error);fail(error);}
+ }catch(error){console.warn('Private photo:',error);fail(error);}
 }
 
 async function acknowledge(messageId,st){
@@ -2384,7 +2430,8 @@ function addPhotoFiles(files){
  if(!rejected && incoming.length){
   status('Photo ready · tap Send when ready. The chat will show it immediately.');
   // Warm the Drive handshake while the student is reviewing the image.
-  if(!driveBridgeReady)void checkDriveBridge().catch(error=>console.warn('Photo bridge precheck:',friendlyError(error)));
+  if(g8mUseImageKit()){if(!imageKitBridgeReady)void checkImageKitBridge().catch(error=>console.warn('Photo bridge precheck:',friendlyError(error)));}
+  else if(!driveBridgeReady)void checkDriveBridge().catch(error=>console.warn('Photo bridge precheck:',friendlyError(error)));
  }
 }
 $('g8mFileInput').addEventListener('change',event=>{addPhotoFiles(event.target.files);event.target.value='';});
@@ -2463,11 +2510,11 @@ function driveRequest(action,args={},maxWait=45000){
  return new Promise(async (resolve,reject)=>{
   const endpoint=driveUrl();
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(endpoint)){
-   reject(new Error('Missing Apps Script /exec URL. Check firebase-config.js and g8code-messages-drive-config.js.'));return;
+   reject(new Error('Private photo service is not configured.'));return;
   }
   if(!user){reject(new Error('Sign in to G8Code before using private photo attachments.'));return;}
   if(location.protocol!=='https:'){
-   reject(new Error('Photos need the deployed HTTPS website. file:// pages do not support private Drive transfers.'));return;
+   reject(new Error('Photos require the deployed HTTPS website.'));return;
   }
   let token;
   try{token=await user.getIdToken();}catch(error){reject(error);return;}
@@ -2480,17 +2527,17 @@ function driveRequest(action,args={},maxWait=45000){
    if(!error){remove(receiptRef).catch(()=>{});resolve(data||{});}
    else{reject(error);}
   };
-  const actionLabel=action==='read'?'photo viewing':action==='probe'?'connection check':'photo upload';
-  timeout=setTimeout(()=>finish(new Error(`No confirmation from Workspace Drive after ${Math.ceil(maxWait/1000)}s (${actionLabel}). Check Apps Script Executions and the private RTDB transfer rules. Do not retry repeatedly until checking Drive for an existing photo.`)),maxWait);
+  const actionLabel=(action==='read'||action==='ikSign')?'photo viewing':(action==='probe'||action==='ikProbe')?'connection check':'photo upload';
+  timeout=setTimeout(()=>finish(new Error(`Photo service did not confirm ${actionLabel} within ${Math.ceil(maxWait/1000)} seconds. Check your connection and try again only after confirming the previous transfer.`)),maxWait);
   try{
    unsub=onValue(receiptRef,snapshot=>{
     if(!snapshot.exists())return;
     const receipt=snapshot.val()||{};
     if(receipt.action!==action)return;
-    finish(receipt.ok?null:new Error(receipt.error||'Workspace Drive rejected this request.'),receipt.data);
+    finish(receipt.ok?null:new Error(receipt.error||'The photo request could not be completed.'),receipt.data);
     if(!receipt.ok)remove(receiptRef).catch(()=>{});
    },error=>{
-    finish(new Error(`Cannot receive private Drive confirmation from RTDB: ${error?.message||error}. Add the driveTransfers security rule.`));
+    finish(new Error('Photo transfer confirmation is unavailable. Please try again.'));
    },{onlyOnce:false});
    // Request content is POSTED only; token and photo contents are never in URLs.
    const fields=new URLSearchParams({g8mBridge:'1',action,nonce,origin:location.origin,idToken:token});
@@ -2510,6 +2557,17 @@ async function checkDriveBridge(){
   })().finally(()=>{driveBridgeCheckPromise=null;});
  }
  return driveBridgeCheckPromise;
+}
+async function checkImageKitBridge(){
+ if(imageKitBridgeReady)return;
+ if(!imageKitBridgeCheckPromise){
+  imageKitBridgeCheckPromise=(async()=>{
+   const data=await driveRequest('ikProbe',{},16000);
+   if(!data||data.version!==1||data.ready!==true)throw new Error('Messenger image service is not ready. Check the new Apps Script deployment.');
+   imageKitBridgeReady=true;
+  })().finally(()=>{imageKitBridgeCheckPromise=null;});
+ }
+ return imageKitBridgeCheckPromise;
 }
 function canvasBlob(canvas,type,quality){
  return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Image optimization failed.')),type,quality));
@@ -2579,21 +2637,27 @@ function prepareSelectedPhoto(entry){
  entry.preparedPromise.catch(()=>{});
  return entry.preparedPromise;
 }
-async function uploadFile(uid,msgKey,entry,index){
+async function uploadFile(uid,msgKey,entry,index,useImageKit){
  const file=entry.file;
  if(!allowedTypes.has(file.type)||file.size>MAX_SIZE||file.size===0)
   throw new Error('Images must be JPG, PNG, or WEBP and 30 MB or smaller.');
  // These operations were already started after selection; await in parallel.
- const [prepared]=await Promise.all([prepareSelectedPhoto(entry),checkDriveBridge()]);
+ const [prepared]=await Promise.all([prepareSelectedPhoto(entry),useImageKit?checkImageKitBridge():checkDriveBridge()]);
  const encoded=await fileBase64(prepared);
- // Number the uploaded files so two selected photos with the same local name
- // cannot mistakenly share one retry-safe Drive file.
- const result=await driveRequest('upload',{
+ // Distinct, stable attachment file names for manual retry.
+ const args={
   studentUid:uid,messageId:msgKey,fileName:short(`${index+1}-${prepared.name}`,120),
   contentType:prepared.type,fileSize:prepared.size,fileData:encoded,
   section:short(summaryData(uid).section,100)
- },70000);
- if(!result?.driveFileId)throw new Error('Workspace Drive returned no verified file ID.');
+ };
+ if(useImageKit){
+  const res=await driveRequest('ikUpload',args,70000);
+  if(!/^[A-Za-z0-9_-]{12,128}$/.test(String(res?.imagekitFileId||'')))
+   throw new Error('Photo upload could not be verified.');
+  return {path:`g8Messages/${uid}/${msgKey}/${res.imagekitFileId}`,name:short(file.name,120),size:prepared.size,contentType:prepared.type,provider:'imagekit',imagekitFileId:res.imagekitFileId};
+ }
+ const result=await driveRequest('upload',args,70000);
+ if(!result?.driveFileId)throw new Error('Private photo upload could not be verified.');
  return {path:`g8Messages/${uid}/${msgKey}/${result.driveFileId}`,name:short(file.name,120),size:prepared.size,contentType:prepared.type,provider:'drive',driveFileId:result.driveFileId};
 }
 function refreshPhotoJob(job){if(job.uid===openedUid)renderMessages();}
@@ -2644,7 +2708,7 @@ async function processPhotoJob(job){
   await Promise.all(job.queued.map(prepareSelectedPhoto));
   job.state='uploading';refreshPhotoJob(job);
   for(let i=0;i<job.queued.length;i++){
-   if(!job.uploaded[i])job.uploaded[i]=await uploadFile(job.uid,job.id,job.queued[i],i);
+   if(!job.uploaded[i])job.uploaded[i]=await uploadFile(job.uid,job.id,job.queued[i],i,job.useImageKit);
   }
   job.state='saving';refreshPhotoJob(job);
   const messageRef=ref(rtdb,`${studentPath(job.uid)}/messages/${job.id}`);
@@ -2662,7 +2726,7 @@ async function processPhotoJob(job){
    confirmed=await get(messageRef);
   }
   if(!confirmed.exists()||confirmed.val()?.senderUid!==job.senderUid)
-   throw new Error('Photo reached Drive, but the chat message could not be confirmed. Retry safely.');
+   throw new Error('Photo uploaded, but the chat message could not be confirmed. Retry safely.');
   // Reuse the LOCAL preview as a temporary sender-side Drive thumbnail.
   // There is no unnecessary second Drive download after a verified send.
   for(let i=0;i<job.uploaded.length;i++){
@@ -2672,11 +2736,11 @@ async function processPhotoJob(job){
     // This keeps the sender preview instant without re-reading private Drive.
     const cached=(entry.prepared&&entry.prepared!==entry.file)
      ?URL.createObjectURL(entry.prepared):entry.url;
-    cachePhotoUrl(att.path,cached,att.driveFileId);
+    cachePhotoUrl(att.path,cached,att.driveFileId||att.imagekitFileId);
     // The successful sender's already-optimized photo also becomes a reusable
     // local cache entry, so refreshing does not trigger a Drive round-trip.
     const confirmedBlob=entry.prepared||entry.file;
-    if(confirmedBlob)void savePhotoToDisk(att,photoCacheOwnerUid,photoAuthEpoch,confirmedBlob);
+    if(confirmedBlob && att.provider==='drive')void savePhotoToDisk(att,photoCacheOwnerUid,photoAuthEpoch,confirmedBlob);
     if(cached!==entry.url)URL.revokeObjectURL(entry.url);
    }
   }
@@ -2686,7 +2750,7 @@ async function processPhotoJob(job){
    activeMessages.sort(compareMessages);
    renderMessages();pinMessage(job.id);
   }
-  if(job.uid===openedUid)status('Photo sent ✓ · Confirmed in Workspace Drive and Messages.');
+  if(job.uid===openedUid)status('Photo sent ✓ · Saved and confirmed.');
   // A badge failure can never roll back an already-confirmed photo message.
   void updatePhotoInbox(job);
  }catch(error){
@@ -2703,7 +2767,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   if(sharedProject){status('Send a saved project separately from photos.',true);return;}
   if(pendingPhotoJobs.size>=PHOTO_JOBS_LIMIT){status('Two photos are already pending. Send again after one finishes.',true);return;}
   const key=push(ref(rtdb,`${studentPath(uid)}/messages`)).key;
-  const job={id:key,uid,senderUid:user.uid,senderRole:role(),caption:text,
+  const job={id:key,uid,senderUid:user.uid,senderRole:role(),useImageKit:g8mUseImageKit(),caption:text,
    createdAtMs:Date.now(),queued,uploaded:[],summary:summaryData(uid),
    replyTo:currentReply?.id||'',replyText:currentReply?.text||'',
    state:'queued',error:'',inProgress:false};

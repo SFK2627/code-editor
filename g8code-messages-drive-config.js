@@ -1,4 +1,9 @@
-// G8Code Messages private Workspace Drive bridge — same Apps Script deployment.
-// Reuses the existing secure Code.gs backend URL; no second Apps Script project.
-// Keep Google Drive folder ID and all server credentials ONLY in Apps Script properties.
+// G8Code Messenger — existing Apps Script bridge URL, unchanged.
+// Credentials stay in Google Apps Script Script Properties (never in GitHub).
 window.MCS_G8_MESSAGES_DRIVE_URL = String(window.MCS_APPS_SCRIPT_URL || '').trim();
+
+// ImageKit STEP 4C: SAFE PILOT ONLY.
+// Teacher/admin must intentionally open messages.html?from=admin&imagekitPilot=1.
+// Student uploads and normal Messenger visits stay with Google Drive.
+// IMPORTANT: private ImageKit images can still be VIEWED regardless of pilot mode.
+window.MCS_G8_MESSAGES_IMAGEKIT_PILOT_ENABLED = true;
