@@ -198,7 +198,20 @@ async function refreshConversation(manual=false){
 }
 $('g8mRefresh').addEventListener('click',()=>refreshConversation(true));
 
-function applyTheme(name){root.dataset.theme=name;safeSet('g8code-message-theme',name);$('g8mTheme').textContent=name==='dark'?'☾':'☼';}
+function applyTheme(name){
+ root.dataset.theme=name;
+ safeSet('g8code-message-theme',name);
+ const icon=name==='dark'?'☾':'☼';
+ const label=name==='dark'?'Switch to light mode':'Switch to dark mode';
+ // Keep desktop/top and mobile chat-header controls in sync for both roles.
+ for(const id of ['g8mTheme','g8mChatTheme']){
+  const button=$(id);
+  if(!button)continue;
+  button.textContent=icon;
+  button.title=label;
+  button.setAttribute('aria-label',label);
+ }
+}
 function inheritedTheme(){
  const saved=safeGet('g8code-message-theme');
  const teacherRoute=g8mTeacherEntry;
@@ -219,11 +232,15 @@ applyTheme(inheritedTheme());syncDesignTheme();
 function syncThemeForRole(){
  let settings={};try{settings=JSON.parse(safeGet('studentCodeStudio.loginReminderSettings.v1')||'{}')||{};}catch(_){}
  const locked=!teacher && settings.applyThemeToEntireApp && settings.allowStudentAppAppearanceChoice===false;
- $('g8mTheme').hidden=locked;
+ for(const id of ['g8mTheme','g8mChatTheme'])$(id).hidden=locked;
  if(locked){applyTheme(settings.appAppearance==='dark'?'dark':settings.appAppearance==='light'?'light':(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));}
  else if(teacher){const a=safeGet('g8code.adminWorkspaceAppearance.v1');if(a==='dark'||a==='light')applyTheme(a);}
 }
-$('g8mTheme').addEventListener('click',()=>{if(!$('g8mTheme').hidden)applyTheme(root.dataset.theme==='dark'?'light':'dark');});
+for(const id of ['g8mTheme','g8mChatTheme']){
+ $(id).addEventListener('click',()=>{
+  if(!$(id).hidden)applyTheme(root.dataset.theme==='dark'?'light':'dark');
+ });
+}
 // G8Code V5.0 photo viewer handlers are installed below.
 
 const studentPath = uid => `${BASE}/chats/${uid}`;
@@ -1217,10 +1234,6 @@ function renderMessages(){
    item.append(bubbleAnchor);
    const meta=textEl('div','g8m-msg-meta','');meta.append(textEl('span','',formatTime(at)));
    if(mine){const seenLabel=textEl('span','g8m-seen-label',seenLabelFor(msg));meta.append(seenLabel);}
-   const replyBtn=textEl('button','g8m-reply-btn','↩ Reply');replyBtn.type='button';
-   replyBtn.addEventListener('click',()=>{reply={id:msg.id,text:messageReferenceText(msg)};renderReply();$('g8mTextInput').focus();});
-   meta.append(replyBtn);
-   const more=textEl('button','g8m-msg-more','⋯');more.type='button';more.title='Message Details';more.setAttribute('aria-label','Message Details');more.addEventListener('click',event=>{event.stopPropagation();openDetailsFor(msg.id);});meta.append(more);
    item.append(meta);
    // The toolbar must follow the actual visible message, never the row or
    // teacher acknowledgement controls. In particular, portrait images can be

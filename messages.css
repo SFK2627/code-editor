@@ -562,3 +562,19 @@ html,body{overflow:hidden;overscroll-behavior:none}
 @media(prefers-reduced-motion:reduce){
  .g8m-focus-backdrop,.g8m-focus-shell{animation:none!important;transition:none!important}
 }
+
+
+/* V5.11 — mobile chat theme control next to Refresh (teacher and student).
+   Main header remains hidden during mobile chat to save screen space. */
+.g8m-chat-theme{display:none;place-items:center;width:32px;height:32px;min-width:32px;
+ border:1px solid var(--line);border-radius:10px;background:var(--field);
+ color:var(--ink);font-size:21px;line-height:1;flex:none}
+.g8m-chat-theme:hover,.g8m-chat-theme:focus-visible{border-color:var(--accent);color:var(--accent)}
+@media(max-width:700px){
+ .g8m-chat-head{gap:8px}
+ .g8m-chat-theme:not([hidden]){display:grid}
+ .g8m-chat-theme,.g8m-refresh{width:34px;height:34px;min-width:34px}
+}
+/* V5.11 — timestamps and Sent/Seen only. Reply/Details stay on hover/long press. */
+.g8m-msg-meta{gap:6px;min-height:13px;line-height:1.3;font-variant-numeric:tabular-nums;white-space:nowrap}
+.g8m-message.own>.g8m-msg-meta{justify-content:flex-end}
