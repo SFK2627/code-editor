@@ -1,4 +1,4 @@
-/* G8Code Messages V5.7 (based on V5.6) — authenticated, student↔teacher only. No grade/submission writes. */
+/* G8Code Messages V5.12 — private, account-scoped persistent photo cache. No grade/submission writes. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -63,7 +63,17 @@ let sections = [], students = new Map(), summaries = {}, openedUid = '', current
 let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], activeAcks = {}, seenAt = 0;
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
 let olderMessages=[], hasOlder=false, olderLoading=false;
-let imageCache = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
+let imageCache = new Map(), imageCacheFileIds = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
+// V5.12: Keep authenticated private Drive photos in bounded IndexedDB storage
+// across reloads. Never expose an old account's images after an account change.
+const PHOTO_DB_NAME = 'g8code-private-messages-photos-v1';
+const PHOTO_DB_STORE = 'photos';
+const PHOTO_DISK_MAX_ITEMS = 48;
+const PHOTO_DISK_MAX_BYTES = 48 * 1024 * 1024;
+const PHOTO_DISK_SINGLE_MAX = 5 * 1024 * 1024;
+const PHOTO_DISK_TTL = 3 * 24 * 60 * 60 * 1000;
+let photoDbPromise = null, photoCacheOwnerUid = '', photoAuthEpoch = 0;
+let photoCacheOwnerInitialized = false, photoDiskWriteCount = 0;
 let photoVisibilityObserver = null;
 // V4.7: bounded parallel private reads and a per-session LRU of decoded blob URLs.
 // Keep buttons across Seen/ack snapshots: a chat rerender must not cancel a photo.
@@ -289,6 +299,16 @@ async function boot(){
    stopTyping();closeReactionPicker();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);
    if(presenceHeartbeat){clearInterval(presenceHeartbeat);presenceHeartbeat=null;}
    ownPresencePath='';ownPresenceConnected=false;
+   // Clear previous account's in-memory object URLs immediately. Purge stale
+   // browser disk cache in the background; cache lookups also enforce owner UID.
+   const nextPhotoOwner=String(account?.uid||'');
+   if(!photoCacheOwnerInitialized || photoCacheOwnerUid!==nextPhotoOwner){
+    photoCacheOwnerInitialized=true;
+    photoCacheOwnerUid=nextPhotoOwner;
+    photoAuthEpoch++;
+    clearMemoryPhotoCache();
+    void prunePhotoDiskCache(nextPhotoOwner);
+   }
    conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
    if(!account){
     if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
@@ -1050,7 +1070,7 @@ function g8mCreateStackBacks(stack,items,uid,messageId,isLocal=false,backToLoad=
   const picture=document.createElement('img');picture.alt='';picture.draggable=false;
   if(isLocal)picture.src=entry.url;
   else{
-   const cached=cachedPhotoUrl(entry.path);
+   const cached=cachedPhotoUrl(entry.path,entry.driveFileId);
    if(cached)picture.src=cached;
    else if(backToLoad)backToLoad.push({att:{...entry,studentUid:uid,messageId},picture,back});
   }
@@ -1061,7 +1081,7 @@ async function g8mFillStackBacks(entries){
  // Decorative layer failures must never prevent opening the main photo.
  await Promise.all(entries.map(async({att,picture,back})=>{
   try{
-   const url=await privatePhotoURL(att);
+   const url=await privatePhotoURL(att,1); // Decorative layers are lower priority.
    if(back.isConnected&&picture.isConnected)picture.src=url;
   }catch(error){console.warn('Stacked photo preview unavailable:',error?.message||error);}
  }));
@@ -1326,14 +1346,23 @@ async function loadOlder(){
 }
 // Allow no more than two Drive photo reads at a time. Many simultaneous
 // Apps Script executions used to compete for RTDB receipts and timeout.
-function withPhotoReadSlot(task){
+// Main/visible photos must get the scarce private Drive read slots before
+// decorative stack backs. The gallery's opened photo has highest priority.
+function withPhotoReadSlot(task,priority=10){
  return new Promise((resolve,reject)=>{
   const run=async()=>{
    photoReadActive++;
    try{resolve(await task());}catch(error){reject(error);}
-   finally{photoReadActive--;const next=photoReadWaiting.shift();if(next)next();}
+   finally{
+    photoReadActive--;
+    const next=photoReadWaiting.shift();if(next)next.run();
+   }
   };
-  if(photoReadActive<PHOTO_READ_CONCURRENCY)run();else photoReadWaiting.push(run);
+  if(photoReadActive<PHOTO_READ_CONCURRENCY)run();
+  else{
+   photoReadWaiting.push({run,priority});
+   photoReadWaiting.sort((a,b)=>b.priority-a.priority);
+  }
  });
 }
 function photoTransient(error){
@@ -1341,58 +1370,206 @@ function photoTransient(error){
  return /timeout|no confirmation|network|temporar|unavailable|service|quota|too many|rate limit|connection|fetch|busy|retry|exceeded/i.test(reason)
   && !/permission|denied|not authorized|invalid|not found|missing|different student|access another|sign in|origin|unauthorized/i.test(reason);
 }
-function cachedPhotoUrl(path){
+function cachedPhotoUrl(path,driveFileId=''){
  if(!imageCache.has(path))return '';
+ if(driveFileId && imageCacheFileIds.get(path)!==String(driveFileId))return '';
  const url=imageCache.get(path);imageCache.delete(path);imageCache.set(path,url);
  return url;
 }
-function cachePhotoUrl(path,url){
+function cachePhotoUrl(path,url,driveFileId=''){
  if(imageCache.has(path)){
   const old=imageCache.get(path);imageCache.delete(path);
   if(old!==url)URL.revokeObjectURL(old);
  }
  imageCache.set(path,url);
- // Evict only images that are no longer displayed, including the full viewer.
- // Keeping the currently visible object URLs avoids broken thumbnails.
+ imageCacheFileIds.set(path,String(driveFileId||''));
+ // Do not revoke a blob URL while it is still displayed in a chat or viewer.
  if(imageCache.size>PHOTO_CACHE_MAX_ITEMS){
   const live=new Set([...document.querySelectorAll('.g8m-image-ready[data-photo-path]')].map(el=>el.dataset.photoPath));
   const displayed=$('g8mImageLarge')?.src||'';
   for(const [key,old] of imageCache){
    if(imageCache.size<=PHOTO_CACHE_MAX_ITEMS)break;
    if(key===path||live.has(key)||old===displayed)continue;
-   imageCache.delete(key);URL.revokeObjectURL(old);
+   imageCache.delete(key);imageCacheFileIds.delete(key);URL.revokeObjectURL(old);
   }
  }
 }
-function deleteCachedPhoto(path){
+function clearMemoryPhotoCache(){
+ // Called on Auth identity change, including sign-out and teacher/student swap.
+ for(const url of imageCache.values())URL.revokeObjectURL(url);
+ imageCache.clear();imageCacheFileIds.clear();photoQueue.clear();
+}
+function deleteCachedPhoto(path,driveFileId=''){
  const old=imageCache.get(path);
- if(old){imageCache.delete(path);URL.revokeObjectURL(old);}
+ if(old){imageCache.delete(path);imageCacheFileIds.delete(path);URL.revokeObjectURL(old);}
+ if(driveFileId && photoCacheOwnerUid)void deletePhotoFromDisk({path,driveFileId},photoCacheOwnerUid);
+}
+function photoDiskKey(att,owner){
+ return JSON.stringify([String(owner),String(att.path||''),String(att.driveFileId||'')]);
+}
+function photoOwnerStillValid(owner,epoch){
+ return !!owner && photoCacheOwnerUid===owner && photoAuthEpoch===epoch && user?.uid===owner;
+}
+function openPhotoDisk(){
+ if(photoDbPromise)return photoDbPromise;
+ if(!('indexedDB' in window) || !(['https:','http:'].includes(location.protocol)))return Promise.resolve(null);
+ photoDbPromise=new Promise(resolve=>{
+  let settled=false;
+  const finish=db=>{if(settled){if(db)db.close();return;}settled=true;resolve(db);};
+  try{
+   const request=indexedDB.open(PHOTO_DB_NAME,1);
+   request.onupgradeneeded=()=>{
+    const db=request.result;
+    if(!db.objectStoreNames.contains(PHOTO_DB_STORE))db.createObjectStore(PHOTO_DB_STORE,{keyPath:'key'});
+   };
+   request.onsuccess=()=>{
+    const db=request.result;
+    db.onversionchange=()=>{db.close();photoDbPromise=null;};
+    finish(db);
+   };
+   request.onerror=()=>finish(null);
+   request.onblocked=()=>finish(null);
+  }catch(_){finish(null);}
+ });
+ return photoDbPromise;
+}
+async function readPhotoFromDisk(att,owner,epoch){
+ const db=await openPhotoDisk();
+ if(!db||!photoOwnerStillValid(owner,epoch))return null;
+ return new Promise(resolve=>{
+  try{
+   const tx=db.transaction(PHOTO_DB_STORE,'readonly');
+   const request=tx.objectStore(PHOTO_DB_STORE).get(photoDiskKey(att,owner));
+   request.onsuccess=()=>{
+    const row=request.result;
+    if(!photoOwnerStillValid(owner,epoch)||!row||row.owner!==owner||row.expiresAt<=Date.now()||
+       !(row.blob instanceof Blob)||!allowedTypes.has(row.blob.type)||
+       row.blob.size<=0||row.blob.size>PHOTO_DISK_SINGLE_MAX){resolve(null);return;}
+    // The stored Blob is local only, not a public URL or a database read.
+    resolve(row.blob);
+    // Avoid rewriting a multi-MB Blob on every view. Maintenance handles LRU.
+    if(Date.now()-Number(row.lastUsed||0)>12*60*60*1000)
+     void touchPhotoDisk(att,owner,epoch);
+   };
+   request.onerror=()=>resolve(null);
+   tx.onabort=()=>resolve(null);
+  }catch(_){resolve(null);}
+ });
+}
+async function touchPhotoDisk(att,owner,epoch){
+ const db=await openPhotoDisk();if(!db||!photoOwnerStillValid(owner,epoch))return;
+ try{
+  const tx=db.transaction(PHOTO_DB_STORE,'readwrite');
+  const store=tx.objectStore(PHOTO_DB_STORE),req=store.get(photoDiskKey(att,owner));
+  req.onsuccess=()=>{const row=req.result;if(row&&photoOwnerStillValid(owner,epoch)){
+   row.lastUsed=Date.now();store.put(row);
+  }};
+ }catch(_){}
+}
+async function savePhotoToDisk(att,owner,epoch,blob){
+ if(!blob||!(blob instanceof Blob)||blob.size<=0||blob.size>PHOTO_DISK_SINGLE_MAX||
+    !allowedTypes.has(blob.type)||!photoOwnerStillValid(owner,epoch))return;
+ const db=await openPhotoDisk();if(!db||!photoOwnerStillValid(owner,epoch))return;
+ try{
+  await new Promise(resolve=>{
+   try{
+    const tx=db.transaction(PHOTO_DB_STORE,'readwrite');
+    tx.objectStore(PHOTO_DB_STORE).put({
+     key:photoDiskKey(att,owner),owner,path:att.path,driveFileId:String(att.driveFileId||''),
+     blob,byteLength:blob.size,lastUsed:Date.now(),expiresAt:Date.now()+PHOTO_DISK_TTL
+    });
+    tx.oncomplete=resolve;tx.onerror=resolve;tx.onabort=resolve;
+   }catch(_){resolve();}
+  });
+  if(++photoDiskWriteCount%4===0)void prunePhotoDiskCache(owner);
+ }catch(_){} // Private browsing / quota-denied: keep the in-memory fallback.
+}
+async function deletePhotoFromDisk(att,owner){
+ const db=await openPhotoDisk();if(!db)return;
+ try{db.transaction(PHOTO_DB_STORE,'readwrite').objectStore(PHOTO_DB_STORE).delete(photoDiskKey(att,owner));}catch(_){}
+}
+async function prunePhotoDiskCache(owner){
+ // A delayed cleanup from an earlier account must never delete the new
+ // account's photos after an Auth switch.
+ const startEpoch=photoAuthEpoch;
+ if(owner!==photoCacheOwnerUid)return;
+ const db=await openPhotoDisk();
+ if(!db||owner!==photoCacheOwnerUid||startEpoch!==photoAuthEpoch)return;
+ // On sign-out, clear ALL cached photo bytes. When switching identities,
+ // remove everything except the currently authenticated user's entries.
+ try{
+  const tx=db.transaction(PHOTO_DB_STORE,'readwrite'),store=tx.objectStore(PHOTO_DB_STORE);
+  if(!owner){store.clear();return;}
+  const kept=[];
+  const request=store.openCursor();
+  request.onsuccess=()=>{
+   const cursor=request.result;
+   if(!cursor){
+    kept.sort((a,b)=>b.lastUsed-a.lastUsed);
+    let bytes=0,count=0;
+    for(const row of kept){
+     if(count>=PHOTO_DISK_MAX_ITEMS||bytes+row.size>PHOTO_DISK_MAX_BYTES)store.delete(row.key);
+     else{bytes+=row.size;count++;}
+    }
+    return;
+   }
+   const row=cursor.value;
+   if(row?.owner!==owner||row.expiresAt<=Date.now()||!Number.isFinite(row.byteLength)||
+     row.byteLength<=0||row.byteLength>PHOTO_DISK_SINGLE_MAX)cursor.delete();
+   else kept.push({key:cursor.key,size:row.byteLength,lastUsed:Number(row.lastUsed)||0});
+   cursor.continue();
+  };
+ }catch(_){}
 }
 function pausePhotoRetry(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
-function privatePhotoURL(att){
- const path=att.path;
- const cached=cachedPhotoUrl(path);
+function privatePhotoURL(att,priority=10){
+ const path=String(att?.path||'');
+ const owner=photoCacheOwnerUid,epoch=photoAuthEpoch;
+ if(!photoOwnerStillValid(owner,epoch))return Promise.reject(new Error('Sign in again before opening private photos.'));
+ if(!path||!att?.driveFileId)return Promise.reject(new Error('Private photo attachment is incomplete.'));
+ const cached=cachedPhotoUrl(path,att.driveFileId);
  if(cached)return Promise.resolve(cached);
- if(photoQueue.has(path))return photoQueue.get(path);
- const job=withPhotoReadSlot(async()=>{
-  const uid=att.studentUid||String(path.split('/')[1]||'');
-  const messageId=att.messageId||String(path.split('/')[2]||'');
-  for(let attempt=0;attempt<3;attempt++){
-   try{
-    const result=await driveRequest('read',{studentUid:uid,messageId,driveFileId:att.driveFileId},attempt===0?30000:40000);
-    if(!result?.data||!allowedTypes.has(result.contentType))throw new Error('Invalid Drive photo response');
-    const binary=atob(result.data),data=new Uint8Array(binary.length);
-    for(let i=0;i<binary.length;i++)data[i]=binary.charCodeAt(i);
-    const url=URL.createObjectURL(new Blob([data],{type:result.contentType}));
-    cachePhotoUrl(path,url);
-    return url;
-   }catch(error){
-    if(attempt>=2||!photoTransient(error))throw error;
-    await pausePhotoRetry(800*(attempt+1));
-   }
+ const key=photoDiskKey(att,owner);
+ if(photoQueue.has(key))return photoQueue.get(key);
+ // Disk lookups do not consume Drive slots: cached pictures render as quickly
+ // as local browser storage allows, and share one lookup per attachment.
+ const job=(async()=>{
+  const savedBlob=await readPhotoFromDisk(att,owner,epoch);
+  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  if(savedBlob){
+   const cachedNow=cachedPhotoUrl(path,att.driveFileId);
+   if(cachedNow)return cachedNow;
+   const url=URL.createObjectURL(savedBlob);
+   cachePhotoUrl(path,url,att.driveFileId);
+   return url;
   }
- }).finally(()=>photoQueue.delete(path));
- photoQueue.set(path,job);
+  return withPhotoReadSlot(async()=>{
+   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+   const cachedNow=cachedPhotoUrl(path,att.driveFileId);
+   if(cachedNow)return cachedNow;
+   const uid=att.studentUid||String(path.split('/')[1]||'');
+   const messageId=att.messageId||String(path.split('/')[2]||'');
+   for(let attempt=0;attempt<3;attempt++){
+    try{
+     const result=await driveRequest('read',{studentUid:uid,messageId,driveFileId:att.driveFileId},attempt===0?30000:40000);
+     if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+     if(!result?.data||!allowedTypes.has(result.contentType))throw new Error('Invalid Drive photo response');
+     const binary=atob(result.data),data=new Uint8Array(binary.length);
+     for(let i=0;i<binary.length;i++)data[i]=binary.charCodeAt(i);
+     const blob=new Blob([data],{type:result.contentType});
+     const url=URL.createObjectURL(blob);
+     cachePhotoUrl(path,url,att.driveFileId);
+     // Persist asynchronously; never delay showing a freshly fetched photo.
+     void savePhotoToDisk(att,owner,epoch,blob);
+     return url;
+    }catch(error){
+     if(attempt>=2||!photoTransient(error)||!photoOwnerStillValid(owner,epoch))throw error;
+     await pausePhotoRetry(800*(attempt+1));
+    }
+   }
+  },priority);
+ })().finally(()=>photoQueue.delete(key));
+ photoQueue.set(key,job);
  return job;
 }
 // G8Code Messages V5.0: isolated Fit-to-Screen photo viewer.
@@ -1432,12 +1609,12 @@ function showPhotoGalleryIndex(index){
  imageViewer.hidden=false;
  galleryControlState();
  if(att.localUrl){openFullPhoto(att.localUrl,true);return;}
- const url=cachedPhotoUrl(att.path);
+ const url=cachedPhotoUrl(att.path,att.driveFileId);
  if(url){openFullPhoto(url,true);return;}
  imageLarge.removeAttribute('src');imageViewerFitW=0;
  imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;
  const state=$('g8mImageStageStatus');state.textContent=`Loading photo ${index+1} of ${photoGallery.length}…`;state.hidden=false;
- void privatePhotoURL(att).then(photoUrl=>{
+ void privatePhotoURL(att,20).then(photoUrl=>{
   if(load!==photoGalleryToken||imageViewer.hidden)return;
   openFullPhoto(photoUrl,true);
  }).catch(error=>{
@@ -1690,7 +1867,7 @@ async function showPhoto(att,button,version){
    if(typeof img.decode==='function')await img.decode();
    else if(!img.complete)await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
    if(!img.naturalWidth||!img.naturalHeight)throw new Error('Photo image could not be decoded');
-  }catch(error){deleteCachedPhoto(path);throw error;}
+  }catch(error){deleteCachedPhoto(path,att.driveFileId);throw error;}
   if(!button.isConnected||button.dataset.photoPath!==path)return;
   const width=img.naturalWidth,height=img.naturalHeight;
   // Actual image ratio. A portrait stays portrait, a landscape stays wide.
@@ -2039,7 +2216,11 @@ async function processPhotoJob(job){
     // This keeps the sender preview instant without re-reading private Drive.
     const cached=(entry.prepared&&entry.prepared!==entry.file)
      ?URL.createObjectURL(entry.prepared):entry.url;
-    cachePhotoUrl(att.path,cached);
+    cachePhotoUrl(att.path,cached,att.driveFileId);
+    // The successful sender's already-optimized photo also becomes a reusable
+    // local cache entry, so refreshing does not trigger a Drive round-trip.
+    const confirmedBlob=entry.prepared||entry.file;
+    if(confirmedBlob)void savePhotoToDisk(att,photoCacheOwnerUid,photoAuthEpoch,confirmedBlob);
     if(cached!==entry.url)URL.revokeObjectURL(entry.url);
    }
   }
@@ -2559,6 +2740,7 @@ window.addEventListener('beforeunload',event=>{
  stopCameraStream();stopTyping();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);
  selections.forEach(s=>URL.revokeObjectURL(s.url));
  for(const job of pendingPhotoJobs.values())job.queued.forEach(entry=>URL.revokeObjectURL(entry.url));
+ // Revoke transient object URLs; persistent cache is managed by auth/TTL.
  imageCache.forEach(url=>URL.revokeObjectURL(url));
 });
 boot();
