@@ -92,12 +92,13 @@ let driveBridgeCheckPromise = null;
 let imageKitBridgeCheckPromise=null, imageKitBridgeReady=false;
 // Five-minute signed links are kept ONLY in memory and scoped to the current login.
 const g8mIkSignedLinks=new Map();
-// New uploads stay on Drive by default. Only the verified teacher may opt in
-// to the ImageKit pilot using messages.html?from=admin&imagekitPilot=1.
-// Existing ImageKit photos remain readable by authorized users regardless.
-const g8mImageKitPilotRequested=new URLSearchParams(location.search).get('imagekitPilot')==='1';
-const g8mUseImageKit=()=>teacher===true && g8mImageKitPilotRequested &&
- window.MCS_G8_MESSAGES_IMAGEKIT_PILOT_ENABLED===true;
+// ImageKit is the default for NEW Messenger photos from signed-in teachers
+// AND students. Each message records its actual provider, so existing Drive
+// attachments continue using their original authenticated read path.
+// One explicit switch in g8code-messages-drive-config.js provides a safe
+// rollback for future uploads; never switch providers halfway through a job.
+const g8mUseImageKit=()=>Boolean(user) &&
+ window.MCS_G8_MESSAGES_IMAGEKIT_UPLOAD_ENABLED===true;
 
 // V4.5: short-lived chat presence/typing, reactions, and independently stored read receipts.
 let activeReactions={}, activeReadReceipts={}, peerPresence=null, peerTyping=null;
