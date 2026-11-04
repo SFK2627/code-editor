@@ -6,7 +6,7 @@ const $=id=>document.getElementById(id), BASE='g8AnnouncementsV1', MAX_IMAGES=10
 const SRC=new URLSearchParams(location.search).get('from');
 const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,imageUrls:new Map(),viewerUrl:'',viewerFile:null,blobOwner:'',markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,imageUrls:new Map(),viewerUrl:'',viewerFile:null,blobOwner:'',markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -43,7 +43,7 @@ function installSmartBack(){
  try{history.pushState({g8AnnouncementsRoleBack:true},'',location.href);window.addEventListener('popstate',goBack);}catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.catalog={};state.reactions={};state.comments={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';}
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.catalog={};state.reactions={};state.comments={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';}
 async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Missing G8Code Firebase configuration.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
  $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
  if(state.teacher){loadTeacher();loadCatalog();
@@ -79,55 +79,127 @@ function restoreAnnouncementPosition(){
   }));
  }catch(_){}
 }
-function loadTeacher(){on('posts',data=>{state.posts=data;render();}); // No Firestore use.
- // Existing Messages directory is an RTDB mirror; select only synchronized active accounts.
- state.unsubs.push(state.sdk.onValue(state.sdk.ref(state.db,'g8MessagesV1/directory'),s=>{state.directory=s.val()||{};renderAudience();},err=>{toast('Student directory unavailable in RTDB: '+err.message,true);$('gaAudienceCount').textContent='Cannot publish until the RTDB directory is available.';}));}
-// A person can have a historic and a current Firebase UID. Count them ONCE by
-// verified Student ID (the same identity grouping used by G8Code Messages V5.9).
-// Without a valid Student ID, use the UID: names alone are never safe identity keys.
+function loadTeacher(){on('posts',data=>{state.posts=data;render();}); // RTDB only.
+ // The Messages inbox resolves old/current UIDs using BOTH of these RTDB
+ // sources. Reading directory alone inflated Announcements' audience picker.
+ const base='g8MessagesV1/';
+ state.unsubs.push(state.sdk.onValue(state.sdk.ref(state.db,base+'directory'),snap=>{
+  state.directory=snap.val()||{};state.directoryLoaded=true;if(state.summaryLoaded)renderAudience();
+ },err=>{state.audienceLoadError=true;toast('Student directory unavailable in RTDB: '+err.message,true);
+  $('gaAudienceCount').textContent='Cannot publish until the student directory is available.';}));
+ state.unsubs.push(state.sdk.onValue(state.sdk.ref(state.db,base+'summary'),snap=>{
+  state.messageSummaries=snap.val()||{};state.summaryLoaded=true;if(state.directoryLoaded)renderAudience();
+ },err=>{state.audienceLoadError=true;console.warn('Messages identity summaries unavailable:',err.message);
+  toast('Some historical student identities could not be matched; refresh after checking Messages access.',true);}));
+}
+// Mirrors Messages V5.9's real Student ID grouping and its summary-ID fallback.
+// An exact full name AND section can safely link an ID-less legacy UID to the
+// single matching verified person. Never coalesce DIFFERENT verified IDs merely
+// because names match: two real classmates can have the same full name.
 function normalizedStudentId(raw){
  const id=txt(raw,50).toUpperCase().replace(/[^A-Z0-9]/g,'');
  return id.length>=5&&id.length<=50&&!/^(?:0+|UNKNOWN|NONE|NA|STUDENT|TEMP|TEST)$/.test(id)?id:'';
 }
 function normalizedSection(raw){
  return txt(raw,100).replace(/[–—]/g,'-').replace(/\s+/g,' ').trim()
-  .replace(/^Grade\s*8\s*(?:[-:|•]\s*)?/i,'')
-  .replace(/^G(?:rade)?\s*8\s*(?:[-:|•]\s*)?/i,'')
-  .replace(/^8\s*(?:[-:|•]\s*)?/i,'')
+  .replace(/^(?:Grade\s*8|G8|8)\s*(?:[-:|•]\s*)?/i,'')
+  .replace(/\bSaint\s+/gi,'St. ')
+  .replace(/\bSt\s*\.\s*/gi,'St. ')
   .replace(/\bSt\.?\s*Faustina\s+(?:of\s+)?Kowalska\b/gi,'St. Faustina Kowalska')
   .replace(/\bSt\.?\s*Camillus\s+(?:(?:de|of)\s+)?Lel(?:l)?is\b/gi,'St. Camillus de Lellis');
 }
-function activePeople(){
- const grouped=new Map();
- for(const [uid,raw] of Object.entries(state.directory||{})){
-  if(!/^[A-Za-z0-9_-]{5,128}$/.test(uid)||!raw||typeof raw!=='object'||
-      String(raw.accountStatus||'active').toLowerCase()==='disabled')continue;
-  const section=normalizedSection(raw.section);
-  if(!section||/^unassigned$/i.test(section))continue;
-  const studentId=txt(raw.studentId,50),normalized=normalizedStudentId(studentId);
-  const identityKey=normalized?'sid:'+normalized:'uid:'+uid;
-  if(!grouped.has(identityKey))grouped.set(identityKey,[]);
-  grouped.get(identityKey).push({uid,name:txt(raw.name||'Student',100),section,studentId,
-   preferred:raw.announcementsPrimary===true});
+function sectionKey(raw){return normalizedSection(raw).toUpperCase().replace(/[^A-Z0-9]/g,'');}
+function personNameKey(raw){
+ let value=txt(raw,140).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+ if(/^[^,]+,[^,]+$/.test(value)){
+  const names=value.split(',');value=names[1]+' '+names[0];
  }
- return [...grouped.entries()].map(([identityKey,rows])=>{
-  // The preferred flag is only a hint, never an invitation to merge names.
-  const priority=rows.slice().sort((a,b)=>Number(b.preferred)-Number(a.preferred)||
-   Number(b.name!=='Student')-Number(a.name!=='Student')||a.uid.localeCompare(b.uid));
-  const lead=priority[0];
-  return {...lead,identityKey,uids:[...new Set(rows.map(row=>row.uid))]};
- }).sort((a,b)=>a.section.localeCompare(b.section)||a.name.localeCompare(b.name));
+ const key=value.replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
+ return key==='STUDENT'||key==='UNKNOWN'||key==='UNNAMED STUDENT'||key==='N A'?'':key;
+}
+function activePeople(){
+ const directory=state.directory||{},summaries=state.messageSummaries||{};
+ const rows=[];const byUid=new Map();
+ // The active directory remains the source of enrollment. Summaries supply
+ // missing verified IDs/aliases but cannot independently enroll old chat UIDs.
+ for(const [uid,raw] of Object.entries(directory)){
+  if(!/^[A-Za-z0-9_-]{5,128}$/.test(uid)||!raw||typeof raw!=='object'||
+     String(raw.accountStatus||'active').toLowerCase()==='disabled')continue;
+  const summary=summaries[uid]&&typeof summaries[uid]==='object'?summaries[uid]:{};
+  const section=normalizedSection(raw.section&&!/^unassigned$/i.test(raw.section)?raw.section:summary.section);
+  if(!section||sectionKey(section)==='UNASSIGNED')continue;
+  const ids=[normalizedStudentId(raw.studentId),normalizedStudentId(summary.studentId)].filter(Boolean);
+  const name=txt(personNameKey(raw.name)?raw.name:summary.name||raw.name||'Student',100);
+  // A blank-ID, unnamed or placeholder RTDB entry isn't an enrolled pupil.
+  if(!ids.length&&!personNameKey(name))continue;
+  const row={uid,name,section,studentId:txt(raw.studentId||summary.studentId,50),
+   ids:[...new Set(ids)],nameKey:personNameKey(name),sectionKey:sectionKey(section),
+   preferred:raw.announcementsPrimary===true,activity:Number(summary.lastAtMs||0),fromDirectory:true};
+  rows.push(row);byUid.set(uid,row);
+ }
+ // Historical Messages summaries supplement existing directory records only.
+ // They do NOT add an unlisted UID to a private announcement's recipients.
+ const parents=rows.map((_,i)=>i);
+ function root(i){while(parents[i]!==i){parents[i]=parents[parents[i]];i=parents[i];}return i;}
+ function link(a,b){a=root(a);b=root(b);if(a!==b)parents[b]=a;}
+ const sidGroups=new Map();
+ rows.forEach((row,i)=>row.ids.forEach(id=>{
+  if(sidGroups.has(id))link(i,sidGroups.get(id));else sidGroups.set(id,i);
+ }));
+ // Fallback for duplicate old accounts with missing Student IDs. If a name
+ // maps to MULTIPLE verified IDs, leave those distinct rather than guessing.
+ const names=new Map();
+ rows.forEach((row,i)=>{
+  if(!row.nameKey||!row.sectionKey)return;
+  const k=row.nameKey+'|'+row.sectionKey;
+  if(!names.has(k))names.set(k,[]);names.get(k).push(i);
+ });
+ let conflictingNames=0;
+ for(const indexes of names.values()){
+  const knownIds=new Set(indexes.flatMap(i=>rows[i].ids));
+  // Two IDs may be aliases of the SAME already-linked UID.
+  const knownRoots=new Set(indexes.filter(i=>rows[i].ids.length).map(root));
+  if(knownRoots.size>1){conflictingNames++;continue;}
+  for(const i of indexes.slice(1))link(indexes[0],i);
+ }
+ const groups=new Map();
+ rows.forEach((row,i)=>{const k=root(i);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(row);});
+ const people=[];
+ for(const linked of groups.values()){
+  if(!linked.some(row=>row.fromDirectory))continue; // not enrolled
+  const ordered=linked.slice().sort((a,b)=>
+   Number(b.preferred)-Number(a.preferred)||Number(b.fromDirectory)-Number(a.fromDirectory)||
+   Number(!!b.ids.length)-Number(!!a.ids.length)||b.activity-a.activity||
+   Number(b.nameKey.length)-Number(a.nameKey.length)||a.uid.localeCompare(b.uid));
+  const lead=ordered[0];
+  const allIds=[...new Set(linked.flatMap(row=>row.ids))].sort();
+  const actualId=ordered.find(row=>row.ids.length)?.studentId||lead.studentId;
+  const uids=[...new Set(ordered.map(row=>row.uid))];
+  // Link old/current accounts for private delivery only with a matching
+  // nonempty Student ID. Name-only matches are for one-row UI counting, not
+  // proof that an old account may read another learner's private post.
+  const deliveryUids=allIds.length
+   ? ordered.filter(row=>row.ids.some(id=>allIds.includes(id))).map(row=>row.uid)
+   : [lead.uid];
+  const identityKey=allIds.length?'sid:'+allIds[0]:
+   'person:'+lead.sectionKey+':'+lead.nameKey;
+  people.push({...lead,studentId:actualId,identityKey,uids,deliveryUids});
+ }
+ // Expose diagnostic information for the teacher without changing RTDB records.
+ state.audienceDiagnostics={accountRecords:rows.filter(row=>row.fromDirectory).length,
+  uniqueStudents:people.length,linkedAccounts:rows.length-people.length,conflictingNames};
+ return people.sort((a,b)=>a.section.localeCompare(b.section)||a.name.localeCompare(b.name));
 }
 function determineRecipients(audience){
  const people=activePeople();if(audience.type==='all')return people;
- const selected=new Set((audience.sections||[]).map(normalizedSection));
+ const selected=new Set((audience.sections||[]).map(sectionKey));
  const ids=new Set(audience.students||[]);
- return people.filter(p=>audience.type==='sections'?selected.has(p.section):
+ return people.filter(p=>audience.type==='sections'?selected.has(p.sectionKey):
   p.uids.some(uid=>ids.has(uid))||ids.has(p.uid)||ids.has(p.identityKey));
 }
-// Deliver a SINGLE post per signed-in UID; all linked legacy accounts remain
-// eligible until the official roster retires them. Count unique PEOPLE above.
-function recipientAccountUids(audience){return [...new Set(determineRecipients(audience).flatMap(p=>p.uids))];}
+// A single PERSON is counted in the picker. Historical accounts with matching
+// Student IDs can receive a feed. Name-only matches never grant private access.
+function recipientAccountUids(audience){return [...new Set(determineRecipients(audience).flatMap(p=>p.deliveryUids))];}
 function normalizePost(raw,id){return {id,title:txt(raw.title||'Untitled announcement',140),bodyHtml:sanitizeHtml(raw.bodyHtml||''),background:['plain','blue','lavender','yellow','mint','rose','navy','gradient','custom'].includes(raw.background)?raw.background:'plain',font:['Arial','Georgia','Verdana','Trebuchet MS','Times New Roman','Courier New'].includes(raw.font)?raw.font:'Arial',bgColor:/^#[0-9a-f]{6}$/i.test(raw.bgColor||'')?raw.bgColor:'#e8f0ff',status:raw.status||'draft',pinned:!!raw.pinned,allowReplies:raw.allowReplies!==false,attachments:(Array.isArray(raw.attachments)?raw.attachments:Object.values(raw.attachments||{})).slice(0,40),createdAtMs:Number(raw.createdAtMs||0),publishedAtMs:Number(raw.publishedAtMs||0),updatedAtMs:Number(raw.updatedAtMs||0),audience:raw.audience||{type:'all'}};}
 function published(p){return p.status==='published';}
 function allIds(){const rows=Object.entries(state.posts).map(([id,p])=>normalizePost(p,id));const filter=state.filter;return rows.filter(p=>state.teacher?filter==='drafts'?p.status==='draft':filter==='archived'?p.status==='archived':filter==='all'?p.status!=='archived':published(p):published(p)).filter(p=>filter!=='unread'||state.teacher||!state.seen[p.id]).filter(p=>filter!=='pinned'||p.pinned).filter(p=>!state.search||[p.title,plainHtml(p.bodyHtml)].join(' ').toLowerCase().includes(state.search)).sort((a,b)=>Number(b.pinned)-Number(a.pinned)||Number(b.publishedAtMs||b.createdAtMs)-Number(a.publishedAtMs||a.createdAtMs)).slice(0,80);}
@@ -163,19 +235,19 @@ function openComposer(p=null,duplicate=false){if(!state.teacher)return;state.edi
 function closeComposer(){if(state.transferBusy||state.composerBusy){toast('An upload or save is still in progress. Wait for its verified result.',true);return;}$('gaComposerModal').hidden=true;document.body.style.overflow='';}
 $('gaComposeClose').addEventListener('click',closeComposer);document.querySelectorAll('[data-ga-close="composer"]').forEach(el=>el.addEventListener('click',closeComposer));
 function selectedAudience(){const type=document.querySelector('input[name="gaAudience"]:checked')?.value||'all';return {type,sections:type==='sections'?[...state.selectedSections]:[],students:type==='students'?[...state.selectedStudents]:[]};}
-function renderAudience(){const audience=selectedAudience(),people=activePeople(),picker=$('gaAudiencePicker'),container=$('gaAudienceList');picker.hidden=audience.type==='all';container.replaceChildren();if(audience.type!=='all'){const q=txt($('gaAudienceSearch').value,100).toLowerCase();const items=audience.type==='sections'?[...new Set(people.map(p=>p.section))].sort().map(section=>({id:section,label:section,detail:`${people.filter(p=>p.section===section).length} students`})):
- people.slice().sort((a,b)=>a.section.localeCompare(b.section)||a.name.localeCompare(b.name)).map(p=>({id:p.uid,label:p.name,detail:p.section+' · '+p.studentId}));for(const item of items.filter(x=>(x.label+' '+x.detail).toLowerCase().includes(q)).slice(0,500)){const label=node('label','ga-audience-item');const input=node('input');input.type='checkbox';const set=audience.type==='sections'?state.selectedSections:state.selectedStudents;input.checked=set.has(item.id)||(audience.type==='students'&&people.some(p=>p.uid===item.id&&p.uids.some(uid=>set.has(uid))));input.addEventListener('change',()=>{
+function renderAudience(){if(!state.directoryLoaded||!state.summaryLoaded){$('gaAudienceList').replaceChildren();$('gaAudienceCount').textContent=state.audienceLoadError?'Student identity verification unavailable. Check RTDB permissions and reload.':'Verifying student IDs and linked accounts…';return;}const audience=selectedAudience(),people=activePeople(),picker=$('gaAudiencePicker'),container=$('gaAudienceList');picker.hidden=audience.type==='all';container.replaceChildren();if(audience.type!=='all'){const q=txt($('gaAudienceSearch').value,100).toLowerCase();const items=audience.type==='sections'?[...new Map(people.map(p=>[p.sectionKey,p.section])).values()].sort().map(section=>({id:section,label:section,detail:`${people.filter(p=>p.sectionKey===sectionKey(section)).length} students`})):
+ people.slice().sort((a,b)=>a.section.localeCompare(b.section)||a.name.localeCompare(b.name)).map(p=>({id:p.identityKey,label:p.name,detail:p.section+' · '+p.studentId}));for(const item of items.filter(x=>(x.label+' '+x.detail).toLowerCase().includes(q)).slice(0,500)){const label=node('label','ga-audience-item');const input=node('input');input.type='checkbox';const set=audience.type==='sections'?state.selectedSections:state.selectedStudents;input.checked=(audience.type==='sections'?[...set].some(value=>sectionKey(value)===sectionKey(item.id)):set.has(item.id))||(audience.type==='students'&&people.some(p=>p.identityKey===item.id&&p.uids.some(uid=>set.has(uid))));input.addEventListener('change',()=>{
  if(audience.type==='students'){
   // Old posts may store a historic UID. Clear ALL linked UIDs on deselect,
   // otherwise the check appears off while that student still receives posts.
-  const student=people.find(p=>p.uid===item.id);
-  for(const uid of student?.uids||[item.id])set.delete(uid);
+  const student=people.find(p=>p.identityKey===item.id);
+  for(const uid of student?.uids||[])set.delete(uid);set.delete(item.id);
   if(input.checked)set.add(item.id);
- }else{input.checked?set.add(item.id):set.delete(item.id);}
+ }else{for(const previous of [...set])if(sectionKey(previous)===sectionKey(item.id))set.delete(previous);if(input.checked)set.add(item.id);}
  renderAudienceCount();
 });label.append(input,node('span','',item.label+' · '+item.detail));container.append(label);}}
  renderAudienceCount();}
-function renderAudienceCount(){const a=selectedAudience(),n=determineRecipients(a).length;$('gaAudienceCount').textContent=`${n} unique student${n===1?'':'s'} selected. Legacy/current account links count as one person.`;}
+function renderAudienceCount(){const a=selectedAudience(),n=determineRecipients(a).length;const conflicts=state.audienceDiagnostics?.conflictingNames||0;$('gaAudienceCount').textContent=`${n} unique student${n===1?'':'s'} selected. Linked accounts count as one person.`+(conflicts?` ${conflicts} same-name records have conflicting Student IDs; verify those in the directory.`:'');}
 document.querySelectorAll('input[name="gaAudience"]').forEach(el=>el.addEventListener('change',renderAudience));$('gaAudienceSearch').addEventListener('input',renderAudience);
 function drawPreview(){const x=$('gaComposePreview');x.replaceChildren(node('strong','','LIVE POST PREVIEW'));const p={title:$('gaPostTitle').value||'Announcement title',bodyHtml:sanitizeHtml($('gaRichText').innerHTML),background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value};x.append(postBody(p));}
 ['gaPostTitle','gaBackground','gaCustomBackground','gaFont','gaRichText'].forEach(id=>$(id).addEventListener(id==='gaRichText'||id==='gaCustomBackground'?'input':'change',drawPreview));$('gaBackground').addEventListener('change',()=>$('gaCustomBackgroundWrap').hidden=$('gaBackground').value!=='custom');$('gaPostTitle').addEventListener('input',drawPreview);
@@ -279,7 +351,7 @@ $('gaAddPdf').addEventListener('click',()=>$('gaPdfFiles').click());
 function renderAttachments(){const host=$('gaAttachmentList');host.replaceChildren();state.files.forEach((f,i)=>{const row=node('div','ga-attachment-item');row.append(node('span','',f.type==='image'?'🖼':f.type==='pdf'?'📄':f.type==='lesson'?'📘':f.type==='activity'?'📝':f.type==='youtube'?'▶':'🔗'),node('strong','',f.name),node('small','',f.type.toUpperCase()));for(const [mark,delta] of [['↑',-1],['↓',1]]){const b=node('button','',mark);b.type='button';b.title='Reorder';b.disabled=i+delta<0||i+delta>=state.files.length;b.addEventListener('click',()=>{const tmp=state.files[i];state.files[i]=state.files[i+delta];state.files[i+delta]=tmp;renderAttachments();});row.append(b);}const x=node('button','','×');x.type='button';x.title='Remove attachment';x.addEventListener('click',()=>{state.files.splice(i,1);renderAttachments();});row.append(x);host.append(row);});}
 function postFromEditor(id,status){const old=state.editingBase;const title=txt($('gaPostTitle').value,140);const bodyHtml=sanitizeHtml($('gaRichText').innerHTML);if(!title&&!plainHtml(bodyHtml)&&!state.files.length)throw Error('Write a title, message, or include an attachment.');return {id,title:title||'Class announcement',bodyHtml,background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,status,allowReplies:$('gaAllowReplies').checked,pinned:$('gaPinned').checked,audience:selectedAudience(),attachments:state.files.map(f=>({...f})),createdAtMs:old?.createdAtMs||Date.now(),updatedAtMs:Date.now(),publishedAtMs:status==='published'?(old?.publishedAtMs||Date.now()):0};}
 function feedCopy(p){return {id:p.id,title:p.title,bodyHtml:p.bodyHtml,background:p.background,bgColor:p.bgColor,font:p.font,status:p.status,allowReplies:p.allowReplies,pinned:p.pinned,attachments:p.attachments||[],createdAtMs:p.createdAtMs,publishedAtMs:p.publishedAtMs,updatedAtMs:p.updatedAtMs};}
-async function persistPost(p){const old=state.posts[p.id]||{};const oldList=Object.keys(old.recipients||{});const newList=p.status==='published'?recipientAccountUids(p.audience):[];p.recipients=Object.fromEntries(newList.map(uid=>[uid,true]));if(p.status==='published'&&!newList.length)throw Error('No recipients found. Open the RTDB Messages directory and confirm your students and their sections are synchronized.');if(newList.length>2500)throw Error('Unusually large audience. Review your RTDB roster before publishing.');const updates={[`posts/${p.id}`]:p};const oldSet=new Set(oldList),newSet=new Set(newList);for(const uid of oldSet)if(!newSet.has(uid))updates[`feeds/${uid}/${p.id}`]=null;for(const uid of newSet)updates[`feeds/${uid}/${p.id}`]=feedCopy(p);await state.sdk.update(state.sdk.ref(state.db,BASE),updates);}
+async function persistPost(p){if(p.status==='published'&&(!state.directoryLoaded||!state.summaryLoaded))throw Error('Student identities are still verifying. Check RTDB directory and Messages summary permissions before publishing.');const old=state.posts[p.id]||{};const oldList=Object.keys(old.recipients||{});const newList=p.status==='published'?recipientAccountUids(p.audience):[];p.recipients=Object.fromEntries(newList.map(uid=>[uid,true]));if(p.status==='published'&&!newList.length)throw Error('No recipients found. Open the RTDB Messages directory and confirm your students and their sections are synchronized.');if(newList.length>2500)throw Error('Unusually large audience. Review your RTDB roster before publishing.');const updates={[`posts/${p.id}`]:p};const oldSet=new Set(oldList),newSet=new Set(newList);for(const uid of oldSet)if(!newSet.has(uid))updates[`feeds/${uid}/${p.id}`]=null;for(const uid of newSet)updates[`feeds/${uid}/${p.id}`]=feedCopy(p);await state.sdk.update(state.sdk.ref(state.db,BASE),updates);}
 async function saveCurrent(status){if(state.composerBusy||state.transferBusy)return;state.composerBusy=true;const buttons=[$('gaSaveDraft'),$('gaPublish')];buttons.forEach(b=>b.disabled=true);alertStatus(status==='published'?'Publishing to selected students…':'Saving draft…');try{const id=state.editingId||state.sdk.push(path('posts')).key;const p=postFromEditor(id,status);await persistPost(p);toast(status==='published'?`Published to ${determineRecipients(p.audience).length} students.`:'Draft saved successfully.');state.composerBusy=false;closeComposer();}catch(e){alertStatus('Save failed: '+e.message,true);toast(e.message,true);}finally{state.composerBusy=false;buttons.forEach(b=>b.disabled=false);}}
 $('gaSaveDraft').addEventListener('click',()=>saveCurrent('draft'));$('gaPublish').addEventListener('click',()=>saveCurrent('published'));
 async function archivePost(p){if(!confirm('Archive this post and remove it from student feeds?'))return;try{const updated={...state.posts[p.id],status:'archived',updatedAtMs:Date.now()};await persistPost(updated);toast('Announcement archived.');}catch(e){toast(e.message,true);}}
