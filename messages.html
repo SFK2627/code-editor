@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=514-mobile-meta-scroll-latest" />
+<link rel="stylesheet" href="messages.css?v=515-unsend-smooth-scroll" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -105,12 +105,20 @@
   <button type="button" data-g8m-emoji="😡" aria-label="React with angry">😡</button>
   <button type="button" data-g8m-emoji="👍" aria-label="React with thumbs up">👍</button>
  </div>
- <div class="g8m-reaction-actions"><button type="button" id="g8mPickerReply">↩ Reply</button><button type="button" id="g8mPickerDetails">⋯ Message Details</button></div>
+ <div class="g8m-reaction-actions"><button type="button" id="g8mPickerReply">↩ Reply</button><button type="button" id="g8mPickerDetails">⋯ Message Details</button><button type="button" id="g8mPickerDelete">🗑 Delete</button></div>
 </div>
 <div id="g8mMessageDetails" class="g8m-details-overlay" role="dialog" aria-modal="true" aria-labelledby="g8mDetailsTitle" hidden>
  <section class="g8m-details-dialog"><header><strong id="g8mDetailsTitle">Message Details</strong><button type="button" id="g8mDetailsClose" aria-label="Close details">×</button></header>
  <div id="g8mDetailsPreview" class="g8m-details-preview"></div>
- <dl><div><dt>Sent</dt><dd id="g8mDetailsSent">—</dd></div><div><dt id="g8mDetailsSeenLabel">Seen by recipient</dt><dd id="g8mDetailsSeen">Not yet seen</dd></div><div><dt>Reactions</dt><dd id="g8mDetailsReactions">None</dd></div></dl>
+ <dl><div><dt>Sent</dt><dd id="g8mDetailsSent">—</dd></div><div id="g8mDetailsSeenRow"><dt id="g8mDetailsSeenLabel">Seen by recipient</dt><dd id="g8mDetailsSeen">Not yet seen</dd></div><div id="g8mDetailsReactionsRow"><dt>Reactions</dt><dd id="g8mDetailsReactions">None</dd></div><div id="g8mDetailsDeleted" hidden><dt>Deleted by</dt><dd id="g8mDetailsDeletedBy">—</dd><dt>Deleted at</dt><dd id="g8mDetailsDeletedAt">—</dd></div></dl>
+ <button type="button" id="g8mDetailsDelete" class="g8m-details-delete">🗑 Delete message</button>
+ </section>
+</div>
+<div id="g8mDeleteOverlay" class="g8m-details-overlay" role="dialog" aria-modal="true" aria-labelledby="g8mDeleteTitle" hidden>
+ <section class="g8m-details-dialog g8m-delete-dialog"><header><strong id="g8mDeleteTitle">Delete Message</strong></header>
+  <p id="g8mDeleteText">Choose how to delete this message.</p>
+  <div class="g8m-delete-choices"><button type="button" id="g8mDeleteForMe">Delete for you</button><button type="button" id="g8mDeleteForEveryone">Unsend for everyone</button><button type="button" id="g8mDeleteCancel">Cancel</button></div>
+  <small>Unsend replaces the message content with a deletion notice. It cannot undo screenshots or downloaded photos.</small>
  </section>
 </div>
 </div>
@@ -139,6 +147,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=514-mobile-meta-scroll-latest"></script>
+<script defer src="messages.js?v=515-unsend-smooth-scroll"></script>
 </body>
 </html>

@@ -92,6 +92,7 @@ let driveBridgeCheckPromise = null;
 
 // V4.5: short-lived chat presence/typing, reactions, and independently stored read receipts.
 let activeReactions={}, activeReadReceipts={}, peerPresence=null, peerTyping=null;
+let deletedMessageIndex={}, hiddenMessageIds={}, deleteMessageTarget=null, deleteMessageBusy=false;
 let ownPresencePath='', presenceHeartbeat=null, ownPresenceConnected=false;
 let typingPath='', typingIdleTimer=null, typingLastWrite=0, typingPulseBusy=false;
 let seenSyncBusy=false, priorOwnSeenAt=null, receiptCacheReady=false;
@@ -207,13 +208,9 @@ function moveToMessage(id){
 }
 let pinnedMessageId='',pinExpires=0;
 function pinMessage(id){
- pinnedMessageId=String(id);pinExpires=Date.now()+2500;
- moveToMessage(pinnedMessageId);
- // Other subscribers can rerender after Seen/summary updates; keep the sent
- // bubble in view through those rerenders, even on short, mobile chat panels.
- setTimeout(()=>{if(Date.now()<pinExpires)moveToMessage(pinnedMessageId);},50);
- setTimeout(()=>{if(Date.now()<pinExpires)moveToMessage(pinnedMessageId);},280);
- setTimeout(()=>{if(Date.now()<pinExpires)moveToMessage(pinnedMessageId);},800);
+ pinnedMessageId=String(id);pinExpires=Date.now()+900;
+ if(g8mFollowLatest)g8mScheduleBottomIfFollowing();
+ // Do not run delayed moveToMessage calls after the user starts backreading.
 }
 
 function updateChatFeedState(message,failed=false){
@@ -223,6 +220,11 @@ function updateChatFeedState(message,failed=false){
 function displayMessagesFromSnapshot(snapshot,uid){
  if(uid!==openedUid)return;
  const incoming=normalizeMessageSnapshot(snapshot);
+ for(const fresh of incoming){
+  if(!isDeletedMessage(fresh))continue;
+  const old=[...activeMessages,...olderMessages].find(x=>x.id===fresh.id&&!isDeletedMessage(x));
+  if(old)g8mRemoveDeletedPhotoCache(old);
+ }
  // The live query is authoritative. A confirmed local send is merged below so
  // a slow/stale initial listener does not temporarily erase the just-sent bubble.
  const localPending=activeMessages.filter(m=>m.__confirmedLocal && !incoming.some(n=>n.id===m.id));
@@ -639,7 +641,7 @@ function openChat(uid){
  }
  selectedMobileMetaMessageId='';
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
- clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
+ clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
  hasOlder=warm?.hasOlder||false;olderLoading=false;activeAcks=warm?.acks||{};seenAt=warm?.seenAt||0;reply=null;renderReply();
@@ -668,6 +670,14 @@ function openChat(uid){
   // A one-time read can still work when a realtime listener is interrupted.
   refreshConversation(false);
  }));
+ activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/deleted`),snap=>{
+  if(uid!==openedUid)return;
+  deletedMessageIndex=snap.val()||{};if(reply&&isDeletedReference(reply.id)){reply.text='Message deleted';renderReply();}renderMessages();
+ },err=>console.warn('Deleted index listener:',err)));
+ activeUnsubs.push(onValue(ref(rtdb,`${BASE}/hiddenFor/${user.uid}/${uid}`),snap=>{
+  if(uid!==openedUid)return;
+  hiddenMessageIds=snap.val()||{};renderMessages();
+ },err=>console.warn('Hidden message listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/reactions`),snap=>{if(uid!==openedUid)return;activeReactions=snap.val()||{};updateReactionBadges();updateDetails();},err=>console.warn('Reactions listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/readReceipts`),snap=>{if(uid!==openedUid)return;activeReadReceipts=snap.val()||{};receiptCacheReady=true;refreshSeenLabels();updateDetails();},err=>console.warn('Read receipt listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/typing/${teacher?'student':'teacher'}`),snap=>{if(uid!==openedUid)return;peerTyping=snap.val();updateTypingIndicator();},err=>console.warn('Typing listener:',err)));
@@ -714,6 +724,8 @@ async function markSeen(uid){
 // ——— V4.5 — per-message reactions, first-view receipts, live typing and presence ———
 function peerRole(){return teacher?'student':'teacher';}
 function messageById(id){return [...activeMessages,...olderMessages].find(msg=>msg.id===String(id));}
+const isDeletedMessage=msg=>!!(msg&&Number(msg.deletedAtMs)>0);
+const isDeletedReference=id=>!!deletedMessageIndex[String(id)]||isDeletedMessage(messageById(id));
 function absoluteTime(value){
  const n=Number(value);if(!Number.isFinite(n)||n<=0)return 'Unavailable';
  return new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit',timeZone:'Asia/Manila'}).format(new Date(n));
@@ -815,7 +827,7 @@ function reactionSummary(id){
 }
 function updateOneReactionBadge(node,id){
  const badge=node.querySelector('.g8m-reaction-chip');if(!badge)return;
- const r=reactionSummary(id);badge.hidden=!r.count;
+ const r=reactionSummary(id);badge.hidden=isDeletedMessage(messageById(id))||!r.count;
  badge.textContent=r.emojis.slice(0,3).join('')+(r.count>1?' '+r.count:'');
  badge.classList.toggle('mine',!!r.own);
  node.classList.toggle('has-reaction',!!r.count);
@@ -828,104 +840,118 @@ function updateReactionBadges(){
 // show that generated label as a chat bubble. Genuine student-written
 // captions are preserved, and existing RTDB records remain untouched.
 function visibleMessageText(msg){
+ if(isDeletedMessage(msg))return '';
  const raw=typeof msg?.text==='string'?msg.text:'';
  const legacy=raw.trim();
  if(msg?.type==='image' && (legacy==='📷 Photo attachment' || legacy==='📸 Photo attachment'))return '';
  return raw;
 }
 function messageReferenceText(msg){
+ if(isDeletedMessage(msg))return 'Message deleted';
  if(msg?.type==='project')return String(msg.projectName||'Shared project');
  return visibleMessageText(msg)||(msg?.type==='image'?'Photo':'Message');
 }
 function replyToMessage(id){
- const msg=messageById(id);if(!msg)return;
+ const msg=messageById(id);if(!msg||isDeletedMessage(msg))return;
  reply={id:msg.id,text:messageReferenceText(msg)};
  renderReply();closeReactionPicker();$('g8mTextInput').focus();
 }
-// V5.14: Scroll to the newest message, or let the user backread without a forced jump.
-// The small button is anchored above the composer, not inside the scrolling feed.
+// V5.15: One scroll owner. User gestures always cancel pending auto-scroll.
+// No MutationObserver or scroll-event bounce-to-bottom: both caused the V5.14 flicker.
 const G8M_LATEST_THRESHOLD = 48;
 let g8mFollowLatest=true,g8mSmoothLatest=false,g8mBottomFrame=0,g8mOpenScrollToken=0;
 let g8mTouchStartY=0,g8mTouchStartX=0;
 function g8mBottomGap(){
  const feed=$('g8mMessages');
- if(!feed||feed.clientHeight<1)return 0;
- return Math.max(0,feed.scrollHeight-feed.clientHeight-feed.scrollTop);
+ return feed&&feed.clientHeight>0 ? Math.max(0,feed.scrollHeight-feed.clientHeight-feed.scrollTop) : 0;
 }
 function g8mUpdateScrollLatest(){
  const button=$('g8mScrollLatest'),feed=$('g8mMessages');
- if(!button||!feed)return;
- button.hidden=!(openedUid&&feed.clientHeight>0&&g8mBottomGap()>G8M_LATEST_THRESHOLD);
+ if(button&&feed)button.hidden=!(openedUid&&feed.clientHeight>0&&g8mBottomGap()>G8M_LATEST_THRESHOLD);
+}
+function g8mCancelAutoScroll(){
+ // Touchmove/wheel fire repeatedly during a real gesture. Never call scrollTo
+ // on every touchmove: that would recreate the very same scroll flicker.
+ if(!g8mFollowLatest&&!g8mSmoothLatest)return;
+ const wasSmooth=g8mSmoothLatest;
+ g8mFollowLatest=false;g8mSmoothLatest=false;++g8mOpenScrollToken;
+ if(g8mBottomFrame){cancelAnimationFrame(g8mBottomFrame);g8mBottomFrame=0;}
+ if(wasSmooth){
+  const feed=$('g8mMessages');if(feed)feed.scrollTo({top:feed.scrollTop,behavior:'instant'});
+ }
+ g8mUpdateScrollLatest();
 }
 function g8mJumpLatest({smooth=false,settle=false}={}){
  const feed=$('g8mMessages');if(!feed)return;
+ const token=++g8mOpenScrollToken,uid=openedUid;
  g8mFollowLatest=true;
- const reduced=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
- g8mSmoothLatest=!!smooth&&!reduced;
- const reach=()=>Math.max(0,feed.scrollHeight-feed.clientHeight);
+ g8mSmoothLatest=!!smooth&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const atBottom=()=>Math.max(0,feed.scrollHeight-feed.clientHeight);
+ feed.scrollTo({top:atBottom(),behavior:g8mSmoothLatest?'smooth':'instant'});
+ if(settle){
+  // Layout may appear a frame after switching mobile panes; never use timers
+  // that can snap an active backreader several hundred milliseconds later.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+   if(token===g8mOpenScrollToken&&uid===openedUid&&g8mFollowLatest&&!g8mSmoothLatest){
+    feed.scrollTop=atBottom();g8mUpdateScrollLatest();
+   }
+  }));
+ }
  if(g8mSmoothLatest){
-  feed.scrollTo({top:reach(),behavior:'smooth'});
-  // A smooth scroll may end early if new media changes the chat height.
-  const uid=openedUid,token=++g8mOpenScrollToken;
-  setTimeout(()=>{
+  // Observe, do not force a hard snap at the end of the animation.
+  const started=performance.now();
+  const finish=()=>{
    if(token!==g8mOpenScrollToken||uid!==openedUid||!g8mSmoothLatest)return;
-   g8mSmoothLatest=false;
-   if(g8mFollowLatest)feed.scrollTop=reach();
-   g8mUpdateScrollLatest();
-  },1100);
- }else{
-  feed.scrollTop=reach();
+   if(g8mBottomGap()<=G8M_LATEST_THRESHOLD||performance.now()-started>1400){
+    g8mSmoothLatest=false;
+    // If a user interrupted this scroll, their input handler revoked our token.
+    g8mFollowLatest=g8mBottomGap()<=G8M_LATEST_THRESHOLD;
+    g8mUpdateScrollLatest();return;
+   }
+   requestAnimationFrame(finish);
+  };
+  requestAnimationFrame(finish);
  }
  g8mUpdateScrollLatest();
- if(settle){
-  const uid=openedUid,token=++g8mOpenScrollToken;
-  const settleBottom=()=>{
-   if(token!==g8mOpenScrollToken||uid!==openedUid||!g8mFollowLatest||g8mSmoothLatest)return;
-   feed.scrollTop=reach();g8mUpdateScrollLatest();
-  };
-  requestAnimationFrame(()=>requestAnimationFrame(settleBottom));
-  // Allow delayed chat layout (mobile pane switch / cached photo decode) to settle.
-  for(const ms of [85,260,650])setTimeout(settleBottom,ms);
- }
 }
 function g8mScheduleBottomIfFollowing(){
+ // Called after a new message or an image RESIZES, not by scroll or mutation
+ // events. One frame maximum; never trigger recursively from the scroll event.
  if(!g8mFollowLatest||g8mSmoothLatest||g8mBottomFrame)return;
+ const token=g8mOpenScrollToken,uid=openedUid;
  g8mBottomFrame=requestAnimationFrame(()=>{
   g8mBottomFrame=0;
-  if(g8mFollowLatest&&!g8mSmoothLatest)g8mJumpLatest();
-  else g8mUpdateScrollLatest();
+  if(token===g8mOpenScrollToken&&uid===openedUid&&g8mFollowLatest&&!g8mSmoothLatest){
+   const feed=$('g8mMessages');
+   if(feed)feed.scrollTop=Math.max(0,feed.scrollHeight-feed.clientHeight);
+  }
+  g8mUpdateScrollLatest();
  });
 }
 const g8mScrollFeed=$('g8mMessages');
 $('g8mScrollLatest').addEventListener('click',()=>g8mJumpLatest({smooth:true}));
 g8mScrollFeed.addEventListener('scroll',()=>{
- if(g8mBottomGap()<=G8M_LATEST_THRESHOLD){g8mFollowLatest=true;g8mSmoothLatest=false;}
- else if(g8mFollowLatest&&!g8mSmoothLatest)g8mScheduleBottomIfFollowing();
+ // A programmatic scroll can move upward during smooth scrolling. Never fight it.
+ if(!g8mSmoothLatest)g8mFollowLatest=g8mBottomGap()<=G8M_LATEST_THRESHOLD;
  g8mUpdateScrollLatest();
 },{passive:true});
 g8mScrollFeed.addEventListener('wheel',event=>{
- if(event.deltaY<0){g8mFollowLatest=false;g8mSmoothLatest=false;}
+ if(Math.abs(event.deltaY)>0)g8mCancelAutoScroll();
 },{passive:true});
 g8mScrollFeed.addEventListener('touchstart',event=>{
  const t=event.touches?.[0];if(t){g8mTouchStartY=t.clientY;g8mTouchStartX=t.clientX;}
 },{passive:true});
 g8mScrollFeed.addEventListener('touchmove',event=>{
- const t=event.touches?.[0];
- if(t && t.clientY-g8mTouchStartY>9 && Math.abs(t.clientY-g8mTouchStartY)>Math.abs(t.clientX-g8mTouchStartX)){
-  g8mFollowLatest=false;g8mSmoothLatest=false;
- }
+ const t=event.touches?.[0];if(!t)return;
+ const dy=t.clientY-g8mTouchStartY,dx=t.clientX-g8mTouchStartX;
+ if(Math.abs(dy)>8&&Math.abs(dy)>Math.abs(dx))g8mCancelAutoScroll();
 },{passive:true});
 g8mScrollFeed.addEventListener('keydown',event=>{
- if(['PageUp','Home','ArrowUp'].includes(event.key)){g8mFollowLatest=false;g8mSmoothLatest=false;}
+ if(['PageUp','PageDown','Home','End','ArrowUp','ArrowDown',' '].includes(event.key))g8mCancelAutoScroll();
 });
-// Real photo sizing modifies child styles after async Drive reads. Keep the latest
-// pinned only while user has not started backreading. Do not refetch anything.
-if(typeof MutationObserver==='function'){
- new MutationObserver(()=>{
-  if(g8mFollowLatest)g8mScheduleBottomIfFollowing();
-  else g8mUpdateScrollLatest();
- }).observe(g8mScrollFeed,{childList:true,subtree:true,attributes:true,attributeFilter:['style','src']});
-}
+g8mScrollFeed.addEventListener('pointerdown',event=>{
+ if(event.target===g8mScrollFeed && event.pointerType==='mouse')g8mCancelAutoScroll();
+},{passive:true});
 window.addEventListener('resize',()=>{
  syncMobileMessageMetaVisibility();
  if(g8mFollowLatest)g8mScheduleBottomIfFollowing();else g8mUpdateScrollLatest();
@@ -1082,6 +1108,10 @@ function openReactionPicker(id,anchor,options={}){
  const selected=focus ? focusOnMessage(id) : null;
  const realAnchor=(anchor && validAnchorRect(anchor) ? anchor : actualBubbleAnchor(item));
  menuAnchor=realAnchor;
+ const tombstone=isDeletedMessage(messageById(id));
+ $('g8mReactionOptions').hidden=tombstone;
+ $('g8mPickerReply').hidden=tombstone;
+ $('g8mPickerDelete').hidden=!messageById(id);
  const r=selected||validAnchorRect(realAnchor)||{top:110,left:16,width:180,bottom:150,right:196};
  const width=reactionPicker.offsetWidth,height=reactionPicker.offsetHeight;
  const vw=innerWidth,vh=window.visualViewport?.height || innerHeight;
@@ -1103,7 +1133,7 @@ $('g8mFocusBackdrop').addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();closeReactionPicker();
 });
 async function reactToMessage(id,emoji){
- if(!openedUid||!user||!REACTION_EMOJIS.includes(emoji))return;
+ if(!openedUid||!user||!REACTION_EMOJIS.includes(emoji)||isDeletedMessage(messageById(id)))return;
  const uid=openedUid, refPath=ref(rtdb,`${studentPath(uid)}/reactions/${id}/${user.uid}`);
  const old=activeReactions[id]?.[user.uid]||'';
  closeReactionPicker();
@@ -1127,6 +1157,14 @@ function updateDetails(){
  const msg=messageById(detailsMessageId);if(!msg)return;
  const own=msg.senderUid===user?.uid;
  $('g8mDetailsPreview').textContent=short(messageReferenceText(msg),260);
+ const deleted=isDeletedMessage(msg),bySelf=msg.deletedByUid===user?.uid;
+ $('g8mDetailsDeleted').hidden=!deleted;
+ $('g8mDetailsDeletedBy').textContent=deleted?(bySelf?'You':(msg.senderRole==='teacher'?'Teacher':'Student')):'—';
+ $('g8mDetailsDeletedAt').textContent=deleted?absoluteTime(msg.deletedAtMs):'—';
+ $('g8mDetailsSeenRow').hidden=deleted;
+ $('g8mDetailsReactionsRow').hidden=deleted;
+ $('g8mDetailsDelete').hidden=deleted;
+ $('g8mDetailsDelete').disabled=deleteMessageBusy;
  $('g8mDetailsSent').textContent=absoluteTime(msg.createdAtMs);
  $('g8mDetailsSeenLabel').textContent=own?`Seen by ${teacher?'Student':'Teacher'}`:'Seen by you';
  const exact=Number(activeReadReceipts[detailsMessageId]?.[own?peerRole():role()]||0);
@@ -1135,10 +1173,98 @@ function updateDetails(){
  const r=reactionSummary(detailsMessageId);
  $('g8mDetailsReactions').textContent=r.count?r.entries.map(([uid,emoji])=>`${emoji} ${uid===user.uid?'You':teacher?'Student':'Teacher'}`).join(' · '):'None';
 }
+// V5.15: Delete for You (private RTDB preference) or Unsend for Everyone
+// (sender-only atomic tombstone replacement + deleted-id index).
+const deleteOverlay=$('g8mDeleteOverlay');
+function openDeleteDialog(id){
+ const msg=messageById(id);
+ if(!msg||!user||deleteMessageBusy)return;
+ deleteMessageTarget={id:String(id),uid:openedUid,by:user.uid};
+ closeDetails();closeReactionPicker();
+ const own=msg.senderUid===user.uid;
+ $('g8mDeleteForEveryone').hidden=!own||isDeletedMessage(msg);
+ $('g8mDeleteText').textContent=isDeletedMessage(msg)
+  ?'Hide this deleted-message placeholder from your own chat?'
+  :own?'Delete only for yourself, or unsend it for both people?':'Remove this message from your own view?';
+ deleteOverlay.hidden=false;$('g8mDeleteCancel').focus();
+}
+function closeDeleteDialog(){if(deleteMessageBusy)return;deleteOverlay.hidden=true;deleteMessageTarget=null;}
+function g8mRemoveDeletedPhotoCache(previous){
+ const attachments=Array.isArray(previous?.attachments)?previous.attachments:Object.values(previous?.attachments||{});
+ for(const att of attachments)if(att?.path)deleteCachedPhoto(att.path,att.driveFileId);
+ // The fullscreen viewer must never keep showing a photo after it was unsent.
+ if(!imageViewer.hidden&&photoGallery.some(att=>att.messageId===previous?.id)){
+  $('g8mImageClose').click();
+ }
+}
+async function deleteMessageForMe(){
+ if(deleteMessageBusy)return;
+ const target=deleteMessageTarget;if(!target||!user||target.by!==user.uid)return;
+ deleteMessageBusy=true;
+ try{
+  // Save per-account hidden markers in RTDB (across devices). This does NOT
+  // change what the other participant can see.
+  await set(ref(rtdb,`${BASE}/hiddenFor/${target.by}/${target.uid}/${target.id}`),true);
+  if(target.uid===openedUid){hiddenMessageIds[target.id]=true;renderMessages();}
+  status('Message removed from your view ✓');
+  deleteOverlay.hidden=true;deleteMessageTarget=null;
+ }catch(error){status(`Delete for you failed: ${friendlyError(error)}`,true);}
+ finally{deleteMessageBusy=false;}
+}
+async function unsendMessageForEveryone(){
+ if(deleteMessageBusy)return;
+ const target=deleteMessageTarget,msg=target&&messageById(target.id);
+ if(!target||!msg||!user||msg.senderUid!==user.uid||target.uid!==openedUid||isDeletedMessage(msg))return;
+ deleteMessageBusy=true;
+ try{
+  // Replace original text/attachments/project reference, not merely hide them
+  // with CSS. Atomic multi-location update also records the deletion index,
+  // so older quoted replies never expose the old replyText snippet.
+  const deletedAt=serverTimestamp(),path=studentPath(target.uid);
+  const tombstone={text:'',type:'text',senderUid:msg.senderUid,senderRole:msg.senderRole,
+   createdAtMs:msg.createdAtMs,deletedByUid:user.uid,deletedAtMs:deletedAt};
+  await update(ref(rtdb),{
+   [`${path}/messages/${target.id}`]:tombstone,
+   [`${path}/deleted/${target.id}`]:{byUid:user.uid,atMs:serverTimestamp()}
+  });
+  g8mRemoveDeletedPhotoCache(msg);
+  // Message content removed from RTDB; do not keep an old local copy cached.
+  if(target.uid===openedUid){
+   deletedMessageIndex[target.id]={byUid:user.uid,atMs:Date.now()};
+   for(const item of [...activeMessages,...olderMessages]){
+    if(item.id===target.id){
+     Object.keys(item).forEach(k=>{if(!['id','senderUid','senderRole','createdAtMs'].includes(k))delete item[k];});
+     Object.assign(item,{text:'',type:'text',deletedByUid:user.uid,deletedAtMs:Date.now()});
+    }
+   }
+   renderMessages();
+  }
+  // Avoid leaking the removed text in the student-list preview when it was
+  // the latest message. A one-time RTDB read happens ONLY upon unsending.
+  try{
+   const summaryRef=ref(rtdb,summaryPath(target.uid));
+   const snapshot=await get(summaryRef);
+   const value=snapshot.val()||{};
+   if(Math.abs(Number(value.lastAtMs||0)-Number(msg.createdAtMs||0))<10000){
+    await set(ref(rtdb,`${summaryPath(target.uid)}/lastText`),'Message deleted');
+   }
+  }catch(error){console.warn('Inbox preview update pending:',error);}
+  deleteOverlay.hidden=true;deleteMessageTarget=null;
+  status('Message unsent ✓ · The conversation now shows a deletion notice.');
+ }catch(error){status(`Could not unsend message: ${friendlyError(error)}. Check RTDB rules deployment.`,true);}
+ finally{deleteMessageBusy=false;}
+}
+$('g8mDeleteCancel').addEventListener('click',closeDeleteDialog);
+$('g8mDeleteForMe').addEventListener('click',()=>void deleteMessageForMe());
+$('g8mDeleteForEveryone').addEventListener('click',()=>void unsendMessageForEveryone());
+deleteOverlay.addEventListener('click',event=>{if(event.target===deleteOverlay)closeDeleteDialog();});
+$('g8mDetailsDelete').addEventListener('click',()=>{if(detailsMessageId)openDeleteDialog(detailsMessageId);});
+$('g8mPickerDelete').addEventListener('click',()=>{if(menuMessageId)openDeleteDialog(menuMessageId);});
+
 function closeDetails(){detailsOverlay.hidden=true;detailsMessageId='';}
 $('g8mDetailsClose').addEventListener('click',closeDetails);
 detailsOverlay.addEventListener('click',event=>{if(event.target===detailsOverlay)closeDetails();});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeReactionPicker();if(!detailsOverlay.hidden)closeDetails();}});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeReactionPicker();if(!detailsOverlay.hidden)closeDetails();if(!deleteOverlay.hidden)closeDeleteDialog();}});
 document.addEventListener('pointerdown',event=>{
  if(!reactionPicker.hidden&&!reactionPicker.contains(event.target)&&!event.target.closest('.g8m-hover-actions,.g8m-reaction-chip,.g8m-focus-shell'))closeReactionPicker();
 });
@@ -1247,7 +1373,7 @@ function renderMessages(){
   .filter(job=>job.uid===openedUid)
   .map(job=>({id:job.id,senderUid:job.senderUid,createdAtMs:job.createdAtMs,__photoPending:job}));
  const shown=[...olderMessages,...activeMessages,...optimistic]
-  .filter((x,i,arr)=>x&&x.id&&arr.findIndex(y=>y&&y.id===x.id)===i)
+  .filter((x,i,arr)=>x&&x.id&&!hiddenMessageIds[x.id]&&arr.findIndex(y=>y&&y.id===x.id)===i)
   .sort(compareMessages);
  const content=document.createDocumentFragment();
  const photosToLoad=[];
@@ -1334,15 +1460,20 @@ function renderMessages(){
     content.append(item);
     continue;
    }
-   if(msg.replyText){
+   if(isDeletedMessage(msg)){
+    item.classList.add('g8m-deleted-message');
+    const marker=textEl('div','g8m-deleted-bubble','⊘  '+(msg.senderUid===user?.uid?'You deleted a message':'Message deleted'));
+    item.append(marker);
+   }
+   if(!isDeletedMessage(msg) && msg.replyText){
     const originalId=String(msg.replyTo||'');
-    const quote=textEl(originalId?'button':'div','g8m-quoted'+(originalId?' g8m-quote-link':''),short(['📷 Photo attachment','📸 Photo attachment'].includes(String(msg.replyText).trim())?'Photo':msg.replyText,180));
+    const quote=textEl(originalId?'button':'div','g8m-quoted'+(originalId?' g8m-quote-link':''),short(isDeletedReference(originalId)?'Message deleted':(['📷 Photo attachment','📸 Photo attachment'].includes(String(msg.replyText).trim())?'Photo':msg.replyText),180));
     if(originalId){quote.type='button';quote.title='Jump to original message';quote.setAttribute('aria-label','Jump to original message');quote.addEventListener('click',()=>void jumpToQuotedMessage(originalId));}
     item.append(quote);
    }
    const visibleText=visibleMessageText(msg);
-   if(visibleText && msg.type!=='project')item.append(textEl('div','g8m-text',visibleText));
-   if(msg.type==='project'){
+   if(!isDeletedMessage(msg) && visibleText && msg.type!=='project')item.append(textEl('div','g8m-text',visibleText));
+   if(!isDeletedMessage(msg)&&msg.type==='project'){
     if(msg.text && msg.text!=='💻 Shared a G8Code project')item.append(textEl('div','g8m-text',String(msg.text)));
     const card=textEl('button','g8m-project-card','');card.type='button';
     card.append(textEl('span','g8m-project-symbol','⌘'));
@@ -1356,7 +1487,7 @@ function renderMessages(){
     item.append(card);
    }
    const attachments=Array.isArray(msg.attachments)?msg.attachments:Object.values(msg.attachments||{});
-   if(attachments.length){
+   if(!isDeletedMessage(msg)&&attachments.length){
     const validPhotos=attachments.slice(0,MAX_FILES).filter(att=>att?.path && typeof att.path==='string' && att.path.startsWith(`g8Messages/${openedUid}/${msg.id}/`));
     if(validPhotos.length){
      const photos=textEl('div','g8m-photo-grid','');
@@ -1393,7 +1524,7 @@ function renderMessages(){
      item.append(controls);
     }else if(ack && msg.senderRole==='student')item.append(textEl('span','g8m-ack-chip',ack.status==='checked'?'✓✓ Checked by teacher':'✓ Received by teacher'));
    }
-   if(!item.querySelector('.g8m-text')&&!attachments.length&&msg.type!=='project'){
+   if(!isDeletedMessage(msg)&&!item.querySelector('.g8m-text')&&!attachments.length&&msg.type!=='project'){
     // Malformed older data must not silently remove a message from chat.
     item.append(textEl('div','g8m-text','Message content unavailable'));
    }
@@ -1402,7 +1533,7 @@ function renderMessages(){
    const bubbleAnchor=textEl('div','g8m-bubble-anchor','');
    while(item.firstChild)bubbleAnchor.append(item.firstChild);
    item.append(bubbleAnchor);
-   const isTextOnly = !attachments.length && msg.type!=='image' && msg.type!=='project' && !!bubbleAnchor.querySelector('.g8m-text');
+   const isTextOnly = !isDeletedMessage(msg) && !attachments.length && msg.type!=='image' && msg.type!=='project' && !!bubbleAnchor.querySelector('.g8m-text');
    if(isTextOnly){
     item.classList.add('g8m-text-only');
     if(selectedMobileMetaMessageId===String(msg.id))item.classList.add('g8m-meta-revealed');
@@ -1426,7 +1557,7 @@ function renderMessages(){
    // The toolbar must follow the actual visible message, never the row or
    // teacher acknowledgement controls. In particular, portrait images can be
    // much narrower than the rest of the message's metadata/actions.
-   const actualVisual=bubbleAnchor.querySelector('.g8m-photo-stack')||bubbleAnchor.querySelector('.g8m-photo-grid')||bubbleAnchor.querySelector('.g8m-project-card')||bubbleAnchor.querySelector('.g8m-text')||bubbleAnchor.querySelector('.g8m-quoted');
+   const actualVisual=bubbleAnchor.querySelector('.g8m-photo-stack')||bubbleAnchor.querySelector('.g8m-photo-grid')||bubbleAnchor.querySelector('.g8m-project-card')||bubbleAnchor.querySelector('.g8m-text')||bubbleAnchor.querySelector('.g8m-deleted-bubble')||bubbleAnchor.querySelector('.g8m-quoted');
    const actionTarget=textEl('div','g8m-action-target','');
    if(actualVisual){actualVisual.replaceWith(actionTarget);actionTarget.append(actualVisual);}
    else bubbleAnchor.append(actionTarget);
@@ -1445,9 +1576,10 @@ function renderMessages(){
    const reactButton=textEl('button','','☺');reactButton.type='button';reactButton.title='React';reactButton.setAttribute('aria-label','React to message');reactButton.addEventListener('click',()=>openReactionPicker(msg.id,actionTarget));
    const quickReply=textEl('button','','↩');quickReply.type='button';quickReply.title='Reply';quickReply.setAttribute('aria-label','Reply to message');quickReply.addEventListener('click',()=>replyToMessage(msg.id));
    const quickMore=textEl('button','','⋯');quickMore.type='button';quickMore.title='More / Message Details';quickMore.setAttribute('aria-label','More message actions');quickMore.addEventListener('click',()=>openDetailsFor(msg.id));
+   reactButton.hidden=isDeletedMessage(msg);quickReply.hidden=isDeletedMessage(msg);
    actions.append(reactButton,quickReply,quickMore);actionTarget.append(actions);
    const reactionChip=textEl('button','g8m-reaction-chip','');reactionChip.type='button';reactionChip.setAttribute('aria-label','View or change reactions');reactionChip.addEventListener('click',()=>openReactionPicker(msg.id,actionTarget));actionTarget.append(reactionChip);
-   updateOneReactionBadge(item,msg.id);
+   if(!isDeletedMessage(msg))updateOneReactionBadge(item,msg.id);
    installLongPress(item,msg.id);
    content.append(item);
   }catch(error){
@@ -1486,7 +1618,7 @@ function renderMessages(){
   for(const {att,button} of photosToLoad)void showPhoto(att,button,version);
   void g8mFillStackBacks(stackedPhotosToLoad);
  }
- if(!olderLoading && (g8mFollowLatest||!lastSnapshotKey))g8mJumpLatest({settle:!lastSnapshotKey});
+ if(!olderLoading && g8mFollowLatest)g8mScheduleBottomIfFollowing();
  else if(readingAnchorId){
   const sameMessage=messageNode(readingAnchorId);
   if(sameMessage)log.scrollTop+=sameMessage.getBoundingClientRect().top-readingAnchorTop;
@@ -1496,16 +1628,13 @@ function renderMessages(){
  g8mUpdateScrollLatest();
  syncMobileMessageMetaVisibility();
  lastSnapshotKey=shown.map(x=>x.id).join(':');
- if(pinnedMessageId&&Date.now()<pinExpires){
-  // A subsequent live/seen/ack snapshot must not push a newly sent reply away.
-  moveToMessage(pinnedMessageId);
- }
+ if(pinnedMessageId&&Date.now()<pinExpires&&g8mFollowLatest)g8mScheduleBottomIfFollowing();
 
 }
 
 async function loadOlder(){
  if(olderLoading||!hasOlder||!openedUid)return;
- g8mFollowLatest=false;g8mSmoothLatest=false;
+ g8mCancelAutoScroll();
  const uid=openedUid, oldest=(olderMessages[0]||activeMessages[0])?.id;
  if(!oldest)return;
  olderLoading=true;renderMessages();
