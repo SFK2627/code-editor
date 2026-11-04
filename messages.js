@@ -220,6 +220,16 @@ function updateChatFeedState(message,failed=false){
 function displayMessagesFromSnapshot(snapshot,uid){
  if(uid!==openedUid)return;
  const incoming=normalizeMessageSnapshot(snapshot);
+ // Only an actual new peer message arriving WHILE backreading increases the
+ // small badge on the centered arrow. Never count the initial history load,
+ // other students' messages, local optimistic sends or Seen/reaction updates.
+ if(g8mHadLiveSnapshot && !g8mFollowLatest){
+  const before=new Set([...activeMessages,...olderMessages].map(message=>String(message.id)));
+  const fresh=incoming.filter(message=>!before.has(String(message.id)) &&
+   message.senderUid!==user?.uid && !isDeletedMessage(message));
+  if(fresh.length)g8mNewIncomingWhileAway=Math.min(99,g8mNewIncomingWhileAway+fresh.length);
+ }
+ g8mHadLiveSnapshot=true;
  for(const fresh of incoming){
   if(!isDeletedMessage(fresh))continue;
   const old=[...activeMessages,...olderMessages].find(x=>x.id===fresh.id&&!isDeletedMessage(x));
@@ -646,6 +656,7 @@ function openChat(uid){
   if(conversationMemory.size>10)conversationMemory.delete(conversationMemory.keys().next().value);
  }
  selectedMobileMetaMessageId='';
+ g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;
  g8mAwaitingFirstSnapshotUid=uid;
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
  clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
@@ -657,6 +668,7 @@ function openChat(uid){
  else $('g8mMessages').replaceChildren(notice('Loading messages…'));
  switchMobile('chat');
  g8mJumpLatest({settle:true});
+ status('');
  updateChatFeedState(warm?'Showing recent messages · Syncing…':'Loading conversation…');
  const messagesRef=recentMessageQuery(uid);
  activeUnsubs.push(onValue(messagesRef,snap=>{
@@ -867,6 +879,7 @@ function replyToMessage(id){
 // No MutationObserver or scroll-event bounce-to-bottom: both caused the V5.14 flicker.
 const G8M_LATEST_THRESHOLD = 48;
 let g8mFollowLatest=true,g8mSmoothLatest=false,g8mBottomFrame=0,g8mOpenScrollToken=0;
+let g8mHadLiveSnapshot=false,g8mNewIncomingWhileAway=0;
 // One guarded post-render landing per frame, never a scroll-event feedback loop.
 let g8mAwaitingFirstSnapshotUid='',g8mLayoutFollowLock=0,g8mLayoutFollowSequence=0;
 let g8mTouchStartY=0,g8mTouchStartX=0;
@@ -876,7 +889,16 @@ function g8mBottomGap(){
 }
 function g8mUpdateScrollLatest(){
  const button=$('g8mScrollLatest'),feed=$('g8mMessages');
- if(button&&feed)button.hidden=!(openedUid&&feed.clientHeight>0&&g8mBottomGap()>G8M_LATEST_THRESHOLD&&!(g8mLayoutFollowLock&&g8mFollowLatest));
+ if(!button||!feed)return;
+ const away=openedUid&&feed.clientHeight>0&&g8mBottomGap()>G8M_LATEST_THRESHOLD&&!(g8mLayoutFollowLock&&g8mFollowLatest);
+ button.hidden=!away;
+ const count=$('g8mNewMessageCount');
+ if(count){
+  count.hidden=!(away&&g8mNewIncomingWhileAway);
+  count.textContent=g8mNewIncomingWhileAway>9?'9+':String(g8mNewIncomingWhileAway||'');
+ }
+ const label=g8mNewIncomingWhileAway?`Jump to latest message · ${g8mNewIncomingWhileAway} new`:'Jump to latest message';
+ button.title=label;button.setAttribute('aria-label',label);
 }
 function g8mCancelAutoScroll(){
  // Touchmove/wheel fire repeatedly during a real gesture. Never call scrollTo
@@ -895,6 +917,7 @@ function g8mJumpLatest({smooth=false,settle=false}={}){
  const feed=$('g8mMessages');if(!feed)return;
  const token=++g8mOpenScrollToken,uid=openedUid;
  g8mFollowLatest=true;
+ g8mNewIncomingWhileAway=0;
  // Retain follow-latest across the two layout frames of this explicit jump.
  const landingSequence=++g8mLayoutFollowSequence;
  g8mLayoutFollowLock=landingSequence;
@@ -975,7 +998,10 @@ g8mScrollFeed.addEventListener('scroll',()=>{
  // A programmatic scroll can move upward during smooth scrolling. Never fight it.
  // A DOM replacement can temporarily change scrollHeight and emit a scroll
  // event before the new layout lands. Do not treat it as user backreading.
- if(!g8mSmoothLatest&&!g8mLayoutFollowLock)g8mFollowLatest=g8mBottomGap()<=G8M_LATEST_THRESHOLD;
+ if(!g8mSmoothLatest&&!g8mLayoutFollowLock){
+  g8mFollowLatest=g8mBottomGap()<=G8M_LATEST_THRESHOLD;
+  if(g8mFollowLatest)g8mNewIncomingWhileAway=0;
+ }
  g8mUpdateScrollLatest();
 },{passive:true});
 g8mScrollFeed.addEventListener('wheel',event=>{
@@ -2608,7 +2634,9 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   selections=[];reply=null;
   $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';
   renderSelections();renderReply();stopTyping();
-  renderMessages();pinMessage(key);setSendEnabled();
+  g8mFollowLatest=true;
+  renderMessages();g8mJumpLatest({smooth:g8mBottomGap()<700,settle:true});
+  pinMessage(key);setSendEnabled();
   status('Photo added to chat · Sending securely…');
   queuePhotoJob(job);
   return;
@@ -2634,7 +2662,12 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
    const local={id:key,...confirmed.val(),__confirmedLocal:true};
    if(!activeMessages.some(m=>m.id===key))activeMessages.push(local);
    activeMessages.sort(compareMessages);
+   // A self-send is an explicit intent to view the NEW message, even if the
+   // user was far up the thread. Do not treat a confirmed off-screen send as
+   // an error. Use instant for long distances to avoid multi-second animation.
+   g8mFollowLatest=true;
    renderMessages();
+   g8mJumpLatest({smooth:g8mBottomGap()<700,settle:true});
    pinMessage(key);
   }
   // Keep the message commit independent of unread and summary writes.
@@ -2662,12 +2695,9 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   if(attachments.length&&!teacher){try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.min(9999,Number(n||0)+1));}catch(error){syncIssue=true;console.warn('Photo saved; Needs Checking badge sync pending',error);}}
  $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';selections.forEach(x=>URL.revokeObjectURL(x.url));selections=[];selectedProject=null;renderSelections();renderProjectSelection();reply=null;renderReply();
   if(uid===openedUid)pinMessage(key);
-  // After rendering and layout, confirm that the current message is truly in the
-  // visible chat viewport. A hidden DOM node is NOT a successful display.
-  await new Promise(resolve=>setTimeout(resolve,65));
-  const visible=uid===openedUid && messageIsVisible(key);
-  if(visible)status(syncIssue?'Sent ✓ · Chat visible · Inbox badge sync pending.':'Sent ✓ · Visible in chat');
-  else status('Message saved in Firebase, but not visible. Use Refresh Chat; do not resend yet.',true);
+  // Firebase verified the write. Viewport visibility is NOT delivery status:
+  // a user may have been reading old messages, or the chat may be animating.
+  status(syncIssue?'Sent ✓ · Inbox badge sync pending.':'Sent ✓');
  }catch(error){console.error('Message send failed:',error);status(`Not confirmed: ${friendlyError(error)}. Your text and files are retained.`,true);}
  finally{sending=false;setSendEnabled();}
 }

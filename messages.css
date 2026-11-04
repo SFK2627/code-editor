@@ -726,3 +726,28 @@ html,body{overflow:hidden;overscroll-behavior:none}
  .g8m-delete-footer{padding:3px 16px 14px}
 }
 @media(prefers-reduced-motion:reduce){.g8m-reaction-delete,.g8m-delete-choices button{transition:none}}
+
+
+/* V5.17 — compact Messenger-style spacing for MOBILE TEXT. Hiding metadata
+   must also remove its reserved layout space. Keep photo/project timestamps
+   and larger boundaries between different participants and date dividers. */
+@media(max-width:700px){
+ .g8m-messages{gap:0}
+ .g8m-messages>.g8m-message{margin:0}
+ .g8m-messages>.g8m-message + .g8m-message{margin-top:8px}
+ .g8m-messages>.g8m-message.g8m-text-only + .g8m-message.g8m-text-only{margin-top:3px}
+ .g8m-messages>.g8m-message.own + .g8m-message:not(.own),
+ .g8m-messages>.g8m-message:not(.own) + .g8m-message.own{margin-top:10px}
+ .g8m-messages>.g8m-date{margin:13px 0 8px}
+ .g8m-messages>.g8m-load-older{margin-bottom:9px}
+ .g8m-message.g8m-text-only:not(.g8m-meta-revealed)>.g8m-msg-meta{display:none!important}
+}
+/* A small unread dot overlays the SAME 34px circle; no oversized floating UI. */
+.g8m-compose .g8m-scroll-latest .g8m-new-message-count{
+ position:absolute;top:-5px;right:-6px;min-width:15px;height:15px;
+ border-radius:999px;padding:0 3px;display:grid;place-items:center;
+ font-size:9px;font-weight:750;line-height:1;color:#fff;background:#6758e9;
+ border:1.5px solid var(--paper);box-sizing:border-box;
+ box-shadow:0 1px 4px rgba(0,0,0,.14);pointer-events:none;
+}
+.g8m-compose .g8m-scroll-latest .g8m-new-message-count[hidden]{display:none!important}

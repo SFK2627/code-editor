@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=516-scroll-bottom-dialog-ui" />
+<link rel="stylesheet" href="messages.css?v=517-smart-chat-scroll-spacing" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -52,7 +52,7 @@
       <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
       <div id="g8mAttachments" class="g8m-attachments" hidden></div><div id="g8mProjectSelected" class="g8m-project-selected" hidden></div>
       <div id="g8mSendStatus" class="g8m-send-status" role="status" aria-live="polite"></div>
-      <form class="g8m-compose" id="g8mComposer"><button type="button" class="g8m-scroll-latest" id="g8mScrollLatest" title="Jump to latest message" aria-label="Jump to latest message" hidden>↓</button><div class="g8m-attach-wrap"><button class="g8m-attach-btn" id="g8mAttachMenuToggle" type="button" aria-label="Attach a photo or saved G8Code project" title="Attach photo or project">⊕</button><div id="g8mAttachMenu" class="g8m-attach-menu" hidden><button type="button" id="g8mChoosePhoto">▧ Upload Photo / Screenshot · 30 MB max</button><button type="button" id="g8mTakePhoto">📷 Take Photo</button><button type="button" id="g8mChooseProject">⌘ My Saved Project</button></div><input id="g8mFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /><input id="g8mCameraInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden aria-label="Take a photo with your camera" /></div><textarea id="g8mTextInput" placeholder="Message your teacher…" rows="1" maxlength="3000" aria-label="Message text"></textarea><button type="submit" id="g8mSend" class="g8m-send" aria-label="Send message" disabled>➤</button></form>
+      <form class="g8m-compose" id="g8mComposer"><button type="button" class="g8m-scroll-latest" id="g8mScrollLatest" title="Jump to latest message" aria-label="Jump to latest message" hidden>↓<span id="g8mNewMessageCount" class="g8m-new-message-count" aria-hidden="true" hidden></span></button><div class="g8m-attach-wrap"><button class="g8m-attach-btn" id="g8mAttachMenuToggle" type="button" aria-label="Attach a photo or saved G8Code project" title="Attach photo or project">⊕</button><div id="g8mAttachMenu" class="g8m-attach-menu" hidden><button type="button" id="g8mChoosePhoto">▧ Upload Photo / Screenshot · 30 MB max</button><button type="button" id="g8mTakePhoto">📷 Take Photo</button><button type="button" id="g8mChooseProject">⌘ My Saved Project</button></div><input id="g8mFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /><input id="g8mCameraInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden aria-label="Take a photo with your camera" /></div><textarea id="g8mTextInput" placeholder="Message your teacher…" rows="1" maxlength="3000" aria-label="Message text"></textarea><button type="submit" id="g8mSend" class="g8m-send" aria-label="Send message" disabled>➤</button></form>
       <p class="g8m-disclaimer">Received / Checked acknowledges photos only. It does not change official grades or requirements.</p>
     </main>
   </div>
@@ -150,6 +150,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=516-scroll-bottom-dialog-ui"></script>
+<script defer src="messages.js?v=517-smart-chat-scroll-spacing"></script>
 </body>
 </html>
