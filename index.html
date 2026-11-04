@@ -512,6 +512,7 @@
 <link rel="stylesheet" href="messages-bridge.css?v=2" />
 <link rel="stylesheet" href="announcements-bridge.css?v=1" />
 <link rel="stylesheet" href="student-home-compact.css?v=529" />
+<link rel="stylesheet" href="student-modal-compact.css?v=530" />
 </head>
 <body class="entry-gate-active">
   <div id="g8codePwaWritingSplash" aria-hidden="true">
@@ -1674,9 +1675,10 @@
         </div>
       </div>
       <div id="loginLackingReminderMeta" class="login-lacking-reminder-meta" aria-label="Reminder details"></div>
+      <div class="login-reminder-highlights" aria-label="Your current progress, academic standing, and recitation">
       <div id="loginReminderProgressWidget" class="login-reminder-progress-widget hidden" aria-live="polite">
         <button type="button" id="loginReminderProgressToggle" class="login-reminder-progress-title" aria-expanded="false" aria-controls="loginReminderProgressBreakdown">
-          <span>🎯 Requirements Progress</span><b id="loginReminderProgressValue">—</b><span aria-hidden="true">⌄</span>
+          <span><span class="lr-label-full">🎯 Requirements Progress</span><span class="lr-label-short">Progress</span></span><b id="loginReminderProgressValue">—</b><span aria-hidden="true">⌄</span>
         </button>
         <div class="login-reminder-progress-track" role="progressbar" aria-label="Completed requirements" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loginReminderProgressFill"></div></div>
         <p id="loginReminderProgressBreakdown" class="login-reminder-progress-breakdown hidden"></p>
@@ -1685,7 +1687,7 @@
         <details id="loginLackingReminderStanding" class="login-reminder-standing" data-standing="unavailable" aria-label="Current academic standing and color legend">
           <summary class="login-reminder-standing-head">
             <span class="login-reminder-standing-copy">
-              <strong>🎓 CURRENT ACADEMIC STANDING</strong>
+              <strong><span class="lr-label-full">🎓 CURRENT ACADEMIC STANDING</span><span class="lr-label-short">Standing</span></strong>
               <small>Running grade after Midterm</small>
             </span>
             <span class="login-grade-and-trend"><span id="loginLackingReminderStandingBadge" class="login-reminder-standing-badge" aria-live="polite" aria-atomic="true"><i aria-hidden="true"></i><b>NOT YET AVAILABLE</b></span><span id="loginGradeTrend" class="student-grade-trend" aria-live="polite"></span></span>
@@ -1697,7 +1699,7 @@
           <div class="login-lacking-reminder-recitation-label">
             <span class="login-lacking-reminder-recitation-icon" aria-hidden="true">🎤</span>
             <div>
-              <strong>Recitation Points</strong>
+              <strong><span class="lr-label-full">Recitation Points</span><span class="lr-label-short">Recitation</span></strong>
               <small id="loginLackingReminderRecitationTerm">Current Term</small>
             </div>
           </div>
@@ -1707,6 +1709,7 @@
           </div>
         </div>
       </div>
+      </div><!-- /login-reminder-highlights -->
       </div>
       <div id="loginReminderScrollRegion" class="login-reminder-scroll-region" tabindex="0" role="region" aria-label="Student status details; scroll for more information">
       <div class="login-reminder-priority" aria-label="Your requirement status">
@@ -5697,7 +5700,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261104-v527-friendly-copy"></script>
+  <script src="script.js?v=20261104-v530-student-modal"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>

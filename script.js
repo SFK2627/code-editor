@@ -3068,18 +3068,18 @@ function renderLoginReminderMissingGroups(tasks, settings) {
     const ai = order.indexOf(a), bi = order.indexOf(b);
     return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi);
   });
-  const sections = sorted.map(([category, group], index) => `
-    <details class="login-reminder-requirements-group" ${index === 0 ? 'open' : ''}>
+  const sections = sorted.map(([category, group]) => `
+    <details class="login-reminder-requirements-group">
       <summary class="login-reminder-requirements-group-header" aria-label="${escapeHTML(category)}: ${group.length} missing">
         <strong>${escapeHTML(category)}</strong>
-        <span>${group.length} missing <i aria-hidden="true">⌄</i></span>
+        <span>${group.length} ${group.length === 1 ? 'item' : 'items'} <i aria-hidden="true">⌄</i></span>
       </summary>
       <ol>${group.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>Needs completion</small></li>`).join('')}</ol>
     </details>`).join('');
   return `<div class="login-reminder-requirements-head">
     <div><span class="login-reminder-requirements-overline">YOUR TO-DO LIST</span>
       <h3>${escapeHTML(settings.missingListTitle || 'Requirements to complete')}</h3></div>
-    <span class="login-reminder-requirements-count">${tasks.length} missing</span>
+    
   </div><div class="login-reminder-requirements-groups">${sections}</div>`;
 }
 
@@ -3119,7 +3119,7 @@ function renderLoginLackingReminder(record = null, options = {}) {
       if(fill)fill.style.width=percent+'%';
       const track=progressWidget.querySelector('[role="progressbar"]');if(track)track.setAttribute('aria-valuenow',String(percent));
       const value=document.getElementById('loginReminderProgressValue');if(value)value.textContent=percent+'%';
-      const breakdown=document.getElementById('loginReminderProgressBreakdown');if(breakdown){breakdown.textContent=`${done} of ${total} published tasks completed · ${total-done} remaining`;breakdown.classList.add('hidden')}
+      const breakdown=document.getElementById('loginReminderProgressBreakdown');if(breakdown){breakdown.textContent=`${done} of ${total} published tasks completed`;breakdown.classList.add('hidden')}
       const toggle=document.getElementById('loginReminderProgressToggle');if(toggle)toggle.setAttribute('aria-expanded','false');
     }
   }
