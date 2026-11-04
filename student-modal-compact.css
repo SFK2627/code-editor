@@ -365,3 +365,99 @@
     overflow-y: auto !important;
   }
 }
+
+
+/* V5.32 — Center all three statistics and keep their primary numbers identical
+   in size. The teacher's numeric/color display mode remains untouched. */
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights {
+  --lr-stat-number-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+/* Progress: title above, big percentage in the center, progress bar below. */
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-progress-title {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-progress-title > span:first-child {
+  display: block !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights #loginReminderProgressValue {
+  display: block !important;
+  width: 100% !important;
+  margin: 0 !important;
+  font-size: var(--lr-stat-number-size) !important;
+  font-weight: 950 !important;
+  line-height: 1.05 !important;
+  font-variant-numeric: tabular-nums;
+  text-align: center !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-progress-track {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  margin: 5px 0 0 !important;
+}
+
+/* Recitation: center its label and number/points together (same size as grade). */
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-label {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  text-align: center !important;
+  margin: 0 !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-label > div {
+  width: 100% !important;
+  text-align: center !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-score {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  gap: 3px !important;
+  text-align: center !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-score strong {
+  font-size: var(--lr-stat-number-size) !important;
+  font-weight: 950 !important;
+  line-height: 1.05 !important;
+  font-variant-numeric: tabular-nums;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-score span {
+  font-size: .69rem !important;
+  line-height: 1.1 !important;
+}
+
+/* Explicitly match the existing Standing numeric badge size, without changing
+   the smaller teacher-controlled color/name badges. */
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing[data-grade-display-mode="number"] .login-reminder-standing-badge b {
+  font-size: var(--lr-stat-number-size) !important;
+}
+@media (max-width: 760px) {
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights {
+    --lr-stat-number-size: clamp(1.4rem, 6.7vw, 1.85rem);
+  }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-progress-title {
+    gap: 5px !important;
+  }
+}
+@media (max-width: 350px) {
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights {
+    --lr-stat-number-size: 1.45rem;
+  }
+}
