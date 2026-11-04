@@ -56,6 +56,10 @@ const g8mTeacherEntry = g8mEntrySource === 'admin' || g8mTeacherShortcut;
 // transport so Apps Script receives a much smaller image and chats load quickly.
 const MAX_FILES = 3, MAX_SIZE = 30 * 1024 * 1024;
 const DRIVE_UPLOAD_TARGET = 3 * 1024 * 1024;
+// ImageKit Fast Send: pass substantially fewer bytes through Apps Script and
+// mobile data. Preserve more pixels for screenshots where small text matters.
+const IMAGEKIT_PHOTO_TARGET = 650 * 1024;
+const IMAGEKIT_SCREEN_TARGET = 1100 * 1024;
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const teacherEmails = (window.MCS_TEACHER_EMAILS || []).map(x => String(x).toLowerCase());
 let app, auth, rtdb, firestore, user, teacher = false, profile = null;
@@ -1869,7 +1873,8 @@ function deleteCachedPhoto(path,driveFileId=''){
  if(driveFileId && photoCacheOwnerUid)void deletePhotoFromDisk({path,driveFileId},photoCacheOwnerUid);
 }
 function photoDiskKey(att,owner){
- return JSON.stringify([String(owner),String(att.path||''),String(att.driveFileId||'')]);
+ // Keep the existing Drive cache keys unchanged; also allow ImageKit IDs.
+ return JSON.stringify([String(owner),String(att.path||''),String(att.driveFileId||att.imagekitFileId||'')]);
 }
 function photoOwnerStillValid(owner,epoch){
  return !!owner && photoCacheOwnerUid===owner && photoAuthEpoch===epoch && user?.uid===owner;
@@ -1939,7 +1944,7 @@ async function savePhotoToDisk(att,owner,epoch,blob){
    try{
     const tx=db.transaction(PHOTO_DB_STORE,'readwrite');
     tx.objectStore(PHOTO_DB_STORE).put({
-     key:photoDiskKey(att,owner),owner,path:att.path,driveFileId:String(att.driveFileId||''),
+     key:photoDiskKey(att,owner),owner,path:att.path,driveFileId:String(att.driveFileId||att.imagekitFileId||''),
      blob,byteLength:blob.size,lastUsed:Date.now(),expiresAt:Date.now()+PHOTO_DISK_TTL
     });
     tx.oncomplete=resolve;tx.onerror=resolve;tx.onabort=resolve;
@@ -2047,23 +2052,36 @@ function imageKitPrivatePhotoURL(att,priority=10){
   return Promise.reject(new Error('Private photo information is incomplete.'));
  const cached=cachedPhotoUrl(path,fid);
  if(cached)return Promise.resolve(cached);
- const key=photoDiskKey({path,driveFileId:fid},owner);
+ const key=photoDiskKey(att,owner);
  if(photoQueue.has(key))return photoQueue.get(key);
- const job=withPhotoReadSlot(async()=>{
+ // A VERIFIED sender-side copy can be displayed after refresh without
+ // another Apps Script + ImageKit round-trip. Same UID/epoch checks as Drive.
+ const job=(async()=>{
+  const diskBlob=await readPhotoFromDisk(att,owner,epoch);
   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
-  const cachedNow=cachedPhotoUrl(path,fid);
-  if(cachedNow)return cachedNow;
-  const uid=att.studentUid||path.split('/')[1],messageId=att.messageId||path.split('/')[2];
-  const result=await driveRequest('ikSign',{studentUid:uid,messageId,imagekitFileId:fid},30000);
-  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
-  const link=String(result?.url||''),expiresAt=Number(result?.expiresAt||0);
-  const expected='https://ik.imagekit.io/86vf9fevzo/';
-  if(!link.startsWith(expected) || !/[?&]ik-s=[0-9a-f]{40}(?:&|$)/.test(link) ||
-     !/[?&]ik-t=\d+(?:&|$)/.test(link) || expiresAt<Date.now()+20000 || expiresAt>Date.now()+10*60*1000)
-   throw new Error('The private photo link could not be verified.');
-  g8mIkSignedLinks.set(path,{url:link,expiresAt});
-  return link;
- },priority).finally(()=>photoQueue.delete(key));
+  if(diskBlob){
+   const latest=cachedPhotoUrl(path,fid);
+   if(latest)return latest;
+   const local=URL.createObjectURL(diskBlob);
+   cachePhotoUrl(path,local,fid);
+   return local;
+  }
+  return withPhotoReadSlot(async()=>{
+   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+   const cachedNow=cachedPhotoUrl(path,fid);
+   if(cachedNow)return cachedNow;
+   const uid=att.studentUid||path.split('/')[1],messageId=att.messageId||path.split('/')[2];
+   const result=await driveRequest('ikSign',{studentUid:uid,messageId,imagekitFileId:fid},30000);
+   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+   const link=String(result?.url||''),expiresAt=Number(result?.expiresAt||0);
+   const expected='https://ik.imagekit.io/86vf9fevzo/';
+   if(!link.startsWith(expected) || !/[?&]ik-s=[0-9a-f]{40}(?:&|$)/.test(link) ||
+      !/[?&]ik-t=\d+(?:&|$)/.test(link) || expiresAt<Date.now()+20000 || expiresAt>Date.now()+10*60*1000)
+    throw new Error('The private photo link could not be verified.');
+   g8mIkSignedLinks.set(path,{url:link,expiresAt});
+   return link;
+  },priority);
+ })().finally(()=>photoQueue.delete(key));
  photoQueue.set(key,job);
  return job;
 }
@@ -2431,8 +2449,10 @@ function addPhotoFiles(files){
  if(!rejected && incoming.length){
   status('Photo ready · tap Send when ready. The chat will show it immediately.');
   // Warm the Drive handshake while the student is reviewing the image.
-  if(g8mUseImageKit()){if(!imageKitBridgeReady)void checkImageKitBridge().catch(error=>console.warn('Photo bridge precheck:',friendlyError(error)));}
-  else if(!driveBridgeReady)void checkDriveBridge().catch(error=>console.warn('Photo bridge precheck:',friendlyError(error)));
+  // ImageKit upload itself is the readiness check. An extra ikProbe would
+  // spend an Apps Script execution + RTDB receipt before EVERY fresh session.
+  if(!g8mUseImageKit() && !driveBridgeReady)
+   void checkDriveBridge().catch(error=>console.warn('Photo bridge precheck:',friendlyError(error)));
  }
 }
 $('g8mFileInput').addEventListener('change',event=>{addPhotoFiles(event.target.files);event.target.value='';});
@@ -2582,35 +2602,53 @@ async function imageBitmapForFile(file){
   image.src=url;
  });
 }
-// 30 MB INPUT limit. For uploads over 3 MB, preserve legibility while sending
-// a smaller WebP (where supported) or JPEG. Drive retains the optimized image.
-async function prepareImageForUpload(file){
- if(file.size<=DRIVE_UPLOAD_TARGET)return file;
+// 30 MB INPUT stays unchanged. Even a 1-3 MB mobile image previously passed
+// through Apps Script without compression. For ImageKit, shrink most photos
+// near 650 KB (screenshots near 1.1 MB) *before Send* when the file is chosen.
+// Drive fallback deliberately preserves its original <= 3 MB behavior.
+async function prepareImageForUpload(file,useImageKit=g8mUseImageKit()){
+ const screenshot=useImageKit&&(file.type==='image/png'||/screenshot|screen.?shot|screen.?capture|scan|worksheet|document/i.test(file.name));
+ const target=useImageKit?(screenshot?IMAGEKIT_SCREEN_TARGET:IMAGEKIT_PHOTO_TARGET):DRIVE_UPLOAD_TARGET;
+ if(file.size<=target)return file;
  const bitmap=await imageBitmapForFile(file);
  try{
   const width=bitmap.width||bitmap.naturalWidth,height=bitmap.height||bitmap.naturalHeight;
   if(!width||!height)throw new Error('Image dimensions are unavailable.');
   const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{alpha:true});
   if(!ctx)throw new Error('Your browser cannot optimize this image.');
-  let largest=Math.min(3600,Math.max(width,height));
-  let result=null;
-  for(let round=0;round<8;round++){
-   const scale=Math.min(1,largest/Math.max(width,height));
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  const maxEdge=Math.max(width,height);
+  let largest=Math.min(useImageKit?(screenshot?2560:1920):3600,maxEdge);
+  const qualitySet=useImageKit?(screenshot?[.89,.82,.74,.66]:[.83,.76,.68,.60]):[.94,.86,.77];
+  let best=null;
+  for(let round=0;round<7;round++){
+   const scale=Math.min(1,largest/maxEdge);
    canvas.width=Math.max(1,Math.round(width*scale));
    canvas.height=Math.max(1,Math.round(height*scale));
    ctx.clearRect(0,0,canvas.width,canvas.height);
    ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
-   for(const quality of [0.94,0.86,0.77]){
-    const blob=await canvasBlob(canvas,'image/webp',quality);
-    result=blob.type==='image/webp'?blob:await canvasBlob(canvas,'image/jpeg',quality);
-    if(result.size<=DRIVE_UPLOAD_TARGET){
-     const type=result.type==='image/webp'?'image/webp':'image/jpeg';
-     const ext=type==='image/webp'?'.webp':'.jpg';
-     return new File([result],file.name.replace(/\.[^.]+$/, '')+ext,{type,lastModified:Date.now()});
+   for(const quality of qualitySet){
+    let blob=await canvasBlob(canvas,'image/webp',quality);
+    if(blob.type!=='image/webp'){
+     // Old Safari fallback: JPG. Most chat photos/screenshots are opaque.
+     blob=await canvasBlob(canvas,'image/jpeg',quality);
+    }
+    if(!best||blob.size<best.size)best=blob;
+    if(blob.size<=target){
+     const ext=blob.type==='image/webp'?'.webp':'.jpg';
+     return new File([blob],file.name.replace(/\.[^.]+$/, '')+ext,{type:blob.type,lastModified:Date.now()});
     }
    }
-   largest=Math.max(500,Math.floor(largest*.78));
+   largest=Math.max(screenshot?900:500,Math.floor(largest*.8));
   }
+  // Preserve readability if an unusually detailed screenshot cannot reach
+  // the fast target; never exceed the existing server's transfer ceiling.
+  if(best && best.size<=DRIVE_UPLOAD_TARGET && best.size<file.size){
+   const ext=best.type==='image/webp'?'.webp':'.jpg';
+   return new File([best],file.name.replace(/\.[^.]+$/, '')+ext,{type:best.type,lastModified:Date.now()});
+  }
+  if(file.size<=DRIVE_UPLOAD_TARGET)return file;
   throw new Error('This image could not be reduced to a safe transfer size. Try another image format.');
  }finally{if(typeof bitmap.close==='function')bitmap.close();}
 }
@@ -2643,8 +2681,11 @@ async function uploadFile(uid,msgKey,entry,index,useImageKit){
  if(!allowedTypes.has(file.type)||file.size>MAX_SIZE||file.size===0)
   throw new Error('Images must be JPG, PNG, or WEBP and 30 MB or smaller.');
  // These operations were already started after selection; await in parallel.
- const [prepared]=await Promise.all([prepareSelectedPhoto(entry),useImageKit?checkImageKitBridge():checkDriveBridge()]);
- const encoded=await fileBase64(prepared);
+ // For ImageKit, skip a redundant ikProbe round trip. The real upload
+ // confirms configuration and returns a verified private file ID.
+ const prepared=await prepareSelectedPhoto(entry);
+ if(!useImageKit)await checkDriveBridge();
+ const encoded=entry.encoded||(entry.encoded=await fileBase64(prepared));
  // Distinct, stable attachment file names for manual retry.
  const args={
   studentUid:uid,messageId:msgKey,fileName:short(`${index+1}-${prepared.name}`,120),
@@ -2708,6 +2749,10 @@ async function processPhotoJob(job){
   // Decode/compress in advance; if already warmed this is instantaneous.
   await Promise.all(job.queued.map(prepareSelectedPhoto));
   job.state='uploading';refreshPhotoJob(job);
+  if(job.uid===openedUid){
+   const bytes=job.queued.reduce((sum,entry)=>sum+(entry.prepared?.size||entry.file.size),0);
+   status(`Uploading optimized photo${job.queued.length>1?'s':''} (${Math.round(bytes/1024)} KB)…`);
+  }
   for(let i=0;i<job.queued.length;i++){
    if(!job.uploaded[i])job.uploaded[i]=await uploadFile(job.uid,job.id,job.queued[i],i,job.useImageKit);
   }
@@ -2741,7 +2786,8 @@ async function processPhotoJob(job){
     // The successful sender's already-optimized photo also becomes a reusable
     // local cache entry, so refreshing does not trigger a Drive round-trip.
     const confirmedBlob=entry.prepared||entry.file;
-    if(confirmedBlob && att.provider==='drive')void savePhotoToDisk(att,photoCacheOwnerUid,photoAuthEpoch,confirmedBlob);
+    if(confirmedBlob && (att.provider==='drive'||att.provider==='imagekit'))
+     void savePhotoToDisk(att,photoCacheOwnerUid,photoAuthEpoch,confirmedBlob);
     if(cached!==entry.url)URL.revokeObjectURL(entry.url);
    }
   }
@@ -2751,7 +2797,7 @@ async function processPhotoJob(job){
    activeMessages.sort(compareMessages);
    renderMessages();pinMessage(job.id);
   }
-  if(job.uid===openedUid)status('Photo sent ✓ · Saved and confirmed.');
+  if(job.uid===openedUid)status(`Photo sent ✓ · Saved and confirmed in ${((performance.now()-job.startedAtMs)/1000).toFixed(1)}s.`);
   // A badge failure can never roll back an already-confirmed photo message.
   void updatePhotoInbox(job);
  }catch(error){
@@ -2768,7 +2814,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   if(sharedProject){status('Send a saved project separately from photos.',true);return;}
   if(pendingPhotoJobs.size>=PHOTO_JOBS_LIMIT){status('Two photos are already pending. Send again after one finishes.',true);return;}
   const key=push(ref(rtdb,`${studentPath(uid)}/messages`)).key;
-  const job={id:key,uid,senderUid:user.uid,senderRole:role(),useImageKit:g8mUseImageKit(),caption:text,
+  const job={id:key,uid,senderUid:user.uid,senderRole:role(),useImageKit:g8mUseImageKit(),startedAtMs:performance.now(),caption:text,
    createdAtMs:Date.now(),queued,uploaded:[],summary:summaryData(uid),
    replyTo:currentReply?.id||'',replyText:currentReply?.text||'',
    state:'queued',error:'',inProgress:false};
