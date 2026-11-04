@@ -130,3 +130,9 @@ body{margin:0;background:var(--ga-bg);color:var(--ga-ink);font-size:14px}body.ga
  .ga-viewer-dialog{height:100dvh}
 }
 @media(prefers-reduced-motion:reduce){.ga-photo-full,.ga-image img,.ga-reaction-choice span{animation:none!important;transition:none!important}}
+
+/* V5.28: Facebook-style collapsed comments with an accessible count button. */
+.ga-post-totals .ga-reply-total{appearance:none;background:transparent;border:0;border-radius:7px;padding:4px 5px;margin:-4px -5px;color:var(--ga-muted);font-size:inherit;font-weight:500;line-height:inherit;text-align:right;cursor:pointer;white-space:nowrap}
+.ga-post-totals .ga-reply-total:hover,.ga-post-totals .ga-reply-total[aria-expanded="true"]{color:var(--ga-ink);text-decoration:underline}
+.ga-comments[hidden]{display:none!important}
+.ga-hide-comments{align-self:flex-start}

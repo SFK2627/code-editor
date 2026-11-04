@@ -54,7 +54,7 @@ function installSmartBack(){
  try{history.pushState({g8AnnouncementsRoleBack:true},'',location.href);window.addEventListener('popstate',goBack);}catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';}
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';}
 async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Announcements are temporarily unavailable. Please try again later.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
  $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
  if(state.teacher){loadTeacher();loadCatalog();
@@ -284,9 +284,17 @@ function renderCard(p){
   reactButton.addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key===' '&&e.shiftKey){e.preventDefault();showPicker();popup.querySelector('button')?.focus();}});
   reactWrap.append(reactButton,popup);
   const cbtn=node('button','ga-comment-main','💬 Comment');cbtn.type='button';
-  cbtn.addEventListener('click',()=>{if(!state.commentExpanded.has(p.id))state.commentExpanded.add(p.id);drawComments(p.id,card,p);const ta=card.querySelector('.ga-reply-form textarea');if(ta){ta.scrollIntoView({block:'nearest',behavior:'smooth'});ta.focus({preventScroll:true});}else card.querySelector('.ga-comments')?.scrollIntoView({block:'nearest',behavior:'smooth'});});
+  // Comment opens only the composer. Existing comments stay hidden until the
+  // comment count is tapped or the new comment has been posted successfully.
+  cbtn.addEventListener('click',()=>{
+   state.commentOpen.add(p.id);
+   drawComments(p.id,card,p);
+   const ta=card.querySelector('.ga-reply-form textarea');
+   if(ta){ta.scrollIntoView({block:'nearest',behavior:'smooth'});ta.focus({preventScroll:true});}
+   else card.querySelector('.ga-comments')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+  });
   action.append(reactWrap,cbtn);footer.append(totals,action);card.append(footer);
-  const comments=node('div','ga-comments');card.append(comments);
+  const comments=node('div','ga-comments');comments.id='ga-comments-'+p.id;comments.hidden=true;card.append(comments);
   function updateTotals(){
    const reactions=state.reactions[p.id]||{},comments=state.comments[p.id]||{};
    const count={};Object.values(reactions).forEach(emoji=>{if(['👍','❤️','🤗'].includes(emoji))count[emoji]=(count[emoji]||0)+1;});
@@ -295,7 +303,18 @@ function renderCard(p){
    for(const emoji of ['❤️','🤗','👍']){if(count[emoji])emojis.append(node('span','',emoji+' '+count[emoji]));}
    if(!emojis.children.length)emojis.append(node('span','ga-no-reactions','Be the first to react'));
    const commentCount=Object.keys(comments).length;
-   totals.append(emojis,node('span','ga-reply-total',commentCount+' comment'+(commentCount===1?'':'s')));
+   const countButton=node('button','ga-reply-total',commentCount+' comment'+(commentCount===1?'':'s'));
+   countButton.type='button';countButton.setAttribute('aria-controls',comments.id);
+   countButton.setAttribute('aria-expanded',String(state.commentExpanded.has(p.id)));
+   countButton.setAttribute('aria-label',commentCount+' comment'+(commentCount===1?'':'s')+', '+(state.commentExpanded.has(p.id)?'hide':'view')+' comments');
+   countButton.addEventListener('click',()=>{
+    const willShow=!state.commentExpanded.has(p.id);
+    if(willShow){state.commentExpanded.add(p.id);state.commentOpen.add(p.id);}
+    else{state.commentExpanded.delete(p.id);state.commentOpen.delete(p.id);state.replyTargets[p.id]=null;}
+    drawComments(p.id,card,p);updateTotals();
+    if(willShow)card.querySelector('.ga-comments')?.scrollIntoView({block:'nearest',behavior:'smooth'});
+   });
+   totals.append(emojis,countButton);
    const selected=reactions[state.user.uid]||'';
    reactButton.textContent=selected?selected+' '+reactionLabel(selected):'👍 Like';
    reactButton.classList.toggle('active',!!selected);
@@ -344,28 +363,34 @@ function drawComments(id,card,p){
  const cursor=wasTyping?{start:current.selectionStart,end:current.selectionEnd}:null;
  if(current)state.commentDrafts[id]=current.value;
  host.replaceChildren();
- const data=state.comments[id]||{},all=Object.entries(data).sort(([,a],[,b])=>Number(a.createdAtMs||0)-Number(b.createdAtMs||0)).slice(-120);
- const expanded=state.commentExpanded.has(id),shown=expanded?all:all.slice(-2);
- if(all.length>shown.length){
-  const show=node('button','ga-more-comments',`View all ${all.length} comments`);show.type='button';
-  show.addEventListener('click',()=>{state.commentExpanded.add(id);drawComments(id,card,p);});host.append(show);
- }else if(all.length>3&&expanded){
-  const fewer=node('button','ga-more-comments','Show fewer comments');fewer.type='button';
-  fewer.addEventListener('click',()=>{state.commentExpanded.delete(id);drawComments(id,card,p);});host.append(fewer);
- }
- for(const [rid,c] of shown){
-  const row=node('div','ga-comment');const av=node('div','ga-comment-avatar',txt(c.name||'S',1).toUpperCase());
-  const content=node('div','ga-comment-content'),bubble=node('div','ga-comment-bubble');
-  bubble.append(node('strong','',txt(c.name||'Student',80)));
-  if(c.replyTo&&data[c.replyTo])bubble.append(node('span','ga-comment-inreply','↳ '+txt(data[c.replyTo].name||'Reply',50)));
-  bubble.append(node('p','',txt(c.text,1200)));content.append(bubble);
-  const tools=node('div','ga-comment-tools');tools.append(node('small','',stamp(c.createdAtMs)));
-  if(p.allowReplies||state.teacher){
-   const reply=node('button','','Reply');reply.type='button';
-   reply.addEventListener('click',()=>{state.replyTargets[id]={id:rid,name:c.name};drawComments(id,card,p);host.querySelector('textarea')?.focus({preventScroll:true});});tools.append(reply);
+ const expanded=state.commentExpanded.has(id);
+ const composerOpen=state.commentOpen.has(id)||expanded;
+ // No text box, names, or comment previews appear until the user chooses to
+ // read or write comments. The count on the card remains visible and clickable.
+ host.hidden=!composerOpen;
+ if(!composerOpen)return;
+ const data=state.comments[id]||{};
+ const all=expanded?Object.entries(data)
+  .sort(([keyA,a],[keyB,b])=>Number(b.createdAtMs||0)-Number(a.createdAtMs||0)||keyB.localeCompare(keyA))
+  .slice(0,120):[];
+ if(expanded){
+  const hide=node('button','ga-more-comments ga-hide-comments','Hide comments');hide.type='button';
+  hide.addEventListener('click',()=>{card.querySelector('.ga-reply-total')?.click();});
+  host.append(hide);
+  for(const [rid,c] of all){
+   const row=node('div','ga-comment');const av=node('div','ga-comment-avatar',txt(c.name||'S',1).toUpperCase());
+   const content=node('div','ga-comment-content'),bubble=node('div','ga-comment-bubble');
+   bubble.append(node('strong','',txt(c.name||'Student',80)));
+   if(c.replyTo&&data[c.replyTo])bubble.append(node('span','ga-comment-inreply','↳ '+txt(data[c.replyTo].name||'Reply',50)));
+   bubble.append(node('p','',txt(c.text,1200)));content.append(bubble);
+   const tools=node('div','ga-comment-tools');tools.append(node('small','',stamp(c.createdAtMs)));
+   if(p.allowReplies||state.teacher){
+    const reply=node('button','','Reply');reply.type='button';
+    reply.addEventListener('click',()=>{state.replyTargets[id]={id:rid,name:c.name};state.commentOpen.add(id);drawComments(id,card,p);host.querySelector('textarea')?.focus({preventScroll:true});});tools.append(reply);
+   }
+   if(state.teacher||c.uid===state.user.uid){const del=node('button','','Remove');del.type='button';del.addEventListener('click',async()=>{if(!confirm('Remove this comment?'))return;try{await state.sdk.remove(path(`replies/${id}/${rid}`));}catch(e){toast(e.message,true);}});tools.append(del);}
+   content.append(tools);row.append(av,content);host.append(row);
   }
-  if(state.teacher||c.uid===state.user.uid){const del=node('button','','Remove');del.type='button';del.addEventListener('click',async()=>{if(!confirm('Remove this comment?'))return;try{await state.sdk.remove(path(`replies/${id}/${rid}`));}catch(e){toast(e.message,true);}});tools.append(del);}
-  content.append(tools);row.append(av,content);host.append(row);
  }
  if(!p.allowReplies&&!state.teacher){host.append(node('p','ga-smallprint','Comments are turned off for this post.'));return;}
  const form=node('form','ga-reply-form');
@@ -381,13 +406,25 @@ function drawComments(id,card,p){
  const send=node('button','','➤');send.type='submit';send.setAttribute('aria-label','Post comment');entry.append(ta,send);composer.append(entry);form.append(av,composer);
  form.addEventListener('submit',async e=>{
   e.preventDefault();const value=txt(ta.value,1200);if(!value)return;send.disabled=true;
-  try{const key=state.sdk.push(path(`replies/${id}`)).key;const comment={uid:state.user.uid,name:txt(state.teacher?'ICT Teacher':state.profile?.name||'Student',80),text:value,createdAtMs:Date.now()};if(state.replyTargets[id]?.id)comment.replyTo=state.replyTargets[id].id;
-   await state.sdk.set(path(`replies/${id}/${key}`),comment);state.commentDrafts[id]='';ta.value='';state.replyTargets[id]=null;state.commentExpanded.add(id);
+  try{
+   const key=state.sdk.push(path(`replies/${id}`)).key;
+   const comment={uid:state.user.uid,name:txt(state.teacher?'ICT Teacher':state.profile?.name||'Student',80),text:value,createdAtMs:Date.now()};
+   if(state.replyTargets[id]?.id)comment.replyTo=state.replyTargets[id].id;
+   await state.sdk.set(path(`replies/${id}/${key}`),comment);
+   // Show the newly saved comment immediately, even if the realtime callback
+   // arrives after the write acknowledgement. Never prepend on a failed save.
+   if(!state.comments[id])state.comments[id]={};
+   state.comments[id][key]=comment;
+   state.commentDrafts[id]='';ta.value='';state.replyTargets[id]=null;
+   state.commentOpen.add(id);state.commentExpanded.add(id);
    drawComments(id,card,p);
+   const countButton=card.querySelector('.ga-reply-total');
+   if(countButton)countButton.setAttribute('aria-expanded','true');
   }catch(err){toast('Comment not saved: '+err.message,true);}finally{send.disabled=false;}
  });host.append(form);
  if(wasTyping){ta.focus({preventScroll:true});if(cursor)try{ta.setSelectionRange(cursor.start,cursor.end);}catch(_){}}
 }
+
 function openCourseItem(file,postId){
  const kind=file.type==='lesson'?'lesson':'activity';
  if(!/^[\w-]{1,128}$/.test(String(file.itemId||''))){toast('The attached item ID is invalid.',true);return;}
