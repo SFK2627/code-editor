@@ -4,7 +4,23 @@
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
 let initializeApp, getApps, getApp, getAuth, onAuthStateChanged, signInWithEmailAndPassword;
 let getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect;
+// Firestore is LAZY: normal text/image chat and inbox use RTDB only.
+// Firestore SDK loads solely when opening a saved project or exceptional legacy login recovery.
 let getFirestore, collection, doc, getDoc, getDocFromServer, getDocs;
+let projectFirestorePromise = null;
+async function ensureProjectFirestore(){
+ if(firestore) return firestore;
+ if(!projectFirestorePromise){
+  projectFirestorePromise = (async()=>{
+   const v = window.MCS_FIREBASE_SDK_VERSION || '10.12.5';
+   const f = await import(`https://www.gstatic.com/firebasejs/${v}/firebase-firestore.js`);
+  
+   firestore=getFirestore(app);
+   return firestore;
+  })().catch(err=>{projectFirestorePromise=null;throw err;});
+ }
+ return projectFirestorePromise;
+}
 
 async function loadMessagesFirebaseSDK(){
  const v = window.MCS_FIREBASE_SDK_VERSION || '10.12.5';
@@ -12,11 +28,10 @@ async function loadMessagesFirebaseSDK(){
  const load = Promise.all([
   import(`${base}/firebase-app.js`),
   import(`${base}/firebase-auth.js`),
-  import(`${base}/firebase-database.js`),
-  import(`${base}/firebase-firestore.js`)
+  import(`${base}/firebase-database.js`)
  ]);
  const timeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('Firebase libraries did not load. Check internet access or use the deployed G8Code website.')),15000));
- const [a, au, d, f] = await Promise.race([load, timeout]);
+ const [a, au, d] = await Promise.race([load, timeout]);
  ({initializeApp, getApps, getApp} = a);
  ({getAuth, onAuthStateChanged, signInWithEmailAndPassword} = au);
  ({getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect} = d);
@@ -235,7 +250,7 @@ async function boot(){
   setConnection(false,'Connecting…');
   await loadMessagesFirebaseSDK();
   app=getApps().length?getApp():initializeApp(window.MCS_FIREBASE_CONFIG);
-  auth=getAuth(app);rtdb=getDatabase(app,window.MCS_FIREBASE_DATABASE_URL);firestore=getFirestore(app);
+  auth=getAuth(app);rtdb=getDatabase(app,window.MCS_FIREBASE_DATABASE_URL);
   onAuthStateChanged(auth,async account=>{
    stopTyping();closeReactionPicker();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);
    if(presenceHeartbeat){clearInterval(presenceHeartbeat);presenceHeartbeat=null;}
@@ -247,11 +262,17 @@ async function boot(){
    try{
     if(teacher){ profile={uid:account.uid,name:'ICT Teacher'};}
     else{
-     const snap=await getDoc(doc(firestore,window.MCS_FIREBASE_COLLECTION||'webCodeEditor',window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1','students',account.uid));
-     if(!snap.exists())throw new Error('Your student profile is not active yet. Log in through Student Home first.');
-     profile={...snap.data(),uid:account.uid};
-     if(profile.authUid && profile.authUid!==account.uid)throw new Error('Account does not match the registered student profile.');
-     if(profile.accountStatus==='disabled')throw new Error('This student account is disabled.');
+     // Load ONLY the RTDB Messages directory. Student Home mirrors its already
+     // verified profile here, and Admin mirrors the cached tracker without
+     // another Firestore scan. Normal Messages sign-in costs 0 Firestore reads.
+     const entry=await get(ref(rtdb,`${BASE}/directory/${account.uid}`));
+     const row=entry.val()||{};
+     const studentEmail=String(account.email||'');
+     const sidMatch=studentEmail.match(/^sid-([a-z0-9]+)(?:-r\d+)?@students\.mcsian\.app$/i);
+     profile={uid:account.uid,name:short(row.name||account.displayName||'Student',100),
+      studentId:short(row.studentId||sidMatch?.[1]||'',50),section:short(row.section||'Unassigned',100)};
+     // Identity is still enforced by Firebase Auth + per-UID RTDB rules.
+     if(row.accountStatus==='disabled')throw new Error('This student account is disabled.');
     }
     await initWorkspace();
     setupOwnPresence();
@@ -273,7 +294,7 @@ $('g8mLoginRole').addEventListener('change',syncQuickLoginRole);
 syncQuickLoginRole();
 $('g8mQuickLogin').addEventListener('submit',async event=>{
  event.preventDefault();
- if(!auth||!firestore||!signInWithEmailAndPassword)return;
+ if(!auth||!signInWithEmailAndPassword)return;
  const teacherLogin=$('g8mLoginRole').value==='teacher';
  const identity=String($('g8mLoginIdentity').value||'').trim();
  const password=$('g8mLoginPassword').value;
@@ -287,21 +308,29 @@ $('g8mQuickLogin').addEventListener('submit',async event=>{
    const key=identity.toUpperCase().replace(/[^A-Z0-9]/g,'').toLowerCase();
    if(!key || key.length>50)throw new Error('Please enter a valid Student ID.');
    email=`sid-${key}@students.mcsian.app`;
-   try{
-    const snap=await getDoc(doc(firestore,window.MCS_FIREBASE_COLLECTION||'webCodeEditor',window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1','studentLoginRoutes',key));
-    if(snap.exists()){
-     const route=snap.data()||{};
-     if(route.accountStatus==='disabled')throw new Error('This student account is disabled. Contact your teacher.');
-     if(typeof route.authEmail==='string' && route.authEmail.includes('@'))email=route.authEmail.trim().toLowerCase();
-    }
-   }catch(error){
-    if(/disabled/i.test(String(error.message)))throw error;
-    console.info('Login route unavailable, using Student ID email.',error);
-   }
   }
   await signInWithEmailAndPassword(auth,email,password);
   $('g8mLoginPassword').value='';
  }catch(error){
+  const initialCode=String(error.code||'');
+  if(!teacherLogin && /invalid-credential|wrong-password|user-not-found/.test(initialCode)){
+   const key=identity.toUpperCase().replace(/[^A-Z0-9]/g,'').toLowerCase();
+   if(key){
+    try{
+     await ensureProjectFirestore();
+     const snap=await getDoc(doc(firestore,window.MCS_FIREBASE_COLLECTION||'webCodeEditor',window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1','studentLoginRoutes',key));
+     const route=snap.exists() ? (snap.data()||{}) : {};
+     if(route.accountStatus==='disabled')throw new Error('This student account is disabled. Contact your teacher.');
+     if(typeof route.authEmail==='string' && route.authEmail.includes('@') && route.authEmail.toLowerCase()!==`sid-${key}@students.mcsian.app`){
+      await signInWithEmailAndPassword(auth,route.authEmail.trim().toLowerCase(),password);
+      $('g8mLoginPassword').value='';return;
+     }
+    }catch(routeError){
+     if(/disabled/i.test(String(routeError.message)))error=routeError;
+     else console.info('Legacy account route unavailable; default sign-in result retained.',routeError);
+    }
+   }
+  }
   console.warn('G8Code Messages sign-in failed:',error);
   const code=String(error.code||'');
   feedback.textContent=code.includes('invalid-credential')||code.includes('wrong-password')||code.includes('user-not-found')?
@@ -336,9 +365,22 @@ async function initWorkspace(){
    if(requestedUid&&!openedUid&&(summaries[requestedUid]||students.has(requestedUid)))openChat(requestedUid);
   },err=>{setConnection(false,'Inbox error');status(friendlyError(err),true);}));
   switchMobile('sections');
-  void loadStudentDirectory().then(()=>{
+  // RTDB directory contains all students after Student Home/Admin tracker
+  // mirroring. It does NOT initiate a Firestore getDocs() collection scan.
+  rootUnsubs.push(onValue(ref(rtdb,`${BASE}/directory`),snap=>{
+   const records=snap.val()||{};
+   students.clear();
+   for(const [uid,record] of Object.entries(records)){
+    if(!/^[A-Za-z0-9_-]{5,128}$/.test(uid)||!record||typeof record!=='object')continue;
+    students.set(uid,{uid,name:short(record.name||'Student',100),
+     studentId:short(record.studentId||'',50),section:short(record.section||'Unassigned',100)});
+   }
+   renderSections();renderStudents();
    if(requestedUid&&!openedUid&&(students.has(requestedUid)||summaries[requestedUid]))openChat(requestedUid);
-  }).catch(error=>console.warn('Directory lookup is delayed:',error));
+  },error=>{
+   console.warn('Messages RTDB directory unavailable:',error);
+   status('Student directory temporarily unavailable; existing chats still work.',true);
+  }));
  }else{
   const uid=user.uid;
   $('g8mChatName').textContent='ICT Teacher';$('g8mChatMeta').textContent='Official private conversation';$('g8mChatAvatar').textContent='T';
@@ -347,24 +389,9 @@ async function initWorkspace(){
   openChat(uid);
  }
 }
-async function loadStudentDirectory(){
- const prefix=[window.MCS_FIREBASE_COLLECTION||'webCodeEditor',window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1'];
- let errorMsg='';
- const lookups=['students','studentRoster'];
- const results=await Promise.allSettled(lookups.map(col=>getDocs(collection(firestore,...prefix,col))));
- for(let i=0;i<lookups.length;i++){
-  const col=lookups[i],result=results[i];
-  if(result.status!=='fulfilled'){errorMsg=friendlyError(result.reason);console.warn('Could not load',col,result.reason);continue;}
-  result.value.docs.forEach(item=>{
-   const data=item.data()||{};const uid=byId(data.uid || data.authUid || (col==='students'?item.id:''));
-   if(!uid||uid.includes('/'))return;
-   const existing=students.get(uid)||{};
-   students.set(uid,{uid,name:short(data.name||existing.name||'Student',100),studentId:short(data.studentId||existing.studentId||'',50),section:short(data.section||existing.section||'Unassigned',100)});
-  });
- }
- if(!students.size && errorMsg)status(`Student list unavailable: ${errorMsg}. Existing conversations may still load.`,true);
- renderSections();renderStudents();
-}
+// V4.9: Directory data arrives via the RTDB listener in initWorkspace.
+// Keep this alias as a no-op for older integration hooks: no Firestore reads.
+async function loadStudentDirectory(){ return [...students.values()]; }
 function allPeople(){
  const merged=new Map(students);
  Object.keys(summaries).forEach(uid=>{if(!merged.has(uid)){merged.set(uid,person(uid));}});
@@ -1232,11 +1259,13 @@ function stampLabel(value){
  return time?new Intl.DateTimeFormat('en-PH',{dateStyle:'medium',timeStyle:'short'}).format(new Date(time)):'Not available';
 }
 async function showProjectPicker(){
- if(teacher||!user||!firestore)return;
+ if(teacher||!user)return;
  if(selections.length){status('Send your selected photos first, then attach a project separately.',true);return;}
  openModal(projectPicker);
  $('g8mProjectSearch').value='';$('g8mProjectList').replaceChildren(notice('Loading saved projects…'));
  try{
+  await ensureProjectFirestore();
+  // This is an explicit project action, not a normal Messages read.
   // Read the student's own Firestore project collection. Never rely on a typed UID.
   const path=[window.MCS_FIREBASE_COLLECTION||'webCodeEditor',window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1','students',user.uid,'projects'];
   const snapshot=await getDocs(collection(firestore,...path));
@@ -1280,7 +1309,7 @@ function renderProjectSelection(){
 // Use EXACT authenticated conversation owner as project owner, never message metadata.
 // Each view reads from Firestore's server to pick up later student edits.
 async function openSharedProject(studentUid,projectId){
- if(!user||!firestore||!studentUid||!projectId)return;
+ if(!user||!studentUid||!projectId)return;
  if(!/^[A-Za-z0-9_-]{1,128}$/.test(projectId)){status('Invalid project reference.',true);return;}
  if(!teacher&&studentUid!==user.uid){status('You can only view your own project.',true);return;}
  const currentUid=openedUid;
@@ -1291,6 +1320,7 @@ async function openSharedProject(studentUid,projectId){
  $('g8mViewerWorkspace').hidden=true;
  $('g8mViewerLoading').hidden=false;
  try{
+  await ensureProjectFirestore();
   const path=[window.MCS_FIREBASE_COLLECTION||'webCodeEditor',window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1','students',studentUid,'projects',projectId];
   const snapshot=await getDocFromServer(doc(firestore,...path));
   if(projectViewer.hidden||openedUid!==currentUid)return;

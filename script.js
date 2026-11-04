@@ -9291,6 +9291,10 @@ async function activateStudentSession(profile, { showDashboard = true, suppressS
   appSession.mode = 'student';
   armAppExitGuard();
   appSession.student = profile;
+  // Student Home already has the verified profile; reuse it in RTDB Messages.
+  // This adds ZERO Firestore reads, and does not block the Student Dashboard.
+  void syncG8MessagesDirectoryFromSession(profile).catch(error =>
+    console.info('Messages directory will sync on a later session.', error));
   appSession.lastStudentProfile = { ...profile };
   appSession.existingStudentUser = getFirebaseActiveUser();
   persistLastStudentSession('student-activated');
@@ -11307,7 +11311,7 @@ let selectedAdminComplianceStudentId = '';
 // v654: This cache contains ALL published sections, never only the last sync.
 // A new key also invalidates legacy v653 snapshots that contained one section.
 const ADMIN_COMPLIANCE_ALL_SECTIONS_CACHE_KEY = 'compliance:viewerRecords:allSections:v654';
-const ADMIN_COMPLIANCE_ALL_SECTIONS_TTL_MS = 5 * 60 * 1000;
+const ADMIN_COMPLIANCE_ALL_SECTIONS_TTL_MS = 30 * 60 * 1000; // v49: reuse published all-section snapshot; manual Refresh forces live fetch.
 let adminComplianceViewerSnapshotComplete = false;
 let adminComplianceViewerLoadPromise = null;
 // Teacher-only numerical grade cache. These values are NEVER part of student
@@ -15624,8 +15628,109 @@ function mergeAdminStudentList(records = []) {
     .sort((a, b) => String(a.section || '').localeCompare(String(b.section || '')) || String(a.name || '').localeCompare(String(b.name || '')));
 }
 
+
+// V4.9 — Messages directory mirror. This ONLY reuses student records ALREADY in
+// the active Student Home/Admin cache; it NEVER reads the Firestore roster.
+// Messages reads this small RTDB directory instead of scanning Firestore.
+const G8M_DIRECTORY_SYNC_KEY = 'g8code.messages.directoryMirror.v49';
+const G8M_DIRECTORY_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
+let g8mDirectorySdkPromise = null;
+let g8mDirectorySyncPromise = null;
+let g8mAdminStudentsLoadedAt = 0;
+function g8mDirectoryFingerprint(rows) {
+  let hash = 2166136261;
+  for (const ch of JSON.stringify(rows)) { hash ^= ch.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  return (hash >>> 0).toString(36);
+}
+async function g8mDirectoryDatabase() {
+  if (!window.MCS_FIREBASE_DATABASE_URL || !window.MCS_FIREBASE_CONFIG) throw new Error('Messages RTDB configuration missing.');
+  if (!g8mDirectorySdkPromise) {
+    g8mDirectorySdkPromise = (async () => {
+      const version = window.MCS_FIREBASE_SDK_VERSION || '10.12.5';
+      const base = `https://www.gstatic.com/firebasejs/${version}`;
+      const [appSdk, databaseSdk] = await Promise.all([
+        import(`${base}/firebase-app.js`), import(`${base}/firebase-database.js`)
+      ]);
+      const app = appSdk.getApps().length ? appSdk.getApp() : appSdk.initializeApp(window.MCS_FIREBASE_CONFIG);
+      return { sdk: databaseSdk, db: databaseSdk.getDatabase(app, window.MCS_FIREBASE_DATABASE_URL) };
+    })().catch(error => { g8mDirectorySdkPromise = null; throw error; });
+  }
+  return g8mDirectorySdkPromise;
+}
+function g8mDirectoryRecord(record, uid) {
+  if (!/^[A-Za-z0-9_-]{5,128}$/.test(String(uid || ''))) return null;
+  return {
+    uid: String(uid),
+    name: String(record?.name || 'Student').trim().slice(0, 100) || 'Student',
+    studentId: String(record?.studentId || record?.studentIdNormalized || '').trim().slice(0, 50),
+    section: String(record?.section || 'Unassigned').trim().slice(0, 100) || 'Unassigned'
+  };
+}
+async function syncG8MessagesDirectoryFromCache(records, teacherMode = false) {
+  const signed = getFirebaseActiveUser?.();
+  if (!signed || (teacherMode ? !isTeacherAuthenticated() : isTeacherUser(signed))) return;
+  const payload = {};
+  for (const record of records || []) {
+    const uids = teacherMode && typeof getAdminStudentProfileUids === 'function'
+      ? getAdminStudentProfileUids(record) : [signed.uid];
+    for (const uid of uids) {
+      if (!teacherMode && uid !== signed.uid) continue;
+      const row = g8mDirectoryRecord(record, uid);
+      if (!row) continue;
+      payload[uid] = { name: row.name, studentId: row.studentId, section: row.section };
+      if (teacherMode) payload[uid].accountStatus = String(record?.accountStatus || 'active').toLowerCase() === 'disabled' ? 'disabled' : 'active';
+    }
+  }
+  const keys = Object.keys(payload).sort();
+  if (!keys.length) return;
+  const fingerprint = g8mDirectoryFingerprint(keys.map(k => [k, payload[k]]));
+  const key = `${G8M_DIRECTORY_SYNC_KEY}:${teacherMode ? 'teacher' : signed.uid}`;
+  try {
+    const cached = JSON.parse(localStorage.getItem(key) || 'null');
+    if (cached?.fingerprint === fingerprint && Date.now() - Number(cached.at || 0) < G8M_DIRECTORY_SYNC_TTL_MS) return;
+  } catch (_) {}
+  // Dedup concurrent Admin load calls: never start one mirror per tab render.
+  if (g8mDirectorySyncPromise) return g8mDirectorySyncPromise;
+  const task = (async () => {
+    const {db, sdk} = await g8mDirectoryDatabase();
+    // update() is an RTDB WRITE; zero Firestore reads/writes.
+    // Student rules grant WRITE on the individual fields (not the parent).
+    // Use multi-location update to honor those exact existing rules.
+    if (teacherMode) {
+      await sdk.update(sdk.ref(db, 'g8MessagesV1/directory'), payload);
+    } else {
+      const row = payload[signed.uid];
+      const path = `g8MessagesV1/directory/${signed.uid}`;
+      await sdk.update(sdk.ref(db), {
+        [`${path}/name`]: row.name,
+        [`${path}/studentId`]: row.studentId,
+        [`${path}/section`]: row.section
+      });
+    }
+    try { localStorage.setItem(key, JSON.stringify({fingerprint, at:Date.now()})); } catch (_) {}
+  })();
+  g8mDirectorySyncPromise = task;
+  try { await task; }
+  finally { if (g8mDirectorySyncPromise === task) g8mDirectorySyncPromise = null; }
+}
+function syncG8MessagesDirectoryFromSession(profile) {
+  return syncG8MessagesDirectoryFromCache(profile ? [profile] : [], false);
+}
+function syncG8MessagesDirectoryFromAdminCache(rows) {
+  return syncG8MessagesDirectoryFromCache(rows, true);
+}
+
 async function loadAdminStudents(options = {}) {
   if (!isTeacherAuthenticated()) return [];
+  // In one Admin session, tab switches must not recheck full cached snapshots.
+  // Explicit Refresh/Deep modes always override this short in-memory guard.
+  if (adminStudentsCache.length && options.force !== true && options.deep !== true &&
+      options.forceProfiles !== true && options.forceRoster !== true &&
+      Date.now() - g8mAdminStudentsLoadedAt < 20 * 60 * 1000) {
+    void syncG8MessagesDirectoryFromAdminCache(adminStudentsCache).catch(error =>
+      console.info('Messages roster mirror will retry on the next Admin visit.', error));
+    return adminStudentsCache;
+  }
   try {
     setStudentAdminStatus('Loading student tracker...');
     const forceAll = options.force === true;
@@ -15692,6 +15797,11 @@ async function loadAdminStudents(options = {}) {
     const rawRecords = [...activeProfiles, ...rosterProfiles];
     const rawCount = rawRecords.length;
     adminStudentsCache = mergeAdminStudentList(rawRecords);
+    g8mAdminStudentsLoadedAt = Date.now();
+    // No new Firestore query: mirror this already-loaded Admin roster to RTDB
+    // so Messages can list all students, including those without prior chats.
+    void syncG8MessagesDirectoryFromAdminCache(adminStudentsCache).catch(error =>
+      console.warn('Messages RTDB student-directory mirror unavailable:', error));
     const mergedDuplicates = Math.max(0, rawCount - adminStudentsCache.length);
     populateAdminSectionFilter();
     renderAdminStudentTracker();
