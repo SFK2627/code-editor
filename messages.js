@@ -1,4 +1,4 @@
-/* G8Code Messages V1: authenticated, student↔teacher only. No grade/submission writes. */
+/* G8Code Messages V5.7 (based on V5.6) — authenticated, student↔teacher only. No grade/submission writes. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -445,7 +445,7 @@ function renderStudents(){if(!teacher)return;
  });
  if(!people.length)list.append(notice('No students match this filter. Try All or another section.'));
 }
-function switchMobile(view){mobileView=view;workspace.dataset.mobileView=view;root.dataset.mobileChat=(view==='chat'?'true':'false');closeReactionPicker();}
+function switchMobile(view){stopLongPressTimer();mobileView=view;workspace.dataset.mobileView=view;root.dataset.mobileChat=(view==='chat'?'true':'false');closeReactionPicker();}
 $('g8mSectionBack').addEventListener('click',()=>{if(!sending)switchMobile('sections');});
 $('g8mChatBack').addEventListener('click',()=>{if(sending)return;if(teacher)switchMobile('students');else leaveMessages();});
 $('g8mSectionSearch').addEventListener('input',e=>{search=e.target.value.trim().toLowerCase();renderSections();renderStudents();});
@@ -728,21 +728,111 @@ async function jumpToQuotedMessage(id){
  }catch(error){status(`Could not open the original: ${friendlyError(error)}`,true);}
 }
 
+// V5.7 — focused message actions. Desktop hover remains unchanged; a
+// real long press/right click produces a crisp selected bubble over a blurred
+// conversation. The picker is positioned from the actual bubble's DOM bounds,
+// never the mobile display:contents action-target (which has a zero-size rect).
 const reactionPicker=$('g8mReactionPicker'),detailsOverlay=$('g8mMessageDetails');
-function closeReactionPicker(){reactionPicker.hidden=true;menuMessageId='';menuAnchor=null;}
-function openReactionPicker(id,anchor){
+const focusOverlay=$('g8mMessageFocus'),focusShell=$('g8mFocusShell');
+let focusMessageId='', focusScrollY=0;
+function stopLongPressTimer(){if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}}
+function clearFocusMode(){
+ focusMessageId='';focusOverlay.hidden=true;focusShell.replaceChildren();
+ focusShell.removeAttribute('style');
+}
+function closeReactionPicker(){
+ reactionPicker.hidden=true;menuMessageId='';menuAnchor=null;
+ clearFocusMode();
+}
+function actualBubbleAnchor(item){
+ if(!item)return null;
+ // On mobile the action-target uses display:contents, so its rect is empty.
+ // The real text/photo/project element always has meaningful layout bounds.
+ return item.querySelector('.g8m-action-target > .g8m-photo-stack') ||
+  item.querySelector('.g8m-action-target > .g8m-photo-grid') ||
+  item.querySelector('.g8m-action-target > .g8m-project-card') ||
+  item.querySelector('.g8m-action-target > .g8m-text') ||
+  item.querySelector('.g8m-action-target > .g8m-quoted') ||
+  item.querySelector('.g8m-bubble-anchor > .g8m-photo-grid') ||
+  item.querySelector('.g8m-bubble-anchor > .g8m-text') ||
+  item.querySelector('.g8m-bubble-anchor');
+}
+function validAnchorRect(anchor){
+ const rect=anchor?.getBoundingClientRect();
+ return rect && rect.width>=2 && rect.height>=2 ? rect : null;
+}
+function focusOnMessage(id){
+ const item=messageNode(id), visual=actualBubbleAnchor(item);
+ const bubble=item?.querySelector('.g8m-bubble-anchor');
+ if(!item||!visual||!bubble)return null;
+ const visualRect=validAnchorRect(visual), bubbleRect=validAnchorRect(bubble);
+ if(!visualRect||!bubbleRect)return null;
+ focusOverlay.hidden=false;focusMessageId=id;
+ focusShell.replaceChildren();focusShell.className='g8m-message g8m-focus-shell'+(item.classList.contains('own')?' own':'')+(item.classList.contains('has-reaction')?' has-reaction':'');
+ const copy=bubble.cloneNode(true);
+ // The floating menu owns all interactions, not stale cloned button handlers.
+ copy.querySelectorAll('.g8m-hover-actions').forEach(node=>node.remove());
+ copy.querySelectorAll('button,a,input').forEach(node=>{node.tabIndex=-1;node.setAttribute('aria-hidden','true');});
+ copy.style.width=`${Math.ceil(bubbleRect.width)}px`;
+ const originalWidth=getComputedStyle(bubble).getPropertyValue('--g8m-action-width');
+ if(originalWidth)copy.style.setProperty('--g8m-action-width',originalWidth);
+ focusShell.append(copy);
+ // Keep the highlight at the message location where possible, but leave safe
+ // room for the context menu, even near a sticky header/composer or a tall photo.
+ const vh=window.visualViewport?.height || innerHeight;
+ const vw=innerWidth;
+ const menuH=Math.max(100,reactionPicker.offsetHeight||111);
+ const safe=12;
+ const scale=Math.min(1,(vw-safe*2)/bubbleRect.width,(vh-menuH-3*safe)/bubbleRect.height);
+ const w=bubbleRect.width*scale,h=bubbleRect.height*scale;
+ let x=Math.max(safe,Math.min(vw-w-safe,bubbleRect.left));
+ let y=Math.max(safe,Math.min(vh-h-safe,bubbleRect.top));
+ // If the bubble plus action menu cannot fit above/below at the original y,
+ // reposition *the clone*, never the real message or the conversation scroll.
+ if(y-menuH-safe<safe && y+h+menuH+safe>vh-safe){
+  y=Math.max(safe,Math.min(vh-h-menuH-2*safe,(vh-h-menuH-safe)/2));
+ }
+ focusShell.style.left=`${Math.round(x)}px`;
+ focusShell.style.top=`${Math.round(y)}px`;
+ focusShell.style.width=`${Math.ceil(bubbleRect.width)}px`;
+ focusShell.style.transform=`scale(${Math.max(.1,scale)})`;
+ focusShell.style.transformOrigin='top left';
+ focusScrollY=$('g8mMessages')?.scrollTop||0;
+ return {left:x,top:y,right:x+w,bottom:y+h,width:w,height:h};
+}
+function openReactionPicker(id,anchor,options={}){
  if(!messageById(id))return;
- menuMessageId=id;menuAnchor=anchor||messageNode(id);
+ // Opening a second picker dismisses the previous focus clone cleanly.
+ clearFocusMode();
+ menuMessageId=id;
  reactionPicker.hidden=false;
  const emoji=activeReactions[id]?.[user?.uid]||'';
  for(const b of reactionPicker.querySelectorAll('[data-g8m-emoji]'))b.classList.toggle('selected',b.dataset.g8mEmoji===emoji);
- const r=menuAnchor?.getBoundingClientRect()||{top:110,left:16,width:180,bottom:150};
+ const focus=options.focus===true;
+ const item=messageNode(id);
+ const selected=focus ? focusOnMessage(id) : null;
+ const realAnchor=(anchor && validAnchorRect(anchor) ? anchor : actualBubbleAnchor(item));
+ menuAnchor=realAnchor;
+ const r=selected||validAnchorRect(realAnchor)||{top:110,left:16,width:180,bottom:150,right:196};
  const width=reactionPicker.offsetWidth,height=reactionPicker.offsetHeight;
- const left=Math.max(8,Math.min(innerWidth-width-8,r.left+r.width/2-width/2));
- let top=r.top-height-9;
- if(top<7)top=Math.min(innerHeight-height-8,r.bottom+8);
- reactionPicker.style.left=`${Math.round(left)}px`;reactionPicker.style.top=`${Math.round(Math.max(7,top))}px`;
+ const vw=innerWidth,vh=window.visualViewport?.height || innerHeight;
+ // Align the picker close to the bubble edge, not the row center or screen top.
+ // A phone does not have room for 280px of controls beside a 200px photo, so
+ // position immediately above/below that exact photo with 6px separation.
+ const isOwn=item?.classList.contains('own');
+ let left=isOwn ? r.right-width : r.left;
+ left=Math.max(8,Math.min(vw-width-8,left));
+ let top=r.top-height-7;
+ if(top<8)top=r.bottom+7;
+ if(top+height>vh-8)top=Math.max(8,r.top-height-7);
+ top=Math.max(8,Math.min(vh-height-8,top));
+ reactionPicker.style.left=`${Math.round(left)}px`;
+ reactionPicker.style.top=`${Math.round(top)}px`;
+ reactionPicker.dataset.focusMode=focus?'true':'false';
 }
+$('g8mFocusBackdrop').addEventListener('pointerdown',event=>{
+ event.preventDefault();event.stopPropagation();closeReactionPicker();
+});
 async function reactToMessage(id,emoji){
  if(!openedUid||!user||!REACTION_EMOJIS.includes(emoji))return;
  const uid=openedUid, refPath=ref(rtdb,`${studentPath(uid)}/reactions/${id}/${user.uid}`);
@@ -781,21 +871,46 @@ $('g8mDetailsClose').addEventListener('click',closeDetails);
 detailsOverlay.addEventListener('click',event=>{if(event.target===detailsOverlay)closeDetails();});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeReactionPicker();if(!detailsOverlay.hidden)closeDetails();}});
 document.addEventListener('pointerdown',event=>{
- if(!reactionPicker.hidden&&!reactionPicker.contains(event.target)&&!event.target.closest('.g8m-hover-actions,.g8m-reaction-chip'))closeReactionPicker();
+ if(!reactionPicker.hidden&&!reactionPicker.contains(event.target)&&!event.target.closest('.g8m-hover-actions,.g8m-reaction-chip,.g8m-focus-shell'))closeReactionPicker();
 });
 $('g8mMessages').addEventListener('scroll',()=>{if(!reactionPicker.hidden)closeReactionPicker();},{passive:true});
 function installLongPress(item,id){
- let x=0,y=0;
+ let x=0,y=0,pressPointer=null;
+ const anchor=()=>actualBubbleAnchor(item)||item;
+ const endPress=()=>{
+  stopLongPressTimer();item.classList.remove('g8m-longpress-armed');pressPointer=null;
+  if(longPressFired)setTimeout(()=>{longPressFired=false;},450);
+ };
  item.addEventListener('pointerdown',event=>{
-  if(event.pointerType==='mouse'||event.target.closest('.g8m-hover-actions,.g8m-msg-meta,.g8m-reaction-chip'))return;
-  x=event.clientX;y=event.clientY;longPressFired=false;
-  if(longPressTimer)clearTimeout(longPressTimer);
-  longPressTimer=setTimeout(()=>{longPressTimer=null;longPressFired=true;openReactionPicker(id,item.querySelector('.g8m-action-target')||item.querySelector('.g8m-bubble-anchor')||item);if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}},440);
+  if(event.pointerType==='mouse'&&event.button!==0)return;
+  if(event.target.closest('.g8m-hover-actions,.g8m-msg-meta,.g8m-reaction-chip'))return;
+  x=event.clientX;y=event.clientY;longPressFired=false;pressPointer=event.pointerId;
+  stopLongPressTimer();item.classList.add('g8m-longpress-armed');
+  longPressTimer=setTimeout(()=>{
+   longPressTimer=null;longPressFired=true;item.classList.remove('g8m-longpress-armed');
+   openReactionPicker(id,anchor(),{focus:true});
+   setTimeout(()=>{longPressFired=false;},650);
+   if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}
+  },470);
  });
- item.addEventListener('pointermove',event=>{if(Math.abs(event.clientX-x)>11||Math.abs(event.clientY-y)>11){clearTimeout(longPressTimer);longPressTimer=null;}});
- for(const evt of ['pointerup','pointercancel','pointerleave'])item.addEventListener(evt,()=>{clearTimeout(longPressTimer);longPressTimer=null;if(longPressFired)setTimeout(()=>{longPressFired=false;},300);});
- item.addEventListener('contextmenu',event=>{if(event.pointerType!=='mouse'){event.preventDefault();openReactionPicker(id,item.querySelector('.g8m-action-target')||item.querySelector('.g8m-bubble-anchor')||item);}});
- item.addEventListener('click',event=>{if(longPressFired&&!event.target.closest('.g8m-msg-meta,.g8m-hover-actions,.g8m-reaction-chip')){event.preventDefault();event.stopImmediatePropagation();longPressFired=false;}},true);
+ item.addEventListener('pointermove',event=>{
+  if(pressPointer!==event.pointerId)return;
+  if(Math.abs(event.clientX-x)>12||Math.abs(event.clientY-y)>12){
+   stopLongPressTimer();item.classList.remove('g8m-longpress-armed');
+  }
+ });
+ for(const evt of ['pointerup','pointercancel','pointerleave'])item.addEventListener(evt,endPress);
+ item.addEventListener('contextmenu',event=>{
+  if(event.target.closest('.g8m-msg-meta,.g8m-hover-actions'))return;
+  event.preventDefault();stopLongPressTimer();item.classList.remove('g8m-longpress-armed');
+  longPressFired=true;openReactionPicker(id,anchor(),{focus:true});
+  setTimeout(()=>{longPressFired=false;},650);
+ });
+ item.addEventListener('click',event=>{
+  if(longPressFired&&!event.target.closest('.g8m-msg-meta,.g8m-hover-actions,.g8m-reaction-chip')){
+   event.preventDefault();event.stopImmediatePropagation();longPressFired=false;
+  }
+ },true);
 }
 function syncChatViewport(){
  if(!window.visualViewport)return;
@@ -804,6 +919,9 @@ function syncChatViewport(){
 }
 if(window.visualViewport){visualViewport.addEventListener('resize',syncChatViewport);visualViewport.addEventListener('scroll',syncChatViewport);}
 window.addEventListener('resize',syncChatViewport);
+// A rotated phone/tablet changes the selected bubble coordinates. Dismiss the
+// temporary focus rather than leaving actions floating at an old position.
+window.addEventListener('resize',()=>{if(focusMessageId)closeReactionPicker();});
 syncChatViewport();
 $('g8mTextInput').addEventListener('focus',()=>setTimeout(()=>{const feed=$('g8mMessages');if(feed)feed.scrollTop=feed.scrollHeight;},120));
 

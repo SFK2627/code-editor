@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=56-real-stack-focus" />
+<link rel="stylesheet" href="messages.css?v=57-context-focus" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -92,6 +92,10 @@
       </div>
     </section>
   </div>
+<div id="g8mMessageFocus" class="g8m-message-focus" hidden>
+ <button type="button" id="g8mFocusBackdrop" class="g8m-focus-backdrop" tabindex="-1" aria-label="Close message actions"></button>
+ <div id="g8mFocusShell" class="g8m-message g8m-focus-shell" aria-hidden="true"></div>
+</div>
 <div id="g8mReactionPicker" class="g8m-reaction-picker" role="group" aria-label="Message reactions and actions" hidden>
  <div id="g8mReactionOptions" class="g8m-reaction-options">
   <button type="button" data-g8m-emoji="❤️" aria-label="React with heart">❤️</button>
@@ -135,6 +139,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=56-real-stack-focus"></script>
+<script defer src="messages.js?v=57-context-focus"></script>
 </body>
 </html>
