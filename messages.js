@@ -663,6 +663,43 @@ function replyToMessage(id){
  reply={id:msg.id,text:messageReferenceText(msg)};
  renderReply();closeReactionPicker();$('g8mTextInput').focus();
 }
+// V5.4: a quote points to its original RTDB push ID, not a search by text.
+// If the quoted message is older than the current page, read that ONE record.
+let quoteJumpToken=0;
+function emphasizeOriginalMessage(id){
+ const feed=$('g8mMessages'),node=messageNode(id);
+ if(!feed||!node)return false;
+ const panel=feed.getBoundingClientRect(),bounds=node.getBoundingClientRect();
+ feed.scrollTo({top:feed.scrollTop+(bounds.top+bounds.height/2)-(panel.top+panel.height/2),behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+ node.classList.remove('g8m-jump-focus');void node.offsetWidth;
+ node.classList.add('g8m-jump-focus');
+ setTimeout(()=>node.classList.remove('g8m-jump-focus'),1350);
+ return true;
+}
+async function jumpToQuotedMessage(id){
+ const target=String(id||'').trim(),uid=openedUid;
+ if(!uid||!target||!/^[A-Za-z0-9_-]{6,120}$/.test(target)){
+  status('Original message is unavailable.',true);return;
+ }
+ const request=++quoteJumpToken;
+ if(messageNode(target)){emphasizeOriginalMessage(target);return;}
+ status('Finding the original message…');
+ try{
+  const snapshot=await get(ref(rtdb,`${studentPath(uid)}/messages/${target}`));
+  if(request!==quoteJumpToken||uid!==openedUid)return;
+  if(!snapshot.exists()){status('Original message is unavailable.',true);return;}
+  const found={id:target,...(snapshot.val()||{})};
+  if(!messageById(target)){
+   olderMessages=[...olderMessages,found].sort(compareMessages);
+   // Keep a bounded history even after many quote jumps.
+   if(olderMessages.length>160)olderMessages=[found,...olderMessages.filter(x=>x.id!==target).slice(-159)].sort(compareMessages);
+  }
+  renderMessages();
+  requestAnimationFrame(()=>emphasizeOriginalMessage(target));
+  status('Jumped to original message.');
+ }catch(error){status(`Could not open the original: ${friendlyError(error)}`,true);}
+}
+
 const reactionPicker=$('g8mReactionPicker'),detailsOverlay=$('g8mMessageDetails');
 function closeReactionPicker(){reactionPicker.hidden=true;menuMessageId='';menuAnchor=null;}
 function openReactionPicker(id,anchor){
@@ -787,11 +824,17 @@ function renderMessages(){
     const anchor=textEl('div','g8m-bubble-anchor','');
     if(job.caption)anchor.append(textEl('div','g8m-text',job.caption));
     const photos=textEl('div','g8m-local-photo-grid'+(job.queued.length>1?' is-multiple':''),'');
-    job.queued.forEach(entry=>{
-     const img=document.createElement('img');img.src=entry.url;img.alt=entry.file.name;
-     img.draggable=false;img.loading='eager';photos.append(img);
-    });
-    anchor.append(photos);
+    const front=job.queued[0];
+    const preview=textEl('button','g8m-local-photo-front','');preview.type='button';
+    preview.title=job.queued.length>1?'Open selected photos':'View photo';
+    const img=document.createElement('img');img.src=front.url;img.alt=front.file.name;
+    img.draggable=false;img.loading='eager';preview.append(img);
+    if(job.queued.length>1){
+     preview.classList.add('is-photo-stack');
+     preview.append(textEl('span','g8m-photo-count',`${job.queued.length} photos`));
+    }
+    preview.addEventListener('click',()=>openLocalPhotoGallery(job.queued));
+    photos.append(preview);anchor.append(photos);
     const label=textEl('div','g8m-photo-job-status','');
     const copy=job.state==='failed'?`Not sent · ${job.error||'Upload failed'}`:
       job.state==='queued'?'Waiting to send securely…':
@@ -810,7 +853,12 @@ function renderMessages(){
     content.append(item);
     continue;
    }
-   if(msg.replyText)item.append(textEl('div','g8m-quoted',short(['📷 Photo attachment','📸 Photo attachment'].includes(String(msg.replyText).trim())?'Photo':msg.replyText,180)));
+   if(msg.replyText){
+    const originalId=String(msg.replyTo||'');
+    const quote=textEl(originalId?'button':'div','g8m-quoted'+(originalId?' g8m-quote-link':''),short(['📷 Photo attachment','📸 Photo attachment'].includes(String(msg.replyText).trim())?'Photo':msg.replyText,180));
+    if(originalId){quote.type='button';quote.title='Jump to original message';quote.setAttribute('aria-label','Jump to original message');quote.addEventListener('click',()=>void jumpToQuotedMessage(originalId));}
+    item.append(quote);
+   }
    const visibleText=visibleMessageText(msg);
    if(visibleText && msg.type!=='project')item.append(textEl('div','g8m-text',visibleText));
    if(msg.type==='project'){
@@ -829,21 +877,29 @@ function renderMessages(){
    const attachments=Array.isArray(msg.attachments)?msg.attachments:Object.values(msg.attachments||{});
    if(attachments.length){
     const validPhotos=attachments.slice(0,MAX_FILES).filter(att=>att?.path && typeof att.path==='string' && att.path.startsWith(`g8Messages/${openedUid}/${msg.id}/`));
-    const photos=textEl('div','g8m-photo-grid'+(validPhotos.length>1?' is-multiple':''),'');
-    validPhotos.forEach(att=>{
-     const path=att.path;
+    if(validPhotos.length){
+     const photos=textEl('div','g8m-photo-grid','');
+     const att=validPhotos[0],path=att.path;
      const previous=previousPhotoButtons.get(path);
      const button=(previous && previous.dataset.photoFile===String(att.driveFileId||''))
       ? previous : textEl('button','g8m-image-loading','Loading photo…');
      button.type='button';button.dataset.photoPath=path;button.dataset.photoFile=String(att.driveFileId||'');
-     button.setAttribute('aria-label',`View ${att.name||'image'}`);
+     button.setAttribute('aria-label',validPhotos.length>1?`View ${validPhotos.length} photos`:`View ${att.name||'image'}`);
+     button._g8mGalleryClick=()=>openPhotoGallery(validPhotos,0,openedUid,msg.id);
+     if(button.dataset.photoState==='ready')button.onclick=button._g8mGalleryClick;
      photos.append(button);
+     const photoVisual=validPhotos.length>1?textEl('div','g8m-photo-stack',''):photos;
+     if(validPhotos.length>1){
+      photoVisual.append(photos);
+      const badge=textEl('span','g8m-photo-count',`${validPhotos.length} photos`);
+      badge.setAttribute('aria-hidden','true');photoVisual.append(badge);
+     }
+     item.append(photoVisual);
      if(!['ready','fetching','failed'].includes(button.dataset.photoState)){
       button.dataset.photoState='waiting';
       photosToLoad.push({att:{...att,messageId:msg.id,studentUid:openedUid},button});
      }
-    });
-    item.append(photos);
+    }
     const ack=activeAcks[msg.id];
     if(teacher && msg.senderRole==='student'){
      const controls=textEl('div','g8m-ack-actions','');
@@ -874,13 +930,13 @@ function renderMessages(){
    // The toolbar must follow the actual visible message, never the row or
    // teacher acknowledgement controls. In particular, portrait images can be
    // much narrower than the rest of the message's metadata/actions.
-   const actualVisual=bubbleAnchor.querySelector('.g8m-photo-grid')||bubbleAnchor.querySelector('.g8m-project-card')||bubbleAnchor.querySelector('.g8m-text')||bubbleAnchor.querySelector('.g8m-quoted');
+   const actualVisual=bubbleAnchor.querySelector('.g8m-photo-stack')||bubbleAnchor.querySelector('.g8m-photo-grid')||bubbleAnchor.querySelector('.g8m-project-card')||bubbleAnchor.querySelector('.g8m-text')||bubbleAnchor.querySelector('.g8m-quoted');
    const actionTarget=textEl('div','g8m-action-target','');
    if(actualVisual){actualVisual.replaceWith(actionTarget);actionTarget.append(actualVisual);}
    else bubbleAnchor.append(actionTarget);
    // A ready photo button may be reused after a Seen/reaction update. Keep
    // the exact loaded width across that DOM rebuild; no thumbnail jumping.
-   if(actualVisual?.classList.contains('g8m-photo-grid')&&!actualVisual.classList.contains('is-multiple')){
+   if(actualVisual?.classList.contains('g8m-photo-grid')||actualVisual?.classList.contains('g8m-photo-stack')){
     const loadedWidth=parseFloat(actualVisual.querySelector('button')?.style.getPropertyValue('--g8m-photo-width')||'');
     if(Number.isFinite(loadedWidth)&&loadedWidth>=30){
      const px=Math.min(390,Math.round(loadedWidth))+'px';
@@ -1022,6 +1078,56 @@ function privatePhotoURL(att){
 // Zoom is relative to the fitted image (100% means the whole photo fits),
 // not the original image pixel count. Images are already cached in memory:
 // panning/zooming never contacts Drive or Firestore.
+// V5.4 grouped gallery: no extra RTDB or Drive reads until a photo is opened.
+// A gallery item is either an already-local sender preview or a private Drive attachment.
+let photoGallery=[],photoGalleryIndex=0,photoGalleryToken=0;
+function galleryControlState(){
+ const hasGroup=photoGallery.length>1;
+ $('g8mImagePrev').hidden=!hasGroup;
+ $('g8mImageNext').hidden=!hasGroup;
+ $('g8mImageCounter').hidden=!hasGroup;
+ if(hasGroup){
+  $('g8mImageCounter').textContent=`${photoGalleryIndex+1} / ${photoGallery.length}`;
+  $('g8mImagePrev').disabled=photoGalleryIndex===0;
+  $('g8mImageNext').disabled=photoGalleryIndex===photoGallery.length-1;
+ }
+}
+function openPhotoGallery(photos,index,uid,messageId){
+ if(!Array.isArray(photos)||!photos.length)return;
+ photoGallery=photos.map(att=>({...att,studentUid:uid,messageId}));
+ showPhotoGalleryIndex(index);
+}
+function openLocalPhotoGallery(entries){
+ if(!Array.isArray(entries)||!entries.length)return;
+ photoGallery=entries.map(entry=>({localUrl:entry.url,name:entry.file?.name||'Photo'}));
+ showPhotoGalleryIndex(0);
+}
+function showPhotoGalleryIndex(index){
+ if(!photoGallery.length||index<0||index>=photoGallery.length)return;
+ const isOpening=imageViewer.hidden;
+ if(isOpening)imageViewerPreviousFocus=document.activeElement;
+ photoGalleryIndex=index;
+ const load=++photoGalleryToken,att=photoGallery[index];
+ imageViewer.hidden=false;
+ galleryControlState();
+ if(att.localUrl){openFullPhoto(att.localUrl,true);return;}
+ const url=cachedPhotoUrl(att.path);
+ if(url){openFullPhoto(url,true);return;}
+ imageLarge.removeAttribute('src');imageViewerFitW=0;
+ imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;
+ const state=$('g8mImageStageStatus');state.textContent=`Loading photo ${index+1} of ${photoGallery.length}…`;state.hidden=false;
+ void privatePhotoURL(att).then(photoUrl=>{
+  if(load!==photoGalleryToken||imageViewer.hidden)return;
+  openFullPhoto(photoUrl,true);
+ }).catch(error=>{
+  if(load!==photoGalleryToken||imageViewer.hidden)return;
+  state.textContent=`Could not load this photo: ${friendlyError(error)}`;state.hidden=false;
+ });
+}
+function galleryStep(direction){
+ if(photoGallery.length<2)return;
+ showPhotoGalleryIndex(photoGalleryIndex+direction);
+}
 const imageViewer = $('g8mImageViewer');
 const imageStage = $('g8mImageStage');
 const imageLarge = $('g8mImageLarge');
@@ -1081,14 +1187,14 @@ function closeFullPhoto(){
  if(imageViewer.hidden)return;
  imageViewer.hidden=true;
  imageViewerPointers.clear();imageViewerGesture=null;imageViewerTap=null;
- imageViewerLoadToken++;
+ imageViewerLoadToken++;photoGalleryToken++;photoGallery=[];galleryControlState();
  if(imageViewerPreviousFocus&&imageViewerPreviousFocus.isConnected){
   try{imageViewerPreviousFocus.focus({preventScroll:true});}catch(_){}}
  imageViewerPreviousFocus=null;
 }
-function openFullPhoto(url){
+function openFullPhoto(url,preserveFocus=false){
  const photoUrl=String(url||'');if(!photoUrl)return;
- imageViewerPreviousFocus=document.activeElement;
+ if(!preserveFocus)imageViewerPreviousFocus=document.activeElement;
  imageViewerPointers.clear();imageViewerGesture=null;imageViewerTap=null;
  imageViewerMoved=false;
  imageViewer.hidden=false;
@@ -1113,6 +1219,9 @@ function openFullPhoto(url){
  $('g8mImageClose').focus({preventScroll:true});
 }
 $('g8mImageClose').addEventListener('click',closeFullPhoto);
+$('g8mImagePrev').addEventListener('click',()=>galleryStep(-1));
+$('g8mImageNext').addEventListener('click',()=>galleryStep(1));
+galleryControlState();
 $('g8mImageFit').addEventListener('click',imageViewerFit);
 $('g8mImageZoomIn').addEventListener('click',()=>imageViewerZoomTo(imageViewerScale+.25));
 $('g8mImageZoomOut').addEventListener('click',()=>imageViewerZoomTo(imageViewerScale-.25));
@@ -1175,8 +1284,13 @@ imageStage.addEventListener('pointermove',event=>{
 });
 function imageViewerEndPointer(event){
  if(!imageViewerPointers.has(event.pointerId))return;
- const wasMulti=imageViewerGesture?.pinch;
+ const gesture=imageViewerGesture;
+ const wasMulti=gesture?.pinch;
+ const swipeX=!wasMulti&&gesture?event.clientX-gesture.x:0;
+ const swipeY=!wasMulti&&gesture?event.clientY-gesture.y:0;
+ const navigateSwipe=event.type==='pointerup'&&event.pointerType!=='mouse'&&imageViewerPointers.size===1&&imageViewerScale<=1.01&&photoGallery.length>1&&Math.abs(swipeX)>55&&Math.abs(swipeX)>Math.abs(swipeY)*1.2;
  imageViewerPointers.delete(event.pointerId);
+ if(navigateSwipe){imageViewerGesture=null;imageViewerTap=null;galleryStep(swipeX<0?1:-1);return;}
  if(!wasMulti&&!imageViewerMoved&&event.type==='pointerup'&&event.pointerType!=='mouse'){
   const when=performance.now();
   const prev=imageViewerTap;
@@ -1205,6 +1319,7 @@ document.addEventListener('keydown',event=>{
   if(event.key==='+'||event.key==='=')imageViewerZoomTo(imageViewerScale+.25);
   else if(event.key==='-')imageViewerZoomTo(imageViewerScale-.25);
   else if(event.key==='0')imageViewerFit();
+  else if(photoGallery.length>1&&imageViewerScale<=1.01&&(event.key==='ArrowLeft'||event.key==='ArrowRight'))galleryStep(event.key==='ArrowLeft'?-1:1);
   else if(imageViewerScale>1){
    imageViewerPanX+=(event.key==='ArrowLeft'?40:event.key==='ArrowRight'?-40:0);
    imageViewerPanY+=(event.key==='ArrowUp'?40:event.key==='ArrowDown'?-40:0);
@@ -1252,12 +1367,15 @@ async function showPhoto(att,button,version){
   const scale=Math.min(1,maxW/width,maxH/height);
   const displayWidth=Math.max(30,Math.round(width*scale));
   button.style.setProperty('--g8m-photo-width',displayWidth+'px');
+  const stack=button.closest('.g8m-photo-stack');
+  if(stack){stack.style.setProperty('--g8m-stack-width',displayWidth+'px');}
+
   if(single){const target=button.closest('.g8m-action-target');if(target){target.style.setProperty('--g8m-action-width',displayWidth+'px');target.closest('.g8m-bubble-anchor')?.style.setProperty('--g8m-action-width',displayWidth+'px');target.closest('.g8m-message')?.style.setProperty('--g8m-action-width',displayWidth+'px');}}
   button.style.setProperty('--g8m-photo-aspect',width+' / '+height);
   button.classList.remove('g8m-image-loading','g8m-image-error');button.classList.add('g8m-image-ready');
   button.dataset.photoState='ready';button.title='View full photo';
   button.replaceChildren(img);
-  button.onclick=()=>openFullPhoto(url);
+  button.onclick=()=>button._g8mGalleryClick?button._g8mGalleryClick():openFullPhoto(url);
  }catch(error){console.warn('Private Drive photo:',error);fail(error);}
 }
 

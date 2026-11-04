@@ -121,6 +121,9 @@
 <div id="g8mImageViewer" class="g8m-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Image preview" tabindex="-1">
   <div class="g8m-image-toolbar" role="toolbar" aria-label="Photo zoom controls">
     <span class="g8m-image-hint" id="g8mImageHint">Scroll to zoom · Drag to move</span>
+    <button id="g8mImagePrev" type="button" class="g8m-image-control g8m-gallery-nav" aria-label="Previous photo" title="Previous photo" hidden>‹</button>
+    <output id="g8mImageCounter" class="g8m-image-gallery-count" aria-live="polite" hidden></output>
+    <button id="g8mImageNext" type="button" class="g8m-image-control g8m-gallery-nav" aria-label="Next photo" title="Next photo" hidden>›</button>
     <button id="g8mImageZoomOut" type="button" class="g8m-image-control" aria-label="Zoom out" title="Zoom out">−</button>
     <output id="g8mImageZoomLevel" class="g8m-image-zoom-label" aria-label="Zoom level">Fit · 100%</output>
     <button id="g8mImageZoomIn" type="button" class="g8m-image-control" aria-label="Zoom in" title="Zoom in">+</button>
@@ -132,6 +135,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=53-instant-photo-send"></script>
+<script defer src="messages.js?v=54-reply-photo-gallery"></script>
 </body>
 </html>
