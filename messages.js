@@ -127,13 +127,27 @@ function toggleTextMessageMeta(item,id){
  const same=selectedMobileMetaMessageId===String(id);
  for(const node of $('g8mMessages')?.querySelectorAll('.g8m-text-only')||[]){
   node.classList.remove('g8m-meta-revealed');
+  const meta=node.querySelector(':scope > .g8m-msg-meta');
+  if(meta)meta.hidden=true;
   const text=node.querySelector('.g8m-text.g8m-text-tap');
   if(text)text.setAttribute('aria-expanded','false');
  }
  selectedMobileMetaMessageId=same?'':String(id);
  if(!same){
   item.classList.add('g8m-meta-revealed');
+  const meta=item.querySelector(':scope > .g8m-msg-meta');
+  if(meta)meta.hidden=false;
   item.querySelector('.g8m-text.g8m-text-tap')?.setAttribute('aria-expanded','true');
+ }
+}
+
+
+// Keep hidden-state correct on rotation, tablet/Desktop resizing and chat rerenders.
+function syncMobileMessageMetaVisibility(){
+ const mobile=mobileChatSize();
+ for(const item of $('g8mMessages')?.querySelectorAll('.g8m-message.g8m-text-only')||[]){
+  const meta=item.querySelector(':scope > .g8m-msg-meta');
+  if(meta)meta.hidden=mobile&&!item.classList.contains('g8m-meta-revealed');
  }
 }
 
@@ -616,7 +630,7 @@ $('g8mGlobalFilters').addEventListener('click',e=>{const b=e.target.closest('[da
 function openChat(uid){
  if(sending){status('Your message is still sending. Finish the upload before switching conversations.',true);return;}
  if(teacher && !students.has(uid) && !summaries[uid])return;
- if(uid===openedUid && activeUnsubs.length){switchMobile('chat');return;}
+ if(uid===openedUid && activeUnsubs.length){switchMobile('chat');g8mJumpLatest({settle:true});return;}
  stopTyping();closeReactionPicker();
  if(openedUid && activeMessages.length){
   conversationMemory.delete(openedUid);
@@ -624,6 +638,7 @@ function openChat(uid){
   if(conversationMemory.size>10)conversationMemory.delete(conversationMemory.keys().next().value);
  }
  selectedMobileMetaMessageId='';
+ g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
  clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
@@ -632,6 +647,7 @@ function openChat(uid){
  if(activeMessages.length||olderMessages.length)renderMessages();
  else $('g8mMessages').replaceChildren(notice('Loading messages…'));
  switchMobile('chat');
+ g8mJumpLatest({settle:true});
  updateChatFeedState(warm?'Showing recent messages · Syncing…':'Loading conversation…');
  const messagesRef=recentMessageQuery(uid);
  activeUnsubs.push(onValue(messagesRef,snap=>{
@@ -826,6 +842,95 @@ function replyToMessage(id){
  reply={id:msg.id,text:messageReferenceText(msg)};
  renderReply();closeReactionPicker();$('g8mTextInput').focus();
 }
+// V5.14: Scroll to the newest message, or let the user backread without a forced jump.
+// The small button is anchored above the composer, not inside the scrolling feed.
+const G8M_LATEST_THRESHOLD = 48;
+let g8mFollowLatest=true,g8mSmoothLatest=false,g8mBottomFrame=0,g8mOpenScrollToken=0;
+let g8mTouchStartY=0,g8mTouchStartX=0;
+function g8mBottomGap(){
+ const feed=$('g8mMessages');
+ if(!feed||feed.clientHeight<1)return 0;
+ return Math.max(0,feed.scrollHeight-feed.clientHeight-feed.scrollTop);
+}
+function g8mUpdateScrollLatest(){
+ const button=$('g8mScrollLatest'),feed=$('g8mMessages');
+ if(!button||!feed)return;
+ button.hidden=!(openedUid&&feed.clientHeight>0&&g8mBottomGap()>G8M_LATEST_THRESHOLD);
+}
+function g8mJumpLatest({smooth=false,settle=false}={}){
+ const feed=$('g8mMessages');if(!feed)return;
+ g8mFollowLatest=true;
+ const reduced=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+ g8mSmoothLatest=!!smooth&&!reduced;
+ const reach=()=>Math.max(0,feed.scrollHeight-feed.clientHeight);
+ if(g8mSmoothLatest){
+  feed.scrollTo({top:reach(),behavior:'smooth'});
+  // A smooth scroll may end early if new media changes the chat height.
+  const uid=openedUid,token=++g8mOpenScrollToken;
+  setTimeout(()=>{
+   if(token!==g8mOpenScrollToken||uid!==openedUid||!g8mSmoothLatest)return;
+   g8mSmoothLatest=false;
+   if(g8mFollowLatest)feed.scrollTop=reach();
+   g8mUpdateScrollLatest();
+  },1100);
+ }else{
+  feed.scrollTop=reach();
+ }
+ g8mUpdateScrollLatest();
+ if(settle){
+  const uid=openedUid,token=++g8mOpenScrollToken;
+  const settleBottom=()=>{
+   if(token!==g8mOpenScrollToken||uid!==openedUid||!g8mFollowLatest||g8mSmoothLatest)return;
+   feed.scrollTop=reach();g8mUpdateScrollLatest();
+  };
+  requestAnimationFrame(()=>requestAnimationFrame(settleBottom));
+  // Allow delayed chat layout (mobile pane switch / cached photo decode) to settle.
+  for(const ms of [85,260,650])setTimeout(settleBottom,ms);
+ }
+}
+function g8mScheduleBottomIfFollowing(){
+ if(!g8mFollowLatest||g8mSmoothLatest||g8mBottomFrame)return;
+ g8mBottomFrame=requestAnimationFrame(()=>{
+  g8mBottomFrame=0;
+  if(g8mFollowLatest&&!g8mSmoothLatest)g8mJumpLatest();
+  else g8mUpdateScrollLatest();
+ });
+}
+const g8mScrollFeed=$('g8mMessages');
+$('g8mScrollLatest').addEventListener('click',()=>g8mJumpLatest({smooth:true}));
+g8mScrollFeed.addEventListener('scroll',()=>{
+ if(g8mBottomGap()<=G8M_LATEST_THRESHOLD){g8mFollowLatest=true;g8mSmoothLatest=false;}
+ else if(g8mFollowLatest&&!g8mSmoothLatest)g8mScheduleBottomIfFollowing();
+ g8mUpdateScrollLatest();
+},{passive:true});
+g8mScrollFeed.addEventListener('wheel',event=>{
+ if(event.deltaY<0){g8mFollowLatest=false;g8mSmoothLatest=false;}
+},{passive:true});
+g8mScrollFeed.addEventListener('touchstart',event=>{
+ const t=event.touches?.[0];if(t){g8mTouchStartY=t.clientY;g8mTouchStartX=t.clientX;}
+},{passive:true});
+g8mScrollFeed.addEventListener('touchmove',event=>{
+ const t=event.touches?.[0];
+ if(t && t.clientY-g8mTouchStartY>9 && Math.abs(t.clientY-g8mTouchStartY)>Math.abs(t.clientX-g8mTouchStartX)){
+  g8mFollowLatest=false;g8mSmoothLatest=false;
+ }
+},{passive:true});
+g8mScrollFeed.addEventListener('keydown',event=>{
+ if(['PageUp','Home','ArrowUp'].includes(event.key)){g8mFollowLatest=false;g8mSmoothLatest=false;}
+});
+// Real photo sizing modifies child styles after async Drive reads. Keep the latest
+// pinned only while user has not started backreading. Do not refetch anything.
+if(typeof MutationObserver==='function'){
+ new MutationObserver(()=>{
+  if(g8mFollowLatest)g8mScheduleBottomIfFollowing();
+  else g8mUpdateScrollLatest();
+ }).observe(g8mScrollFeed,{childList:true,subtree:true,attributes:true,attributeFilter:['style','src']});
+}
+window.addEventListener('resize',()=>{
+ syncMobileMessageMetaVisibility();
+ if(g8mFollowLatest)g8mScheduleBottomIfFollowing();else g8mUpdateScrollLatest();
+});
+
 // V5.6: Start the visible focus pulse AFTER the quoted message reaches
 // the chat viewport, not while the browser is still smooth-scrolling there.
 // Keep the focus state through transient Seen/typing re-renders.
@@ -843,6 +948,7 @@ function emphasizeOriginalMessage(id,request=quoteJumpToken){
   return top;
  };
  const initial=centeredDistance();if(initial===null)return false;
+ g8mFollowLatest=false;g8mSmoothLatest=false;
  feed.scrollTo({top:feed.scrollTop+initial,behavior:reduced?'auto':'smooth'});
  const started=performance.now();
  let stableFrames=0,previous=Infinity;
@@ -1086,7 +1192,7 @@ window.addEventListener('resize',syncChatViewport);
 // temporary focus rather than leaving actions floating at an old position.
 window.addEventListener('resize',()=>{if(focusMessageId)closeReactionPicker();});
 syncChatViewport();
-$('g8mTextInput').addEventListener('focus',()=>setTimeout(()=>{const feed=$('g8mMessages');if(feed)feed.scrollTop=feed.scrollHeight;},120));
+$('g8mTextInput').addEventListener('focus',()=>setTimeout(()=>{if(g8mFollowLatest)g8mJumpLatest();else g8mUpdateScrollLatest();},120));
 
 // V5.6: real 2nd/3rd photos peek out behind the main image (not
 // blank decorative rectangles). The actual full-sized files are requested
@@ -1119,8 +1225,16 @@ function renderMessages(){
  if(!openedUid)return;
  if(photoVisibilityObserver){photoVisibilityObserver.disconnect();photoVisibilityObserver=null;}
  const log=$('g8mMessages');
- const nearBottom=log.scrollHeight-log.scrollTop-log.clientHeight<150;
  const previousHeight=log.scrollHeight;
+ const previousScrollTop=log.scrollTop;
+ // Preserve what the user was actually reading, not the scrollHeight delta.
+ // A new message appended at the bottom must NOT move an older message.
+ const readingAnchor=!g8mFollowLatest?[...log.querySelectorAll('.g8m-message[data-message-id]')].find(node=>{
+  const box=node.getBoundingClientRect(),viewport=log.getBoundingClientRect();
+  return box.bottom>viewport.top+3&&box.top<viewport.bottom-3;
+ }):null;
+ const readingAnchorId=readingAnchor?.dataset.messageId||'';
+ const readingAnchorTop=readingAnchor?.getBoundingClientRect().top||0;
  // Reuse the original image elements when other chat metadata changes.
  // Otherwise frequent Seen/reaction/ack updates replace loading thumbnails,
  // leaving them blank even when the Drive request later succeeds.
@@ -1140,7 +1254,7 @@ function renderMessages(){
  const stackedPhotosToLoad=[];
  if(!shown.length){
   log.replaceChildren(notice('Your private conversation starts here. Send a question, a message, or a picture.'));
-  return;
+  g8mUpdateScrollLatest();return;
  }
  if(hasOlder){
   const load=textEl('button','g8m-load-older',olderLoading?'Loading older messages…':'↑ Load older messages');
@@ -1306,6 +1420,8 @@ function renderMessages(){
    }
    const meta=textEl('div','g8m-msg-meta','');meta.append(textEl('span','',formatTime(at)));
    if(mine){const seenLabel=textEl('span','g8m-seen-label',seenLabelFor(msg));meta.append(seenLabel);}
+   // Independent of CSS: mobile plain-text metadata must start hidden.
+   if(isTextOnly && mobileChatSize() && !item.classList.contains('g8m-meta-revealed'))meta.hidden=true;
    item.append(meta);
    // The toolbar must follow the actual visible message, never the row or
    // teacher acknowledgement controls. In particular, portrait images can be
@@ -1370,8 +1486,15 @@ function renderMessages(){
   for(const {att,button} of photosToLoad)void showPhoto(att,button,version);
   void g8mFillStackBacks(stackedPhotosToLoad);
  }
- if(nearBottom||!lastSnapshotKey)log.scrollTop=log.scrollHeight;
- else log.scrollTop+=log.scrollHeight-previousHeight;
+ if(!olderLoading && (g8mFollowLatest||!lastSnapshotKey))g8mJumpLatest({settle:!lastSnapshotKey});
+ else if(readingAnchorId){
+  const sameMessage=messageNode(readingAnchorId);
+  if(sameMessage)log.scrollTop+=sameMessage.getBoundingClientRect().top-readingAnchorTop;
+  else log.scrollTop=previousScrollTop;
+ }else if(olderLoading)log.scrollTop+=log.scrollHeight-previousHeight;
+ else log.scrollTop=previousScrollTop;
+ g8mUpdateScrollLatest();
+ syncMobileMessageMetaVisibility();
  lastSnapshotKey=shown.map(x=>x.id).join(':');
  if(pinnedMessageId&&Date.now()<pinExpires){
   // A subsequent live/seen/ack snapshot must not push a newly sent reply away.
@@ -1382,6 +1505,7 @@ function renderMessages(){
 
 async function loadOlder(){
  if(olderLoading||!hasOlder||!openedUid)return;
+ g8mFollowLatest=false;g8mSmoothLatest=false;
  const uid=openedUid, oldest=(olderMessages[0]||activeMessages[0])?.id;
  if(!oldest)return;
  olderLoading=true;renderMessages();
@@ -1937,6 +2061,8 @@ async function showPhoto(att,button,version){
   button.dataset.photoState='ready';button.title='View full photo';
   button.replaceChildren(img);
   button.onclick=()=>button._g8mGalleryClick?button._g8mGalleryClick():openFullPhoto(url);
+  if(g8mFollowLatest)g8mScheduleBottomIfFollowing();
+  else g8mUpdateScrollLatest();
  }catch(error){console.warn('Private Drive photo:',error);fail(error);}
 }
 

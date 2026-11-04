@@ -613,3 +613,30 @@ html,body{overflow:hidden;overscroll-behavior:none}
 }
 @keyframes g8m-v513-meta-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.g8m-message.g8m-meta-revealed>.g8m-msg-meta{animation:none}}
+
+
+/* V5.14 — enforce truly hidden metadata on mobile text-only messages.
+   V5.13 shipped with V5.11 asset URLs, which could leave the old CSS cached. */
+.g8m-msg-meta[hidden]{display:none!important}
+@media(max-width:700px){
+ .g8m-messages .g8m-message.g8m-text-only > .g8m-msg-meta{display:none!important}
+ .g8m-messages .g8m-message.g8m-text-only.g8m-meta-revealed > .g8m-msg-meta:not([hidden]){display:flex!important}
+}
+/* Compact, centered floating down-arrow exactly above the composer. */
+.g8m-compose{overflow:visible}
+.g8m-compose .g8m-scroll-latest{
+ position:absolute;left:50%;bottom:calc(100% + 10px);
+ transform:translateX(-50%);width:34px;height:34px;min-width:34px;
+ padding:0;display:grid;place-items:center;border-radius:50%;
+ border:1px solid var(--line);background:var(--paper);color:var(--ink);
+ box-shadow:0 3px 13px rgba(0,0,0,.18);z-index:30;
+ font-size:17px;line-height:1;cursor:pointer;
+ transition:background .15s,box-shadow .15s,opacity .15s;
+}
+.g8m-compose .g8m-scroll-latest[hidden]{display:none!important}
+.g8m-compose .g8m-scroll-latest:hover,
+.g8m-compose .g8m-scroll-latest:focus-visible{background:var(--field);box-shadow:0 4px 18px rgba(0,0,0,.22);outline-color:var(--accent)}
+@media(max-width:700px){
+ .g8m-compose .g8m-scroll-latest{width:33px;height:33px;min-width:33px;bottom:calc(100% + 8px);font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){.g8m-compose .g8m-scroll-latest{transition:none}}
