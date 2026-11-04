@@ -9,23 +9,9 @@ function mountStudentShortcut(){
  if(!homeMessage||document.getElementById('studentHomeAnnouncementsBtn'))return;
  const button=document.createElement('a');button.href='announcements.html?from=student';button.id='studentHomeAnnouncementsBtn';button.className='g8-home-messages g8-home-announcements';button.setAttribute('aria-label','Open class announcements');
  button.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4l8 3V7l-8 3Z"/><path d="M11 7 20 3v18l-9-4"/><path d="m6 16 2 5"/><path d="M20 9a4 4 0 0 1 0 6"/></svg><span class="sh-action-label"><span class="sh-label-full">Announcements</span><span class="sh-label-short">Updates</span></span><b id="studentHomeAnnouncementsBadge" class="g8-home-msg-badge" hidden>0</b>';
- // Moving from the verified Student Homepage to another G8Code page is internal
- // navigation, not an Exit App. Bypass the broad app exit guard ONLY when no
- // editor, wireframe, live game, or project save is at risk. Browser close/reload
- // and all unsaved-work warnings remain protected by script.js.
- button.addEventListener('click',event=>{
-  if(event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)return;
-  const homeVisible=typeof studentHomeScreen!=='undefined' && studentHomeScreen && !studentHomeScreen.classList.contains('hidden');
-  const signedIn=typeof appSession!=='undefined' && appSession.mode==='student' && Boolean(appSession.student);
-  const projectBusy=(typeof studentProjectDirty!=='undefined' && studentProjectDirty) ||
-   (typeof studentProjectSaveInFlight!=='undefined' && studentProjectSaveInFlight);
-  const wireframeBusy=typeof wireframeMakerState!=='undefined' && Boolean(wireframeMakerState?.dirty);
-  let gameBusy=false;
-  try{gameBusy=Boolean(window.ICT8XpMiniGames?.isGameOpen?.());}catch(_){gameBusy=true;}
-  if(homeVisible && signedIn && !projectBusy && !wireframeBusy && !gameBusy){
-   window.ICT8AppExitGuard?.allowNextUnload?.();
-  }
- });
+ // V5.33: The shared click guard in script.js handles BOTH Messages and
+ // Announcements, and never bypasses unsaved project / active-game warnings.
+ // Keep this shortcut as an ordinary accessible link.
  homeMessage.insertAdjacentElement('afterend',button);badges.push(button.querySelector('b'));
 }
 function updateBadge(){let count=0;for(const [id,p] of Object.entries(feed||{}))if(p?.status==='published'&&!seen?.[id])count++;for(const b of badges){if(!b)continue;b.textContent=count>99?'99+':String(count);b.hidden=count===0;}const btn=document.getElementById('studentHomeAnnouncementsBtn');if(btn)btn.title=count?`${count} unread announcement${count===1?'':'s'}`:'Announcements';}
@@ -83,7 +69,16 @@ function routeAttachedResource(){
  }
  async function attempt(){
   if(opening||finished)return;
-  if(Date.now()>expiresAt){stop();window.G8CodeInternalNav?.finish?.();return;} // Keep URL for verified sign-in after a slow connection.
+  if(Date.now()>expiresAt){
+   stop();window.G8CodeInternalNav?.finish?.();
+   // Keep the original sign-in route available if no verified student exists;
+   // otherwise offer a clear recovery rather than a stuck loading surface.
+   if(typeof getFirebaseActiveUser==='function' && getFirebaseActiveUser()?.uid &&
+      typeof appSession!=='undefined' && appSession.mode==='student'){
+    clearHandoff();void displayError('The attachment could not open yet. Please return to Announcements and try again.');
+   }
+   return;
+  }
   if(!verifiedReady())return;
   opening=true;
   try{

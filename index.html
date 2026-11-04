@@ -37,7 +37,10 @@
         if (route.resource) document.documentElement.classList.add('g8code-internal-'+route.kind);
       }
       window.G8CodeInternalNav = {
-        finish() { document.documentElement.classList.remove('g8code-internal-route-pending'); }
+        finish() {
+          document.documentElement.classList.remove('g8code-internal-route-pending',
+            'g8code-internal-lesson', 'g8code-internal-activity');
+        }
       };
       if (!reducedMotion && !studioReturn && !route.internal) {
         document.documentElement.classList.add('g8code-opening-intro');
@@ -105,8 +108,10 @@
       font: 600 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
       letter-spacing: .015em; text-align: center; padding: 24px;
     }
-    html.g8code-internal-lesson body::after { content: 'Opening your lesson…' !important; }
-    html.g8code-internal-activity body::after { content: 'Opening your activity…' !important; }
+    /* Scope the label to the loading state. Otherwise a stray body::after
+       'Opening your lesson…' can remain in the REAL lesson after completion. */
+    html.g8code-internal-route-pending.g8code-internal-lesson body::after { content: 'Opening your lesson…' !important; }
+    html.g8code-internal-route-pending.g8code-internal-activity body::after { content: 'Opening your activity…' !important; }
     @media (prefers-color-scheme: dark) {
       html.g8code-internal-route-pending:not(.studio-return-pending) body::after {
         background: #101b30; color: #d1e4ff;
@@ -180,6 +185,9 @@
       document.documentElement.dataset.deviceMode = isPhone ? 'phone' : 'desktop';
     })();
   </script>
+  <!-- V5.34: download the existing main script during the opening intro;
+       execution order remains unchanged at its original script tag. -->
+  <link rel="preload" as="script" href="script.js?v=20261104-v537-student-counts" />
   <link rel="preconnect" href="https://drive.google.com" crossorigin>
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
   <link rel="stylesheet" href="style.css?v=20261031-v676-welcome-student-theme-choice" />
@@ -513,6 +521,8 @@
 <link rel="stylesheet" href="announcements-bridge.css?v=1" />
 <link rel="stylesheet" href="student-home-compact.css?v=529" />
 <link rel="stylesheet" href="student-modal-compact.css?v=532" />
+  <!-- V5.36: shared visual consistency only; no JavaScript/backend changes. -->
+  <link rel="stylesheet" href="g8code-ui-polish-v538.css?v=538" />
 </head>
 <body class="entry-gate-active">
   <div id="g8codePwaWritingSplash" aria-hidden="true">
@@ -5379,6 +5389,13 @@ https://example.com/song3.mp3"></textarea>
     (() => {
       const PHONE_QUERY = '(max-width: 820px)';
       const $ = id => document.getElementById(id);
+      // Avoid DOMTokenList.remove no-ops triggering class observers.
+      function removeBodyClassesIfPresent(...classes) {
+        const body = document.body;
+        if (!body) return;
+        const present = classes.filter(name => body.classList.contains(name));
+        if (present.length) body.classList.remove(...present);
+      }
       let syncQueued = false;
       let resizeTimer = null;
 
@@ -5582,7 +5599,7 @@ https://example.com/song3.mp3"></textarea>
         const manager = $('htmlPageManager');
         if (!button || !manager) return;
         // Retire the old Show/Hide panel state so it can no longer add height.
-        document.body?.classList?.remove('mobile-editor-tools-open');
+        removeBodyClassesIfPresent('mobile-editor-tools-open');
         document.body?.classList?.add('mobile-page-manager-open-v420');
         button.setAttribute('aria-expanded', 'true');
         button.setAttribute('aria-label', 'Close page and file tools');
@@ -5591,7 +5608,7 @@ https://example.com/song3.mp3"></textarea>
       }
 
       function closePageMenu() {
-        document.body?.classList?.remove('mobile-page-manager-open-v420', 'mobile-editor-tools-open');
+        removeBodyClassesIfPresent('mobile-page-manager-open-v420', 'mobile-editor-tools-open');
         const button = $('mobileEditorPagesBtn');
         const manager = $('htmlPageManager');
         button?.setAttribute?.('aria-expanded', 'false');
@@ -5601,7 +5618,7 @@ https://example.com/song3.mp3"></textarea>
 
       function sync() {
         if (!isPhoneUi()) {
-          document.body?.classList?.remove('mobile-page-manager-open-v420', 'mobile-editor-tools-open');
+          removeBodyClassesIfPresent('mobile-page-manager-open-v420', 'mobile-editor-tools-open');
           $('htmlPageManager')?.removeAttribute?.('aria-hidden');
           $('mobileEditorPagesBtn')?.setAttribute?.('aria-expanded', 'false');
           $('mobileCollabProjectPill')?.classList?.add('hidden');
@@ -5612,7 +5629,7 @@ https://example.com/song3.mp3"></textarea>
           return;
         }
         // The legacy Show/Hide control must never reserve a row on the phone.
-        document.body?.classList?.remove('mobile-editor-tools-open');
+        removeBodyClassesIfPresent('mobile-editor-tools-open');
         const oldToggle = $('mobileEditorToolsToggle');
         if (oldToggle) {
           // v421: the legacy Show/Hide control is fully retired on phones.
@@ -5689,8 +5706,21 @@ https://example.com/song3.mp3"></textarea>
         }, { passive: true });
         window.addEventListener('orientationchange', () => window.setTimeout(() => { queueSync(); positionPageMenu(); }, 140), { passive: true });
         try {
-          new MutationObserver(queueSync).observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ['class'] });
-          new MutationObserver(queueSync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-device-mode'] });
+          // V5.34: observe only the phone editor's route, page list and
+          // collaboration controls. The previous body-wide subtree observer
+          // ran even while students were using Messages or Announcements.
+          const mobilePagesObserver = new MutationObserver(queueSync);
+          mobilePagesObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+          mobilePagesObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-device-mode'] });
+          const observeMobileNode = (id, config) => {
+            const node = $(id);
+            if (node) mobilePagesObserver.observe(node, config);
+          };
+          observeMobileNode('htmlPageManager', { childList: true, subtree: true });
+          observeMobileNode('editorProjectHeader', { childList: true });
+          observeMobileNode('collabShareBtn', { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+          observeMobileNode('collabShareCode', { childList: true, characterData: true, subtree: true });
+          observeMobileNode('collabMembersPill', { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['class'] });
         } catch (_) {}
         window.MCS_V420_MOBILE_PAGES = { sync, open: openPageMenu, close: closePageMenu, position: positionPageMenu, syncCollabProjectPill };
       }
@@ -5700,7 +5730,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261104-v531-student-modal"></script>
+  <script src="script.js?v=20261104-v537-student-counts"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
@@ -6043,6 +6073,6 @@ https://example.com/song3.mp3"></textarea>
 })();
 </script>
 <script defer src="messages-bridge.js?v=2"></script>
-<script defer src="announcements-bridge.js?v=529"></script>
+<script defer src="announcements-bridge.js?v=533"></script>
 </body>
 </html>

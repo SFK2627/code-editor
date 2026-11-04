@@ -1,0 +1,254 @@
+/* G8Code V5.36 — UI consistency polish
+ * Styling only: no feature toggles, route handlers, database/storage changes.
+ * Append after existing theme styles; reuse their active palette tokens.
+ */
+
+/* 1) Predictable sizing / no sideways page overflow */
+:is(.student-home-screen,.student-dashboard-screen,.lesson-library-screen,
+    .given-activities-screen,.ga-app,.g8m-app,.studio-shell) {
+  min-width: 0;
+}
+:is(.student-home-screen,.student-dashboard-screen,.lesson-library-screen,
+    .given-activities-screen,.ga-app,.g8m-app,.studio-shell)
+    :is(button,a,input,textarea,select) {
+  -webkit-tap-highlight-color: transparent;
+}
+:is(.student-home-screen,.student-dashboard-screen,.lesson-library-screen,
+    .given-activities-screen,.ga-app,.g8m-app,.studio-shell)
+    :is(button,a,input,textarea,select,[role="tab"]):focus-visible,
+body.admin-v2-standalone #adminOverlay
+    :is(button,a,input,textarea,select,[role="tab"]):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+:is(.student-home-screen,.student-dashboard-screen,.lesson-library-screen,
+    .given-activities-screen,.ga-app,.g8m-app,.studio-shell)
+    :is(button,a,input,textarea,select):disabled {
+  cursor: not-allowed;
+}
+
+/* 2) Student home / My Projects: consistent compact control geometry */
+#studentHomeScreen .sh-welcome-actions > button,
+#studentHomeScreen .sh-quick-card,
+#studentDashboard :is(.mp-unified-header, .mp-library) button {
+  min-height: 38px;
+}
+#studentHomeScreen .sh-summary-card,
+#studentHomeScreen .sh-feature-card,
+#studentDashboard .mp-library,
+#studentDashboard .mp-hero {
+  min-width: 0;
+}
+#studentHomeScreen :is(.sh-card-label,.sh-card-number,.sh-greeting-name),
+#studentDashboard :is(.mp-hero,.mp-library) :is(h1,h2,h3,p) {
+  overflow-wrap: anywhere;
+}
+
+/* 3) Original Lessons / Activities screens, not standalone replacement viewers */
+:is(.lesson-library-main,.given-activities-main) {
+  min-width: 0;
+}
+:is(.lesson-library-controls,.given-activities-controls) {
+  min-width: 0;
+}
+:is(.lesson-library-controls,.given-activities-controls)
+    :is(input,select,button) {
+  max-width: 100%;
+  min-width: 0;
+}
+:is(.lesson-library-controls,.given-activities-controls) :is(input,select) {
+  min-height: 40px;
+}
+:is(.lesson-library-main,.given-activities-main)
+    :is(h1,h2,h3,p) {
+  overflow-wrap: anywhere;
+}
+
+/* 4) Existing student modals: readable headings and safe content widths */
+:is(.student-compliance-panel,.login-lacking-reminder-panel,
+    .lesson-pdf-card,.given-activity-viewer-card,.recitation-status-card,
+    .student-auth-card) {
+  min-width: 0;
+  max-width: calc(100vw - 20px);
+}
+:is(.student-compliance-panel,.login-lacking-reminder-panel,
+    .lesson-pdf-card,.given-activity-viewer-card)
+    :is(h1,h2,h3,p) {
+  overflow-wrap: anywhere;
+}
+
+/* 5) Admin V2 — limit improvements to controls in the workspace */
+body.admin-v2-standalone #adminOverlay :is(input,select,textarea) {
+  max-width: 100%;
+  min-width: 0;
+}
+body.admin-v2-standalone #adminOverlay :is(button,a) {
+  touch-action: manipulation;
+}
+body.admin-v2-standalone #adminOverlay :is(.admin-settings-card,
+    .lesson-editor-card,.given-activity-editor-card,.sperf-panel) {
+  min-width: 0;
+}
+body.admin-v2-standalone #adminOverlay :is(.admin-settings-card,
+    .lesson-editor-card,.given-activity-editor-card,.sperf-panel)
+    :is(h2,h3,p) {
+  overflow-wrap: anywhere;
+}
+
+/* 6) Announcements — balanced controls, accessible hit areas */
+.ga-app :is(.ga-main,.ga-sidebar,.ga-feed,.ga-card,.ga-compose-content,
+    .ga-picker-dialog,.ga-compose-dialog) {
+  min-width: 0;
+}
+.ga-app :is(.ga-back,.ga-top-actions > button,#gaRefresh,#gaComposeClose,
+    #gaPickerClose,#gaViewerClose) {
+  min-width: 38px;
+  min-height: 38px;
+}
+.ga-app :is(.ga-search,.ga-post-author,.ga-reply-form,
+    .ga-link-card,.ga-feed-tools) {
+  min-width: 0;
+}
+.ga-app :is(.ga-post-author strong,.ga-link-card b,.ga-post-rich) {
+  overflow-wrap: anywhere;
+}
+.ga-app :is(.ga-field input,.ga-field select,.ga-field textarea,
+    .ga-picker-search input,#gaSearch) {
+  max-width: 100%;
+}
+.ga-app .ga-post-actions button {
+  min-height: 38px;
+}
+.ga-app :is(.ga-compose-dialog,.ga-picker-dialog,.ga-viewer-dialog) {
+  max-width: calc(100vw - 20px);
+}
+
+/* 7) Messages — focused improvements without touching chat layout logic */
+.g8m-app :is(.g8m-top,.g8m-brand,.g8m-top-actions,
+    .g8m-chat-identity,.g8m-chat-head,.g8m-compose,
+    .g8m-project-dialog,.g8m-project-list) {
+  min-width: 0;
+}
+.g8m-app :is(.g8m-back,.g8m-top-actions > button,.g8m-refresh,
+    .g8m-mobile-back,.g8m-chat-theme) {
+  min-width: 36px;
+  min-height: 36px;
+}
+.g8m-app :is(.g8m-project-dialog,.g8m-details-dialog,
+    .g8m-camera-dialog) {
+  max-width: calc(100vw - 20px);
+}
+.g8m-app :is(.g8m-project-info strong,.g8m-chat-identity strong) {
+  overflow-wrap: anywhere;
+}
+.g8m-app .g8m-compose :is(textarea,input) {
+  min-width: 0;
+}
+
+/* 8) Code Editor V2 — touch targets, predictable dialogs; no workspace resizing */
+.studio-shell :is(.topbar,.topbar-center,.workspace-toolbar,
+    .panel-heading,.navigation,.dialog) {
+  min-width: 0;
+}
+.studio-shell :is(.icon-button,.dialog-header-actions > button) {
+  min-width: 36px;
+  min-height: 36px;
+}
+.studio-shell .navigation button {
+  min-height: 38px;
+}
+.studio-shell .dialog {
+  max-width: calc(100vw - 20px);
+}
+.studio-shell :is(.dialog,.navigation) :is(h1,h2,h3,p) {
+  overflow-wrap: anywhere;
+}
+
+/* Phone/tablet-specific fine tuning, without altering established grids */
+@media (max-width: 700px) {
+  /* Prevent iOS zoom while typing in an input, not automatic keyboard focus. */
+  :is(.ga-app,.g8m-app,.studio-shell) :is(input,textarea,select),
+  body.admin-v2-standalone #adminOverlay :is(input,textarea,select),
+  :is(.lesson-library-controls,.given-activities-controls)
+    :is(input,select) {
+    font-size: max(16px, 1em);
+  }
+  /* Keep the four student welcome shortcuts in the V5.29 single-row grid. */
+  #studentHomeScreen .sh-welcome-actions > button {
+    min-width: 0;
+  }
+  #studentHomeScreen .sh-welcome-actions .sh-action-label {
+    min-width: 0;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .ga-app .ga-top { gap: 8px; padding-inline: 12px; }
+  .ga-app .ga-heading strong { font-size: 15px; }
+  .ga-app .ga-main-head { gap: 10px; }
+  .ga-app .ga-feed-tools { gap: 8px; }
+  .ga-app .ga-card { border-radius: 16px; }
+  .ga-app .ga-post-head { padding: 13px 14px 10px; }
+  .ga-app .ga-post-footer { padding-inline: 13px; }
+  .ga-app .ga-comments { padding-inline: 13px; }
+  .g8m-app .g8m-top { gap: 8px; padding-inline: 10px; }
+  .g8m-app .g8m-panel-head { min-width: 0; }
+  .g8m-app .g8m-project-dialog,
+  .g8m-app .g8m-details-dialog,
+  .g8m-app .g8m-camera-dialog {
+    max-width: 100vw; /* Existing full-screen mobile dialogs remain full-screen. */
+  }
+  .studio-shell .navigation { max-width: calc(100vw - 16px); }
+  :is(.lesson-pdf-card,.given-activity-viewer-card,
+      .student-compliance-panel,.login-lacking-reminder-panel) {
+    max-width: calc(100vw - 12px);
+  }
+}
+
+/* Respect OS accessibility preference without disabling the intentional splash. */
+@media (prefers-reduced-motion: reduce) {
+  .ga-app :is(button,a),
+  .g8m-app :is(button,a),
+  .studio-shell :is(button,a) {
+    scroll-behavior: auto;
+    transition-duration: .01ms;
+  }
+}
+
+
+/* V5.38 — verified contrast corrections (G8Code regression/theme audit).
+ * Scoped by page + active appearance. Does not alter layout, syntax highlighting,
+ * data flow, authentication, user-selected themes or student grade presentation.
+ */
+
+/* Messages: light-theme small labels must be readable on white and pale fields. */
+.g8m-app:not([data-theme="dark"]) {
+  --muted: #59677e;
+}
+/* Messages: the dark theme uses a LIGHT accent button. Dark lettering gives
+ * adequate contrast across classic, Bauhaus, forest, ocean and neon accents. */
+.g8m-app[data-theme="dark"] .g8m-gate-link {
+  color: #101622;
+}
+
+/* Announcements: mobile connection status + login return link on pale surfaces. */
+body:not(.ga-dark) .ga-app .ga-pill {
+  color: #526078;
+}
+body:not(.ga-dark) .ga-app .ga-gate-card > a {
+  color: #5745c4;
+}
+
+/* Code Studio: metadata labels and selected state in the dark editor. */
+body:not([data-appearance="dark"]) .studio-shell {
+  --muted: #566782;
+}
+body[data-appearance="dark"] .studio-shell :is(
+  .mobile-workspace-tabs button.selected,
+  .device-picker button.active,
+  #fullscreenPreviewBtn
+) {
+  background-color: #315f9f;
+  color: #fff;
+}
+/* Do not touch #codeInput: its transparent text is deliberate and is rendered
+ * visibly by .code-highlight for matching colors / caret alignment. */

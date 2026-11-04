@@ -6,7 +6,7 @@ const $=id=>document.getElementById(id), BASE='g8AnnouncementsV1', MAX_IMAGES=10
 const SRC=new URLSearchParams(location.search).get('from');
 const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,imageUrls:new Map(),viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,pendingUploadReceipts:new Map(),imageUrls:new Map(),viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -130,7 +130,7 @@ function personNameKey(raw){
 }
 function activePeople(){
  const directory=state.directory||{},summaries=state.messageSummaries||{};
- const rows=[];const byUid=new Map();
+ const rows=[];let identityDisagreements=0;
  // The active directory remains the source of enrollment. Summaries supply
  // missing verified IDs/aliases but cannot independently enroll old chat UIDs.
  for(const [uid,raw] of Object.entries(directory)){
@@ -139,14 +139,19 @@ function activePeople(){
   const summary=summaries[uid]&&typeof summaries[uid]==='object'?summaries[uid]:{};
   const section=normalizedSection(raw.section&&!/^unassigned$/i.test(raw.section)?raw.section:summary.section);
   if(!section||sectionKey(section)==='UNASSIGNED')continue;
-  const ids=[normalizedStudentId(raw.studentId),normalizedStudentId(summary.studentId)].filter(Boolean);
+  const primaryId=normalizedStudentId(raw.studentId);
+  const historicalId=normalizedStudentId(summary.studentId);
+  // The directory is the current roster mirror. A stale chat summary must
+  // NEVER bridge two different Student IDs and merge different learners.
+  if(primaryId&&historicalId&&primaryId!==historicalId)identityDisagreements++;
+  const ids=primaryId?[primaryId]:(historicalId?[historicalId]:[]);
   const name=txt(personNameKey(raw.name)?raw.name:summary.name||raw.name||'Student',100);
   // A blank-ID, unnamed or placeholder RTDB entry isn't an enrolled pupil.
   if(!ids.length&&!personNameKey(name))continue;
-  const row={uid,name,section,studentId:txt(raw.studentId||summary.studentId,50),
+  const row={uid,name,section,studentId:txt(primaryId?raw.studentId:(historicalId?summary.studentId:''),50),
    ids:[...new Set(ids)],nameKey:personNameKey(name),sectionKey:sectionKey(section),
    preferred:raw.announcementsPrimary===true,activity:Number(summary.lastAtMs||0),fromDirectory:true};
-  rows.push(row);byUid.set(uid,row);
+  rows.push(row);
  }
  // Historical Messages summaries supplement existing directory records only.
  // They do NOT add an unlisted UID to a private announcement's recipients.
@@ -165,13 +170,17 @@ function activePeople(){
   const k=row.nameKey+'|'+row.sectionKey;
   if(!names.has(k))names.set(k,[]);names.get(k).push(i);
  });
- let conflictingNames=0;
+ let conflictingNames=0,unverifiedNames=0;
  for(const indexes of names.values()){
-  const knownIds=new Set(indexes.flatMap(i=>rows[i].ids));
-  // Two IDs may be aliases of the SAME already-linked UID.
   const knownRoots=new Set(indexes.filter(i=>rows[i].ids.length).map(root));
   if(knownRoots.size>1){conflictingNames++;continue;}
-  for(const i of indexes.slice(1))link(indexes[0],i);
+  // A name-only old account may be visually grouped with exactly ONE
+  // verified Student ID in its section. It is never a delivery credential.
+  // Two ID-less classmates sharing a name must not silently become one.
+  if(knownRoots.size===1){
+   const verifiedIndex=indexes.find(i=>rows[i].ids.length);
+   for(const i of indexes)if(!rows[i].ids.length)link(verifiedIndex,i);
+  }else if(indexes.length>1)unverifiedNames++;
  }
  const groups=new Map();
  rows.forEach((row,i)=>{const k=root(i);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(row);});
@@ -193,12 +202,13 @@ function activePeople(){
    ? ordered.filter(row=>row.ids.some(id=>allIds.includes(id))).map(row=>row.uid)
    : [lead.uid];
   const identityKey=allIds.length?'sid:'+allIds[0]:
-   'person:'+lead.sectionKey+':'+lead.nameKey;
+   'uid:'+lead.uid; // Never give ambiguous ID-less classmates one picker key.
   people.push({...lead,studentId:actualId,identityKey,uids,deliveryUids});
  }
  // Expose diagnostic information for the teacher without changing RTDB records.
  state.audienceDiagnostics={accountRecords:rows.filter(row=>row.fromDirectory).length,
-  uniqueStudents:people.length,linkedAccounts:rows.length-people.length,conflictingNames};
+  uniqueStudents:people.length,linkedAccounts:rows.length-people.length,conflictingNames,
+  identityDisagreements,unverifiedNames};
  return people.sort((a,b)=>a.section.localeCompare(b.section)||a.name.localeCompare(b.name));
 }
 function determineRecipients(audience){
@@ -441,7 +451,7 @@ function openCourseItem(file,postId){
 function applyFilter(filter){state.filter=filter;document.querySelectorAll('[data-ga-filter]').forEach(b=>b.classList.toggle('active',b.dataset.gaFilter===filter));render();}
 document.querySelectorAll('[data-ga-filter]').forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.gaFilter)));$('gaSearch').addEventListener('input',e=>{state.search=e.target.value.toLowerCase().trim();render();});$('gaRefresh').addEventListener('click',()=>render());$('gaNew').addEventListener('click',()=>openComposer());
 // Composer supports multiple attachment types in the SAME published post.
-function openComposer(p=null,duplicate=false){if(!state.teacher)return;state.editingId=p&&!duplicate?p.id:'';state.editingBase=p&&!duplicate?p:null;state.files=p?JSON.parse(JSON.stringify(p.attachments||[])).map(f=>(duplicate && ['image','pdf'].includes(f.type))?{...f,sourcePostId:f.sourcePostId||p.id}:f):[];state.selectedSections=new Set(p?.audience?.sections||[]);state.selectedStudents=new Set(p?.audience?.students||[]);$('gaComposeTitle').textContent=p?(duplicate?'Duplicate announcement':'Edit announcement'):'Create announcement';$('gaPostTitle').value=p?.title||'';$('gaRichText').innerHTML=p?.bodyHtml||'';$('gaBackground').value=p?.background||'plain';$('gaCustomBackground').value=p?.bgColor||'#e8f0ff';$('gaCustomBackgroundWrap').hidden=$('gaBackground').value!=='custom';$('gaFont').value=p?.font||'Arial';document.querySelector(`input[name="gaAudience"][value="${p?.audience?.type||'all'}"]`).checked=true;$('gaAllowReplies').checked=p?.allowReplies!==false;$('gaPinned').checked=!!p?.pinned;$('gaComposerModal').hidden=false;document.body.style.overflow='hidden';$('gaComposeStatus').textContent='Compose your announcement. Attachments are saved before publishing.';renderAudience();renderAttachments();drawPreview();$('gaPostTitle').focus();}
+function openComposer(p=null,duplicate=false){if(!state.teacher)return;state.pendingUploadReceipts.clear();state.editingId=p&&!duplicate?p.id:'';state.editingBase=p&&!duplicate?p:null;state.files=p?JSON.parse(JSON.stringify(p.attachments||[])).map(f=>(duplicate && ['image','pdf'].includes(f.type))?{...f,sourcePostId:f.sourcePostId||p.id}:f):[];state.selectedSections=new Set(p?.audience?.sections||[]);state.selectedStudents=new Set(p?.audience?.students||[]);$('gaComposeTitle').textContent=p?(duplicate?'Duplicate announcement':'Edit announcement'):'Create announcement';$('gaPostTitle').value=p?.title||'';$('gaRichText').innerHTML=p?.bodyHtml||'';$('gaBackground').value=p?.background||'plain';$('gaCustomBackground').value=p?.bgColor||'#e8f0ff';$('gaCustomBackgroundWrap').hidden=$('gaBackground').value!=='custom';$('gaFont').value=p?.font||'Arial';document.querySelector(`input[name="gaAudience"][value="${p?.audience?.type||'all'}"]`).checked=true;$('gaAllowReplies').checked=p?.allowReplies!==false;$('gaPinned').checked=!!p?.pinned;$('gaComposerModal').hidden=false;document.body.style.overflow='hidden';$('gaComposeStatus').textContent='Compose your announcement. Attachments are saved before publishing.';renderAudience();renderAttachments();drawPreview();$('gaPostTitle').focus();}
 function closeComposer(){if(state.transferBusy||state.composerBusy){toast('An upload or save is still in progress. Wait for its verified result.',true);return;}$('gaComposerModal').hidden=true;document.body.style.overflow='';}
 $('gaComposeClose').addEventListener('click',closeComposer);document.querySelectorAll('[data-ga-close="composer"]').forEach(el=>el.addEventListener('click',closeComposer));
 function selectedAudience(){const type=document.querySelector('input[name="gaAudience"]:checked')?.value||'all';return {type,sections:type==='sections'?[...state.selectedSections]:[],students:type==='students'?[...state.selectedStudents]:[]};}
@@ -457,7 +467,14 @@ function renderAudience(){if(!state.directoryLoaded||!state.summaryLoaded){$('ga
  renderAudienceCount();
 });label.append(input,node('span','',item.label+' · '+item.detail));container.append(label);}}
  renderAudienceCount();}
-function renderAudienceCount(){const a=selectedAudience(),n=determineRecipients(a).length;const conflicts=state.audienceDiagnostics?.conflictingNames||0;$('gaAudienceCount').textContent=`${n} unique student${n===1?'':'s'} selected. Linked accounts count as one person.`+(conflicts?` ${conflicts} same-name records have conflicting Student IDs; verify those in the directory.`:'');}
+function renderAudienceCount(){
+ const a=selectedAudience(),n=determineRecipients(a).length,d=state.audienceDiagnostics||{};
+ const warnings=[];
+ if(d.conflictingNames)warnings.push(`${d.conflictingNames} same-name match${d.conflictingNames===1?' has':'es have'} different Student IDs`);
+ if(d.identityDisagreements)warnings.push(`${d.identityDisagreements} account${d.identityDisagreements===1?' has':'s have'} mismatched historical Student IDs`);
+ if(d.unverifiedNames)warnings.push(`${d.unverifiedNames} duplicate-name group${d.unverifiedNames===1?' needs':'s need'} ID verification`);
+ $('gaAudienceCount').textContent=`${n} unique student${n===1?'':'s'} selected. Linked accounts count as one person.`+(warnings.length?' Please verify: '+warnings.join('; ')+'.':'');
+}
 document.querySelectorAll('input[name="gaAudience"]').forEach(el=>el.addEventListener('change',renderAudience));$('gaAudienceSearch').addEventListener('input',renderAudience);
 function drawPreview(){const x=$('gaComposePreview');x.replaceChildren(node('strong','','LIVE POST PREVIEW'));const p={title:$('gaPostTitle').value||'Announcement title',bodyHtml:sanitizeHtml($('gaRichText').innerHTML),background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,attachments:state.files};x.append(postBody(p));const hint=$('gaMediaBackgroundHint');if(hint)hint.hidden=!state.files.length;}
 ['gaPostTitle','gaBackground','gaCustomBackground','gaFont','gaRichText'].forEach(id=>$(id).addEventListener(id==='gaRichText'||id==='gaCustomBackground'?'input':'change',drawPreview));$('gaBackground').addEventListener('change',()=>$('gaCustomBackgroundWrap').hidden=$('gaBackground').value!=='custom');$('gaPostTitle').addEventListener('input',drawPreview);
@@ -559,23 +576,112 @@ $('gaAddActivity').addEventListener('click',()=>openResourcePicker('activity'));
 $('gaAddImages').addEventListener('click',()=>$('gaImageFiles').click());
 $('gaAddPdf').addEventListener('click',()=>$('gaPdfFiles').click());
 function renderAttachments(){const host=$('gaAttachmentList');host.replaceChildren();state.files.forEach((f,i)=>{const row=node('div','ga-attachment-item');row.append(node('span','',f.type==='image'?'🖼':f.type==='pdf'?'📄':f.type==='lesson'?'📘':f.type==='activity'?'📝':f.type==='youtube'?'▶':'🔗'),node('strong','',f.name),node('small','',f.type.toUpperCase()));for(const [mark,delta] of [['↑',-1],['↓',1]]){const b=node('button','',mark);b.type='button';b.title='Reorder';b.disabled=i+delta<0||i+delta>=state.files.length;b.addEventListener('click',()=>{const tmp=state.files[i];state.files[i]=state.files[i+delta];state.files[i+delta]=tmp;renderAttachments();});row.append(b);}const x=node('button','','×');x.type='button';x.title='Remove attachment';x.addEventListener('click',()=>{state.files.splice(i,1);renderAttachments();});row.append(x);host.append(row);});drawPreview();}
-function postFromEditor(id,status){const old=state.editingBase;const title=txt($('gaPostTitle').value,140);const bodyHtml=sanitizeHtml($('gaRichText').innerHTML);if(!title&&!plainHtml(bodyHtml)&&!state.files.length)throw Error('Write a title, message, or include an attachment.');return {id,title:title||'Class announcement',bodyHtml,background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,status,allowReplies:$('gaAllowReplies').checked,pinned:$('gaPinned').checked,audience:selectedAudience(),attachments:state.files.map(f=>({...f})),createdAtMs:old?.createdAtMs||Date.now(),updatedAtMs:Date.now(),publishedAtMs:status==='published'?(old?.publishedAtMs||Date.now()):0};}
+function postFromEditor(id,status){const old=state.editingBase;const title=txt($('gaPostTitle').value,140);const bodyHtml=sanitizeHtml($('gaRichText').innerHTML);if(!title&&!plainHtml(bodyHtml)&&!state.files.length)throw Error('Write a title, message, or include an attachment.');return {id,title:title||'Class announcement',bodyHtml,background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,status,allowReplies:$('gaAllowReplies').checked,pinned:$('gaPinned').checked,audience:selectedAudience(),attachments:state.files.map(({clientUploadKey,...f})=>({...f})),createdAtMs:old?.createdAtMs||Date.now(),updatedAtMs:Date.now(),publishedAtMs:status==='published'?(old?.publishedAtMs||Date.now()):0};}
 function feedCopy(p){return {id:p.id,title:p.title,bodyHtml:p.bodyHtml,background:p.background,bgColor:p.bgColor,font:p.font,status:p.status,allowReplies:p.allowReplies,pinned:p.pinned,attachments:p.attachments||[],createdAtMs:p.createdAtMs,publishedAtMs:p.publishedAtMs,updatedAtMs:p.updatedAtMs};}
 async function persistPost(p){if(p.status==='published'&&(!state.directoryLoaded||!state.summaryLoaded))throw Error('Student information is still loading. Please try again shortly.');const old=state.posts[p.id]||{};const oldList=Object.keys(old.recipients||{});const newList=p.status==='published'?recipientAccountUids(p.audience):[];p.recipients=Object.fromEntries(newList.map(uid=>[uid,true]));if(p.status==='published'&&!newList.length)throw Error('No students found for this audience. Check your student list and try again.');if(newList.length>2500)throw Error('Unusually large audience. Review the selected students before publishing.');const updates={[`posts/${p.id}`]:p};const oldSet=new Set(oldList),newSet=new Set(newList);for(const uid of oldSet)if(!newSet.has(uid))updates[`feeds/${uid}/${p.id}`]=null;for(const uid of newSet)updates[`feeds/${uid}/${p.id}`]=feedCopy(p);await state.sdk.update(state.sdk.ref(state.db,BASE),updates);}
 async function saveCurrent(status){if(state.composerBusy||state.transferBusy)return;state.composerBusy=true;const buttons=[$('gaSaveDraft'),$('gaPublish')];buttons.forEach(b=>b.disabled=true);alertStatus(status==='published'?'Publishing to selected students…':'Saving draft…');try{const id=state.editingId||state.sdk.push(path('posts')).key;const p=postFromEditor(id,status);await persistPost(p);toast(status==='published'?`Published to ${determineRecipients(p.audience).length} students.`:'Draft saved successfully.');state.composerBusy=false;closeComposer();}catch(e){alertStatus('Save failed: '+e.message,true);toast(e.message,true);}finally{state.composerBusy=false;buttons.forEach(b=>b.disabled=false);}}
 $('gaSaveDraft').addEventListener('click',()=>saveCurrent('draft'));$('gaPublish').addEventListener('click',()=>saveCurrent('published'));
-async function archivePost(p){if(!confirm('Archive this post and remove it from student feeds?'))return;try{const updated={...state.posts[p.id],status:'archived',updatedAtMs:Date.now()};await persistPost(updated);toast('Announcement archived.');}catch(e){toast(e.message,true);}}
-async function publishExisting(p){try{const updated={...state.posts[p.id],status:'published',publishedAtMs:Date.now(),updatedAtMs:Date.now()};await persistPost(updated);toast('Announcement published.');}catch(e){toast(e.message,true);}}
-async function deletePost(p){if(!confirm(`Permanently delete “${p.title}” for everyone? Attached Drive files will remain in private Drive until cleaned up.`))return;try{const old=state.posts[p.id];const recipients=Object.keys(old.recipients||{}).map(uid=>({uid}));const updates={[`posts/${p.id}`]:null,[`reactions/${p.id}`]:null,[`replies/${p.id}`]:null};for(const r of recipients)updates[`feeds/${r.uid}/${p.id}`]=null;await state.sdk.update(state.sdk.ref(state.db,BASE),updates);toast('Post deleted.');}catch(e){toast('Delete failed: '+e.message,true);}}
+// V5.35: one mutating action at a time per announcement. A second click must
+// never race a pending archive / publish / delete request.
+const pendingPostMutations = new Set();
+async function runPostMutation(p,verb,operation,success){
+ if(pendingPostMutations.has(p.id)){toast('A change to this post is still being saved.');return;}
+ pendingPostMutations.add(p.id);
+ const card=[...document.querySelectorAll('[data-ga-post]')].find(el=>el.dataset.gaPost===p.id);
+ const buttons=[...(card?.querySelectorAll('.ga-teacher-menu button')||[])];
+ buttons.forEach(button=>button.disabled=true);
+ toast(verb+'…');
+ try{await operation();toast(success);}
+ catch(error){console.warn('Announcement '+verb+' failed:',error);toast('Could not '+verb.toLowerCase()+' this post. The change was not confirmed; check your connection and try again.',true);}
+ finally{pendingPostMutations.delete(p.id);buttons.forEach(button=>{if(button.isConnected)button.disabled=false;});}
+}
+async function archivePost(p){
+ if(pendingPostMutations.has(p.id))return;
+ if(!confirm('Archive this post and remove it from student feeds?'))return;
+ await runPostMutation(p,'Archiving',async()=>{
+  const updated={...state.posts[p.id],status:'archived',updatedAtMs:Date.now()};
+  await persistPost(updated);
+ },'Announcement archived.');
+}
+async function publishExisting(p){
+ await runPostMutation(p,'Publishing',async()=>{
+  const updated={...state.posts[p.id],status:'published',publishedAtMs:Date.now(),updatedAtMs:Date.now()};
+  await persistPost(updated);
+ },'Announcement published.');
+}
+async function deletePost(p){
+ if(pendingPostMutations.has(p.id))return;
+ if(!confirm(`Permanently delete “${p.title}” for everyone? Attached Drive files will remain in private Drive until cleaned up.`))return;
+ await runPostMutation(p,'Deleting',async()=>{
+  const old=state.posts[p.id];if(!old)throw Error('This post is no longer available.');
+  const recipients=Object.keys(old.recipients||{});
+  const updates={[`posts/${p.id}`]:null,[`reactions/${p.id}`]:null,[`replies/${p.id}`]:null};
+  for(const uid of recipients)updates[`feeds/${uid}/${p.id}`]=null;
+  await state.sdk.update(state.sdk.ref(state.db,BASE),updates);
+ },'Post deleted.');
+}
 // Workspace Drive: receipt-based request (no CORS response is ever treated as success).
 function driveEndpoint(){return String(window.MCS_G8_MESSAGES_DRIVE_URL||window.MCS_APPS_SCRIPT_URL||'').trim();}
 async function driveRequest(action,data={},maxWait=70000){currentUser();if(location.protocol!=='https:')throw Error('Private Drive transfers require your deployed HTTPS G8Code site.');const endpoint=driveEndpoint();if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec(?:\?.*)?$/.test(endpoint))throw Error('Apps Script /exec URL is missing.');const token=await state.user.getIdToken();const nonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');const inbox=path(`transfers/${state.user.uid}/${nonce}`);return new Promise((resolve,reject)=>{let done=false,off=()=>{};let timer;const finish=(err,receipt)=>{if(done)return;done=true;clearTimeout(timer);off();if(receipt)state.sdk.remove(inbox).catch(()=>{});if(err)reject(err);else resolve(receipt?.data||{});};timer=setTimeout(()=>finish(Error('The file request could not be confirmed. Please try again.')),maxWait);off=state.sdk.onValue(inbox,s=>{if(!s.exists())return;const r=s.val();if(r.action!==action)return;finish(r.ok?null:Error(r.error||'Drive request denied'),r);},e=>finish(Error('Cannot read Drive confirmation: '+e.message)));const body=new URLSearchParams({g8aBridge:'1',nonce,action,idToken:token,origin:location.origin,...Object.fromEntries(Object.entries(data).map(([k,v])=>[k,String(v??'')]))});fetch(endpoint,{method:'POST',mode:'no-cors',credentials:'omit',body,cache:'no-store'}).catch(e=>console.warn('No-CORS POST error (receipt still authoritative):',e));});}
 function base64(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]||'');r.onerror=()=>reject(Error('Cannot read selected file.'));r.readAsDataURL(file);});}
 async function optimize(file){if(file.size<=2.5*1024*1024)return file;const bmp=await createImageBitmap(file);try{let size=Math.min(Math.max(bmp.width,bmp.height),3300);for(let pass=0;pass<9;pass++){const w=Math.max(1,Math.round(bmp.width*size/Math.max(bmp.width,bmp.height))),h=Math.max(1,Math.round(bmp.height*size/Math.max(bmp.width,bmp.height)));const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(bmp,0,0,w,h);for(const quality of [.9,.8,.7]){const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',quality));if(blob&&blob.size<=2.6*1024*1024)return new File([blob],file.name.replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'});}size=Math.floor(size*.78);}throw Error('Image could not be optimized to a safe Drive transfer size.');}finally{bmp.close?.();}}
 async function ensureUploadDraft(){if(state.editingId)return state.editingId;const id=state.sdk.push(path('posts')).key;const p={id,title:txt($('gaPostTitle').value,140)||'Untitled announcement',bodyHtml:sanitizeHtml($('gaRichText').innerHTML),background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,status:'draft',allowReplies:true,pinned:false,audience:selectedAudience(),attachments:[],recipients:{},createdAtMs:Date.now(),updatedAtMs:Date.now(),publishedAtMs:0};await state.sdk.set(path(`posts/${id}`),p);state.editingId=id;state.editingBase=p;alertStatus('Private draft created for attachment upload.');return id;}
-async function uploadBatch(files,type){if(!state.teacher)return;const count=state.files.filter(x=>x.type===type).length;if(count+files.length>(type==='image'?MAX_IMAGES:MAX_PDFS)){toast(`Maximum ${type==='image'?MAX_IMAGES:MAX_PDFS} ${type} files per announcement.`,true);return;}state.transferBusy=true;[$('gaPublish'),$('gaSaveDraft')].forEach(b=>b.disabled=true);try{const id=await ensureUploadDraft();for(let i=0;i<files.length;i++){let file=files[i];if(type==='image'){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>MAX_IMAGE_INPUT)throw Error('Images must be JPG/PNG/WEBP and up to 30 MB selected size.');file=await optimize(file);}else{if(file.size>MAX_PDF||!(file.type==='application/pdf'||/\.pdf$/i.test(file.name)))throw Error('PDF must be at most 3 MB.');}
- alertStatus(`Uploading ${i+1}/${files.length} ${type}…`);const raw=await base64(file);const result=await driveRequest('upload',{postId:id,fileName:file.name,contentType:file.type||'application/pdf',fileData:raw},90000);if(!/^[\w-]{15,150}$/.test(result.driveFileId||''))throw Error('File upload could not be confirmed.');state.files.push({type,name:file.name,driveFileId:result.driveFileId,size:file.size,contentType:file.type});renderAttachments();const draft=postFromEditor(id,'draft');await state.sdk.set(path(`posts/${id}`),draft);state.editingBase=draft;alertStatus(`✓ Uploaded ${i+1}/${files.length}. Draft saved.`);}}
- catch(e){alertStatus('Upload failed: '+e.message,true);toast(e.message,true);}finally{state.transferBusy=false;[$('gaPublish'),$('gaSaveDraft')].forEach(b=>b.disabled=false);$('gaImageFiles').value='';$('gaPdfFiles').value='';}}
+// V5.35: report a file as attached ONLY after Drive returns a verified ID and
+// the private draft metadata has been acknowledged by RTDB. Reuse an already
+// verified Drive upload when retrying a failed metadata save in the same editor.
+async function uploadBatch(files,type){
+ if(!state.teacher||state.transferBusy||state.composerBusy)return;
+ const max=type==='image'?MAX_IMAGES:MAX_PDFS;
+ const current=state.files.filter(x=>x.type===type).length;
+ if(current+files.length>max){toast(`Maximum ${max} ${type} files per announcement.`,true);return;}
+ state.transferBusy=true;
+ [$('gaPublish'),$('gaSaveDraft')].forEach(b=>b.disabled=true);
+ try{
+  const id=await ensureUploadDraft();
+  for(let i=0;i<files.length;i++){
+   const original=files[i];let file=original;
+   if(type==='image'){
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>MAX_IMAGE_INPUT)throw Error('Images must be JPG/PNG/WEBP and up to 30 MB selected size.');
+   }else if(file.size>MAX_PDF||!(file.type==='application/pdf'||/\.pdf$/i.test(file.name))){
+    throw Error('PDF must be at most 3 MB.');
+   }
+   const fingerprint=[id,type,original.name,original.size,original.lastModified].join('::');
+   // Already-confirmed attachments are not uploaded twice on a batch retry.
+   if(state.files.some(att=>att.clientUploadKey===fingerprint)){
+    alertStatus(`✓ File ${i+1}/${files.length} already saved. Continuing…`);
+    continue;
+   }
+   let attachment=state.pendingUploadReceipts.get(fingerprint);
+   if(!attachment){
+    if(type==='image')file=await optimize(file);
+    alertStatus(`Uploading ${i+1}/${files.length} ${type}…`);
+    const raw=await base64(file);
+    const result=await driveRequest('upload',{postId:id,fileName:file.name,contentType:file.type||'application/pdf',fileData:raw},90000);
+    if(!/^[\w-]{15,150}$/.test(result.driveFileId||''))throw Error('File upload could not be confirmed.');
+    attachment={type,name:file.name,driveFileId:result.driveFileId,size:file.size,contentType:file.type,clientUploadKey:fingerprint};
+    state.pendingUploadReceipts.set(fingerprint,attachment);
+   }else alertStatus(`Upload ${i+1}/${files.length} already confirmed. Saving attachment…`);
+   // Keep the visible list unchanged on a failed metadata commit.
+   const draft=postFromEditor(id,'draft');
+   const {clientUploadKey,...savedAttachment}=attachment;
+   draft.attachments.push(savedAttachment);
+   await state.sdk.set(path(`posts/${id}`),draft);
+   state.files.push({...attachment});
+   state.editingBase=draft;
+   state.pendingUploadReceipts.delete(fingerprint);
+   renderAttachments();
+   alertStatus(`✓ Uploaded ${i+1}/${files.length}. Draft saved.`);
+  }
+ }catch(error){
+  console.warn('Announcement attachment was not fully confirmed:',error);
+  alertStatus('Upload not confirmed. The composer is still open; select the same file again to retry.',true);
+  toast('Attachment could not be saved. Re-select the same file to retry.',true);
+ }finally{
+  state.transferBusy=false;
+  [$('gaPublish'),$('gaSaveDraft')].forEach(b=>b.disabled=false);
+  $('gaImageFiles').value='';$('gaPdfFiles').value='';
+ }
+}
 $('gaImageFiles').addEventListener('change',e=>uploadBatch([...e.target.files].slice(0,MAX_IMAGES),'image'));$('gaPdfFiles').addEventListener('change',e=>uploadBatch([...e.target.files].slice(0,MAX_PDFS),'pdf'));
 async function getFileData(p,f){if(state.imageUrls.has(f.driveFileId))return state.imageUrls.get(f.driveFileId);const res=await driveRequest('read',{postId:p.id,driveFileId:f.driveFileId},70000);if(!res.data||!res.contentType)throw Error('The attached file could not be opened.');const bytes=Uint8Array.from(atob(res.data),c=>c.charCodeAt(0));const blob=new Blob([bytes],{type:res.contentType});const url=URL.createObjectURL(blob);state.imageUrls.set(f.driveFileId,url);return url;}
 async function loadImage(p,f,img){try{const url=await withPreviewTurn(()=>getFileData(p,f));if(img.isConnected)img.src=url;}catch(e){img.alt='Image unavailable: '+e.message;img.style.objectFit='contain';}}
