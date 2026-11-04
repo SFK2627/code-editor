@@ -52,7 +52,7 @@
       <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
       <div id="g8mAttachments" class="g8m-attachments" hidden></div><div id="g8mProjectSelected" class="g8m-project-selected" hidden></div>
       <div id="g8mSendStatus" class="g8m-send-status" role="status" aria-live="polite"></div>
-      <form class="g8m-compose" id="g8mComposer"><div class="g8m-attach-wrap"><button class="g8m-attach-btn" id="g8mAttachMenuToggle" type="button" aria-label="Attach a photo or saved G8Code project" title="Attach photo or project">⊕</button><div id="g8mAttachMenu" class="g8m-attach-menu" hidden><button type="button" id="g8mChoosePhoto">▧ Photo / Screenshot · 30 MB max</button><button type="button" id="g8mChooseProject">⌘ My Saved Project</button></div><input id="g8mFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /></div><textarea id="g8mTextInput" placeholder="Message your teacher…" rows="1" maxlength="3000" aria-label="Message text"></textarea><button type="submit" id="g8mSend" class="g8m-send" aria-label="Send message" disabled>➤</button></form>
+      <form class="g8m-compose" id="g8mComposer"><div class="g8m-attach-wrap"><button class="g8m-attach-btn" id="g8mAttachMenuToggle" type="button" aria-label="Attach a photo or saved G8Code project" title="Attach photo or project">⊕</button><div id="g8mAttachMenu" class="g8m-attach-menu" hidden><button type="button" id="g8mChoosePhoto">▧ Upload Photo / Screenshot · 30 MB max</button><button type="button" id="g8mTakePhoto">📷 Take Photo</button><button type="button" id="g8mChooseProject">⌘ My Saved Project</button></div><input id="g8mFileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden /><input id="g8mCameraInput" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden aria-label="Take a photo with your camera" /></div><textarea id="g8mTextInput" placeholder="Message your teacher…" rows="1" maxlength="3000" aria-label="Message text"></textarea><button type="submit" id="g8mSend" class="g8m-send" aria-label="Send message" disabled>➤</button></form>
       <p class="g8m-disclaimer">Received / Checked acknowledges photos only. It does not change official grades or requirements.</p>
     </main>
   </div>
@@ -110,6 +110,14 @@
  </section>
 </div>
 </div>
+<div id="g8mCameraOverlay" class="g8m-camera-overlay" role="dialog" aria-modal="true" aria-labelledby="g8mCameraTitle" hidden>
+  <section class="g8m-camera-dialog">
+    <header><h2 id="g8mCameraTitle">Take Photo</h2><button type="button" id="g8mCameraClose" aria-label="Close camera">×</button></header>
+    <div class="g8m-camera-stage"><video id="g8mCameraVideo" autoplay playsinline muted aria-label="Live camera preview"></video></div>
+    <p id="g8mCameraStatus" class="g8m-camera-status" role="status" aria-live="polite">Starting camera…</p>
+    <footer><button type="button" id="g8mCameraCancel">Cancel</button><button type="button" id="g8mCameraCapture" disabled>📷 Capture Photo</button></footer>
+  </section>
+</div>
 <div id="g8mImageViewer" class="g8m-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Image preview" tabindex="-1">
   <div class="g8m-image-toolbar" role="toolbar" aria-label="Photo zoom controls">
     <span class="g8m-image-hint" id="g8mImageHint">Scroll to zoom · Drag to move</span>
@@ -124,6 +132,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=51-boot-admin-restore"></script>
+<script defer src="messages.js?v=52-camera-desktop-actions"></script>
 </body>
 </html>

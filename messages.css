@@ -326,3 +326,61 @@ html,body{overflow:hidden;overscroll-behavior:none}
 @media(prefers-reduced-motion:reduce){
  .g8m-image-viewer *{scroll-behavior:auto}
 }
+
+/* V5.2 — Anchor desktop hover tools and reactions to the visible image/text/card,
+   never to the wider acknowledgement, quote, metadata, or message row. */
+.g8m-bubble-anchor > .g8m-action-target{position:relative;display:inline-flex;flex-direction:column;align-items:flex-start;align-self:flex-start;width:fit-content;max-width:100%;min-width:0;isolation:isolate}
+.g8m-message.own .g8m-bubble-anchor > .g8m-action-target{align-self:flex-end;align-items:flex-end}
+.g8m-action-target > :is(.g8m-text,.g8m-photo-grid,.g8m-project-card,.g8m-quoted){max-width:100%}
+@media(min-width:701px) and (hover:hover) and (pointer:fine){
+ .g8m-action-target > .g8m-hover-actions{top:50%;left:calc(100% + 3px);right:auto;transform:translateY(-50%);margin:0}
+ .g8m-message.own .g8m-action-target > .g8m-hover-actions{right:calc(100% + 3px);left:auto}
+ .g8m-action-target > .g8m-reaction-chip{right:-6px;bottom:-8px}
+}
+/* Camera preview is a separate overlay; video streams stop on close. */
+.g8m-camera-overlay{position:fixed;inset:0;background:rgba(5,10,22,.83);z-index:6800;display:grid;place-items:center;padding:14px}
+.g8m-camera-dialog{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:20px;width:min(570px,100%);max-height:94dvh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 15px 60px #0008}
+.g8m-camera-dialog header{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line)}
+.g8m-camera-dialog h2{font-size:17px;margin:0}
+.g8m-camera-dialog header button{background:var(--field);color:var(--ink);border:0;border-radius:9px;width:34px;height:34px;font-size:23px}
+.g8m-camera-stage{background:#070b13;min-height:200px;display:grid;place-items:center;overflow:hidden}
+.g8m-camera-stage video{display:block;width:100%;height:auto;max-height:60dvh;object-fit:contain}
+.g8m-camera-status{font-size:12px;color:var(--muted);padding:10px 18px;margin:0;line-height:1.5}
+.g8m-camera-dialog footer{display:flex;gap:9px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line)}
+.g8m-camera-dialog footer button{border:1px solid var(--line);padding:10px 15px;background:var(--field);color:var(--ink);border-radius:10px;font-size:13px;font-weight:700}
+.g8m-camera-dialog footer #g8mCameraCapture{background:#6659e8;color:#fff;border-color:#6659e8}
+@media(max-width:700px){.g8m-camera-dialog{max-height:90dvh}.g8m-camera-dialog footer{padding-bottom:calc(12px + env(safe-area-inset-bottom))}}
+
+/* Explicit sizing avoids a percentage-width feedback loop on photo-only bubbles.
+   The loaded image updates --g8m-action-width to its natural fitted width. */
+.g8m-action-target:has(> .g8m-photo-grid:not(.is-multiple)){width:min(100%,var(--g8m-action-width,190px));}
+.g8m-action-target:has(> .g8m-photo-grid.is-multiple){width:min(100%,390px)}
+.g8m-action-target > .g8m-photo-grid{width:100%}
+@media(max-width:700px){.g8m-action-target:has(> .g8m-photo-grid.is-multiple){width:min(100%,330px)}}
+
+/* The parent must also own the explicit photo width. Otherwise its flex
+   max-content sizing can shrink the image to the acknowledgement controls. */
+.g8m-message .g8m-bubble-anchor:has(> .g8m-action-target > .g8m-photo-grid:not(.is-multiple)){width:min(100%,var(--g8m-action-width,190px))}
+.g8m-message .g8m-bubble-anchor:has(> .g8m-action-target > .g8m-photo-grid.is-multiple){width:min(100%,390px)}
+@media(max-width:700px){.g8m-message .g8m-bubble-anchor:has(> .g8m-action-target > .g8m-photo-grid.is-multiple){width:min(100%,330px)}}
+
+/* Desktop only: allow the photo's intrinsic rendered width to determine the
+   message flex item's minimum; this avoids acknowledgement labels controlling
+   its shrink-to-fit width. Phone keeps its pre-existing bubble layout. */
+@media(min-width:701px) and (hover:hover) and (pointer:fine){
+ .g8m-message:has(.g8m-photo-grid:not(.is-multiple)){min-width:var(--g8m-action-width,190px)}
+}
+@media(max-width:700px){
+ .g8m-bubble-anchor > .g8m-action-target{display:contents}
+}
+
+/* The camera dialog lives outside the chat root so it can cover the entire
+   viewport; explicitly carry the active light/dark palette onto that overlay. */
+.g8m-camera-overlay{--paper:#fff;--field:#f0f3fa;--ink:#202b46;--muted:#77849b;--line:#e4e9f3}
+.g8m-camera-overlay[data-theme="dark"]{--paper:#161e30;--field:#222d43;--ink:#f2f5ff;--muted:#abb6ca;--line:#33405a}
+@media(max-width:700px){
+ /* Preserve the original phone bubble size/long-press layout. */
+ .g8m-message .g8m-bubble-anchor:has(> .g8m-action-target > .g8m-photo-grid){width:max-content}
+ .g8m-action-target > .g8m-photo-grid:not(.is-multiple){width:var(--g8m-action-width,190px);max-width:100%}
+ .g8m-action-target > .g8m-photo-grid.is-multiple{width:min(100%,330px)}
+}

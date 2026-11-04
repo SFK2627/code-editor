@@ -716,11 +716,11 @@ function installLongPress(item,id){
   if(event.pointerType==='mouse'||event.target.closest('.g8m-hover-actions,.g8m-msg-meta,.g8m-reaction-chip'))return;
   x=event.clientX;y=event.clientY;longPressFired=false;
   if(longPressTimer)clearTimeout(longPressTimer);
-  longPressTimer=setTimeout(()=>{longPressTimer=null;longPressFired=true;openReactionPicker(id,item.querySelector('.g8m-bubble-anchor')||item);if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}},440);
+  longPressTimer=setTimeout(()=>{longPressTimer=null;longPressFired=true;openReactionPicker(id,item.querySelector('.g8m-action-target')||item.querySelector('.g8m-bubble-anchor')||item);if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}},440);
  });
  item.addEventListener('pointermove',event=>{if(Math.abs(event.clientX-x)>11||Math.abs(event.clientY-y)>11){clearTimeout(longPressTimer);longPressTimer=null;}});
  for(const evt of ['pointerup','pointercancel','pointerleave'])item.addEventListener(evt,()=>{clearTimeout(longPressTimer);longPressTimer=null;if(longPressFired)setTimeout(()=>{longPressFired=false;},300);});
- item.addEventListener('contextmenu',event=>{if(event.pointerType!=='mouse'){event.preventDefault();openReactionPicker(id,item.querySelector('.g8m-bubble-anchor')||item);}});
+ item.addEventListener('contextmenu',event=>{if(event.pointerType!=='mouse'){event.preventDefault();openReactionPicker(id,item.querySelector('.g8m-action-target')||item.querySelector('.g8m-bubble-anchor')||item);}});
  item.addEventListener('click',event=>{if(longPressFired&&!event.target.closest('.g8m-msg-meta,.g8m-hover-actions,.g8m-reaction-chip')){event.preventDefault();event.stopImmediatePropagation();longPressFired=false;}},true);
 }
 function syncChatViewport(){
@@ -830,12 +830,30 @@ function renderMessages(){
    meta.append(replyBtn);
    const more=textEl('button','g8m-msg-more','⋯');more.type='button';more.title='Message Details';more.setAttribute('aria-label','Message Details');more.addEventListener('click',event=>{event.stopPropagation();openDetailsFor(msg.id);});meta.append(more);
    item.append(meta);
+   // The toolbar must follow the actual visible message, never the row or
+   // teacher acknowledgement controls. In particular, portrait images can be
+   // much narrower than the rest of the message's metadata/actions.
+   const actualVisual=bubbleAnchor.querySelector('.g8m-photo-grid')||bubbleAnchor.querySelector('.g8m-project-card')||bubbleAnchor.querySelector('.g8m-text')||bubbleAnchor.querySelector('.g8m-quoted');
+   const actionTarget=textEl('div','g8m-action-target','');
+   if(actualVisual){actualVisual.replaceWith(actionTarget);actionTarget.append(actualVisual);}
+   else bubbleAnchor.append(actionTarget);
+   // A ready photo button may be reused after a Seen/reaction update. Keep
+   // the exact loaded width across that DOM rebuild; no thumbnail jumping.
+   if(actualVisual?.classList.contains('g8m-photo-grid')&&!actualVisual.classList.contains('is-multiple')){
+    const loadedWidth=parseFloat(actualVisual.querySelector('button')?.style.getPropertyValue('--g8m-photo-width')||'');
+    if(Number.isFinite(loadedWidth)&&loadedWidth>=30){
+     const px=Math.min(390,Math.round(loadedWidth))+'px';
+     actionTarget.style.setProperty('--g8m-action-width',px);
+     bubbleAnchor.style.setProperty('--g8m-action-width',px);
+     item.style.setProperty('--g8m-action-width',px);
+    }
+   }
    const actions=textEl('div','g8m-hover-actions','');
-   const reactButton=textEl('button','','☺');reactButton.type='button';reactButton.title='React';reactButton.setAttribute('aria-label','React to message');reactButton.addEventListener('click',()=>openReactionPicker(msg.id,bubbleAnchor));
+   const reactButton=textEl('button','','☺');reactButton.type='button';reactButton.title='React';reactButton.setAttribute('aria-label','React to message');reactButton.addEventListener('click',()=>openReactionPicker(msg.id,actionTarget));
    const quickReply=textEl('button','','↩');quickReply.type='button';quickReply.title='Reply';quickReply.setAttribute('aria-label','Reply to message');quickReply.addEventListener('click',()=>replyToMessage(msg.id));
    const quickMore=textEl('button','','⋯');quickMore.type='button';quickMore.title='More / Message Details';quickMore.setAttribute('aria-label','More message actions');quickMore.addEventListener('click',()=>openDetailsFor(msg.id));
-   actions.append(reactButton,quickReply,quickMore);bubbleAnchor.append(actions);
-   const reactionChip=textEl('button','g8m-reaction-chip','');reactionChip.type='button';reactionChip.setAttribute('aria-label','View or change reactions');reactionChip.addEventListener('click',()=>openReactionPicker(msg.id,bubbleAnchor));bubbleAnchor.append(reactionChip);
+   actions.append(reactButton,quickReply,quickMore);actionTarget.append(actions);
+   const reactionChip=textEl('button','g8m-reaction-chip','');reactionChip.type='button';reactionChip.setAttribute('aria-label','View or change reactions');reactionChip.addEventListener('click',()=>openReactionPicker(msg.id,actionTarget));actionTarget.append(reactionChip);
    updateOneReactionBadge(item,msg.id);
    installLongPress(item,msg.id);
    content.append(item);
@@ -1193,6 +1211,7 @@ async function showPhoto(att,button,version){
   const scale=Math.min(1,maxW/width,maxH/height);
   const displayWidth=Math.max(30,Math.round(width*scale));
   button.style.setProperty('--g8m-photo-width',displayWidth+'px');
+  if(single){const target=button.closest('.g8m-action-target');if(target){target.style.setProperty('--g8m-action-width',displayWidth+'px');target.closest('.g8m-bubble-anchor')?.style.setProperty('--g8m-action-width',displayWidth+'px');target.closest('.g8m-message')?.style.setProperty('--g8m-action-width',displayWidth+'px');}}
   button.style.setProperty('--g8m-photo-aspect',width+' / '+height);
   button.classList.remove('g8m-image-loading','g8m-image-error');button.classList.add('g8m-image-ready');
   button.dataset.photoState='ready';button.title='View full photo';
@@ -1221,16 +1240,76 @@ async function syncCheckingCount(uid){
 }
 function renderReply(){const c=$('g8mReply');c.hidden=!reply;if(reply)$('g8mReplyText').textContent=short(reply.text,120);}
 $('g8mReplyCancel').addEventListener('click',()=>{reply=null;renderReply();});
-$('g8mFileInput').addEventListener('change',e=>{
+function addPhotoFiles(files){
+ if(sending)return;
+ const incoming=Array.from(files||[]);
+ if(!incoming.length)return;
  if(selectedProject){selectedProject=null;renderProjectSelection();status('Project removed · sending images separately.');}
- for(const f of Array.from(e.target.files||[])){
-  if(!allowedTypes.has(f.type)){status('Only JPG, PNG, or WEBP images are allowed.',true);continue;}
-  if(f.size>MAX_SIZE){status(`${f.name}: image exceeds 30 MB.`,true);continue;}
-  if(selections.length>=MAX_FILES){status('Maximum 3 images per message.',true);break;}
+ let rejected=false;
+ for(const file of incoming){
+  if(!allowedTypes.has(file.type)){status('Camera/photo must be JPG, PNG, or WEBP. If your camera uses HEIC, change its format to JPEG.',true);rejected=true;continue;}
+  if(file.size>MAX_SIZE){status(`${file.name}: image exceeds 30 MB.`,true);rejected=true;continue;}
+  if(selections.length>=MAX_FILES){status('Maximum 3 images per message.',true);rejected=true;break;}
   pendingPhotoMessageKey='';
-  selections.push({file:f,url:URL.createObjectURL(f)});
+  selections.push({file,url:URL.createObjectURL(file)});
  }
- e.target.value='';renderSelections();
+ renderSelections();
+ if(!rejected && incoming.length)status('Photo ready · review the preview, then tap Send.');
+}
+$('g8mFileInput').addEventListener('change',event=>{addPhotoFiles(event.target.files);event.target.value='';});
+$('g8mCameraInput').addEventListener('change',event=>{addPhotoFiles(event.target.files);event.target.value='';});
+
+// Take Photo uses the native device camera on phones, and a controlled
+// getUserMedia preview on desktop. Photos go through the existing encrypted
+// account/Google Workspace Drive workflow only after Send is pressed.
+const cameraOverlay=$('g8mCameraOverlay'),cameraVideo=$('g8mCameraVideo');
+let cameraStream=null,cameraRequestId=0,cameraReturnFocus=null;
+function stopCameraStream(){
+ if(cameraStream){for(const track of cameraStream.getTracks())try{track.stop();}catch(_){}cameraStream=null;}
+ cameraVideo.pause();cameraVideo.srcObject=null;
+ $('g8mCameraCapture').disabled=true;
+}
+function closeCamera(){
+ cameraRequestId++;
+ stopCameraStream();
+ cameraOverlay.hidden=true;
+ cameraReturnFocus?.focus?.();
+}
+async function openDesktopCamera(){
+ const request=++cameraRequestId;
+ cameraReturnFocus=document.activeElement;
+ cameraOverlay.dataset.theme=root.dataset.theme||'light';
+ cameraOverlay.hidden=false;
+ $('g8mCameraStatus').textContent='Requesting camera permission…';
+ $('g8mCameraCapture').disabled=true;
+ if(!navigator.mediaDevices?.getUserMedia){$('g8mCameraStatus').textContent='Camera preview is unavailable here. Use Upload Photo instead.';return;}
+ try{
+  const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}}});
+  if(request!==cameraRequestId||cameraOverlay.hidden){stream.getTracks().forEach(track=>track.stop());return;}
+  cameraStream=stream;cameraVideo.srcObject=stream;
+  await cameraVideo.play();
+  $('g8mCameraStatus').textContent='Position your camera, then select Capture Photo.';
+  $('g8mCameraCapture').disabled=false;
+ }catch(error){
+  if(request!==cameraRequestId)return;
+  stopCameraStream();
+  $('g8mCameraStatus').textContent=error?.name==='NotAllowedError'?'Camera permission denied. Allow access in your browser or choose Upload Photo.':'Could not start camera. Check camera availability, then use Upload Photo if necessary.';
+ }
+}
+$('g8mCameraClose').addEventListener('click',closeCamera);
+$('g8mCameraCancel').addEventListener('click',closeCamera);
+cameraOverlay.addEventListener('click',event=>{if(event.target===cameraOverlay)closeCamera();});
+$('g8mCameraCapture').addEventListener('click',()=>{
+ if(!cameraStream||cameraVideo.readyState<2){$('g8mCameraStatus').textContent='Camera is not ready yet.';return;}
+ const canvas=document.createElement('canvas');canvas.width=cameraVideo.videoWidth;canvas.height=cameraVideo.videoHeight;
+ if(!canvas.width||!canvas.height){$('g8mCameraStatus').textContent='Camera did not provide an image. Please try again.';return;}
+ canvas.getContext('2d').drawImage(cameraVideo,0,0,canvas.width,canvas.height);
+ $('g8mCameraCapture').disabled=true;
+ canvas.toBlob(blob=>{
+  if(!blob){$('g8mCameraStatus').textContent='Photo capture failed; please try again.';$('g8mCameraCapture').disabled=false;return;}
+  const file=new File([blob],`G8Code-Camera-${new Date().toISOString().replace(/[:.]/g,'-')}.jpg`,{type:'image/jpeg',lastModified:Date.now()});
+  closeCamera();addPhotoFiles([file]);
+ },'image/jpeg',0.9);
 });
 function renderSelections(){const cont=$('g8mAttachments');cont.hidden=!selections.length;cont.replaceChildren();selections.forEach((s,i)=>{
  const frame=textEl('div','g8m-attachment-preview','');const img=document.createElement('img');img.src=s.url;img.alt=s.file.name;
@@ -1432,6 +1511,7 @@ $('g8mAttachMenuToggle').addEventListener('click',()=>{
  $('g8mAttachMenu').hidden=!$('g8mAttachMenu').hidden;
 });
 $('g8mChoosePhoto').addEventListener('click',()=>{closeAttachMenu();$('g8mFileInput').click();});
+$('g8mTakePhoto').addEventListener('click',()=>{closeAttachMenu();if(sending)return;const isTouch=window.matchMedia('(pointer:coarse)').matches;if(isTouch)$('g8mCameraInput').click();else void openDesktopCamera();});
 $('g8mChooseProject').addEventListener('click',()=>{closeAttachMenu();if(teacher){status('Only students can share their own saved projects.',true);return;}void showProjectPicker();});
 document.addEventListener('click',event=>{
  if(!event.target.closest('.g8m-attach-wrap'))closeAttachMenu();
@@ -1443,6 +1523,7 @@ $('g8mViewerClose').addEventListener('click',()=>closeModal(projectViewer));
 for(const modal of [projectPicker,projectViewer])modal.addEventListener('click',event=>{if(event.target===modal)closeModal(modal);});
 document.addEventListener('keydown',event=>{
  if(event.key!=='Escape')return;
+ if(!cameraOverlay.hidden){event.preventDefault();closeCamera();return;}
  if(!projectViewer.hidden){event.preventDefault();closeModal(projectViewer);return;}
  if(!projectPicker.hidden){event.preventDefault();closeModal(projectPicker);return;}
  closeAttachMenu();
@@ -1834,5 +1915,5 @@ $('g8mViewerCopy').addEventListener('click',async()=>{
 // === End Messages V4.0 ===
 
 $('g8mComposer').addEventListener('submit',sendMessage);
-window.addEventListener('beforeunload',()=>{stopTyping();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);selections.forEach(s=>URL.revokeObjectURL(s.url));imageCache.forEach(url=>URL.revokeObjectURL(url));});
+window.addEventListener('beforeunload',()=>{stopCameraStream();stopTyping();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);selections.forEach(s=>URL.revokeObjectURL(s.url));imageCache.forEach(url=>URL.revokeObjectURL(url));});
 boot();
