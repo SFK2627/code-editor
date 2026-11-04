@@ -609,9 +609,22 @@ function updateOneReactionBadge(node,id){
 function updateReactionBadges(){
  for(const node of $('g8mMessages')?.querySelectorAll('.g8m-message[data-message-id]')||[])updateOneReactionBadge(node,node.dataset.messageId);
 }
+// V4.8: Old photo-only messages stored an auto-caption in RTDB. Do not
+// show that generated label as a chat bubble. Genuine student-written
+// captions are preserved, and existing RTDB records remain untouched.
+function visibleMessageText(msg){
+ const raw=typeof msg?.text==='string'?msg.text:'';
+ const legacy=raw.trim();
+ if(msg?.type==='image' && (legacy==='📷 Photo attachment' || legacy==='📸 Photo attachment'))return '';
+ return raw;
+}
+function messageReferenceText(msg){
+ if(msg?.type==='project')return String(msg.projectName||'Shared project');
+ return visibleMessageText(msg)||(msg?.type==='image'?'Photo':'Message');
+}
 function replyToMessage(id){
  const msg=messageById(id);if(!msg)return;
- reply={id:msg.id,text:msg.type==='project'?String(msg.projectName||'Shared project'):(msg.text||(msg.attachments?'Photo attachment':'Message'))};
+ reply={id:msg.id,text:messageReferenceText(msg)};
  renderReply();closeReactionPicker();$('g8mTextInput').focus();
 }
 const reactionPicker=$('g8mReactionPicker'),detailsOverlay=$('g8mMessageDetails');
@@ -653,7 +666,7 @@ function updateDetails(){
  if(!detailsMessageId)return;
  const msg=messageById(detailsMessageId);if(!msg)return;
  const own=msg.senderUid===user?.uid;
- $('g8mDetailsPreview').textContent=short(msg.type==='project'?msg.projectName:msg.text||(msg.attachments?'Photo attachment':'Message'),260);
+ $('g8mDetailsPreview').textContent=short(messageReferenceText(msg),260);
  $('g8mDetailsSent').textContent=absoluteTime(msg.createdAtMs);
  $('g8mDetailsSeenLabel').textContent=own?`Seen by ${teacher?'Student':'Teacher'}`:'Seen by you';
  const exact=Number(activeReadReceipts[detailsMessageId]?.[own?peerRole():role()]||0);
@@ -729,8 +742,9 @@ function renderMessages(){
    const mine=msg.senderUid===user?.uid;
    const item=textEl('article','g8m-message'+(mine?' own':''),'');
    item.dataset.messageId=String(msg.id);
-   if(msg.replyText)item.append(textEl('div','g8m-quoted',short(msg.replyText,180)));
-   if(msg.text && msg.type!=='project')item.append(textEl('div','g8m-text',String(msg.text)));
+   if(msg.replyText)item.append(textEl('div','g8m-quoted',short(['📷 Photo attachment','📸 Photo attachment'].includes(String(msg.replyText).trim())?'Photo':msg.replyText,180)));
+   const visibleText=visibleMessageText(msg);
+   if(visibleText && msg.type!=='project')item.append(textEl('div','g8m-text',visibleText));
    if(msg.type==='project'){
     if(msg.text && msg.text!=='💻 Shared a G8Code project')item.append(textEl('div','g8m-text',String(msg.text)));
     const card=textEl('button','g8m-project-card','');card.type='button';
@@ -785,7 +799,7 @@ function renderMessages(){
    const meta=textEl('div','g8m-msg-meta','');meta.append(textEl('span','',formatTime(at)));
    if(mine){const seenLabel=textEl('span','g8m-seen-label',seenLabelFor(msg));meta.append(seenLabel);}
    const replyBtn=textEl('button','g8m-reply-btn','↩ Reply');replyBtn.type='button';
-   replyBtn.addEventListener('click',()=>{reply={id:msg.id,text:msg.type==='project'?String(msg.projectName||'Shared project'):(msg.text||(attachments.length?'Photo attachment':'Message'))};renderReply();$('g8mTextInput').focus();});
+   replyBtn.addEventListener('click',()=>{reply={id:msg.id,text:messageReferenceText(msg)};renderReply();$('g8mTextInput').focus();});
    meta.append(replyBtn);
    const more=textEl('button','g8m-msg-more','⋯');more.type='button';more.title='Message Details';more.setAttribute('aria-label','Message Details');more.addEventListener('click',event=>{event.stopPropagation();openDetailsFor(msg.id);});meta.append(more);
    item.append(meta);
@@ -1135,7 +1149,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   for(let i=0;i<queued.length;i++)attachments.push(await uploadFile(uid,key,queued[i].file,i));
   const senderRole=role();
   if(sharedProject && (teacher||uid!==user.uid||queued.length))throw new Error('Projects can only be shared by the student in their own chat, one project per message.');
-  const payload={text:short(text||(sharedProject?'💻 Shared a G8Code project':'📷 Photo attachment'),3000),type:sharedProject?'project':attachments.length?'image':'text',senderUid:user.uid,senderRole,createdAtMs:serverTimestamp(),replyTo:currentReply?.id||'',replyText:short(currentReply?.text||'',180)};
+  const payload={text:short(text||(sharedProject?'💻 Shared a G8Code project':''),3000),type:sharedProject?'project':attachments.length?'image':'text',senderUid:user.uid,senderRole,createdAtMs:serverTimestamp(),replyTo:currentReply?.id||'',replyText:short(currentReply?.text||'',180)};
   if(sharedProject){payload.projectId=sharedProject.id;payload.projectName=short(sharedProject.name||'Untitled Project',120);}
   if(attachments.length)payload.attachments=attachments;
   // Critical: save the MESSAGE independently. A denied summary/unread update
