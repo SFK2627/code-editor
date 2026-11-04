@@ -44,6 +44,13 @@ let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply 
 let olderMessages=[], hasOlder=false, olderLoading=false;
 let imageCache = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
 let photoVisibilityObserver = null;
+// V4.7: bounded parallel private reads and a per-session LRU of decoded blob URLs.
+// Keep buttons across Seen/ack snapshots: a chat rerender must not cancel a photo.
+let photoReadActive = 0;
+const photoReadWaiting = [];
+const PHOTO_READ_CONCURRENCY = 2;
+const PHOTO_CACHE_MAX_ITEMS = 36;
+
 let pendingPhotoMessageKey = ''; // Preserve upload identity across retries.
 // V4.5: short-lived chat presence/typing, reactions, and independently stored read receipts.
 let activeReactions={}, activeReadReceipts={}, peerPresence=null, peerTyping=null;
@@ -692,6 +699,13 @@ function renderMessages(){
  const log=$('g8mMessages');
  const nearBottom=log.scrollHeight-log.scrollTop-log.clientHeight<150;
  const previousHeight=log.scrollHeight;
+ // Reuse the original image elements when other chat metadata changes.
+ // Otherwise frequent Seen/reaction/ack updates replace loading thumbnails,
+ // leaving them blank even when the Drive request later succeeds.
+ const previousPhotoButtons=new Map();
+ log.querySelectorAll('.g8m-photo-grid button[data-photo-path]').forEach(button=>{
+  previousPhotoButtons.set(button.dataset.photoPath,button);
+ });
  const version=++renderVersion;
  const shown=[...olderMessages,...activeMessages]
   .filter((x,i,arr)=>x&&x.id&&arr.findIndex(y=>y&&y.id===x.id)===i)
@@ -732,11 +746,20 @@ function renderMessages(){
    }
    const attachments=Array.isArray(msg.attachments)?msg.attachments:Object.values(msg.attachments||{});
    if(attachments.length){
-    const photos=textEl('div','g8m-photo-grid','');
-    attachments.slice(0,MAX_FILES).forEach(att=>{
-     if(!att?.path || typeof att.path!=='string' || !att.path.startsWith(`g8Messages/${openedUid}/${msg.id}/`))return;
-     const button=textEl('button','g8m-image-loading','Loading photo…');button.type='button';button.setAttribute('aria-label',`View ${att.name||'image'}`);
-     photos.append(button);photosToLoad.push({att:{...att,messageId:msg.id},button});
+    const validPhotos=attachments.slice(0,MAX_FILES).filter(att=>att?.path && typeof att.path==='string' && att.path.startsWith(`g8Messages/${openedUid}/${msg.id}/`));
+    const photos=textEl('div','g8m-photo-grid'+(validPhotos.length>1?' is-multiple':''),'');
+    validPhotos.forEach(att=>{
+     const path=att.path;
+     const previous=previousPhotoButtons.get(path);
+     const button=(previous && previous.dataset.photoFile===String(att.driveFileId||''))
+      ? previous : textEl('button','g8m-image-loading','Loading photo…');
+     button.type='button';button.dataset.photoPath=path;button.dataset.photoFile=String(att.driveFileId||'');
+     button.setAttribute('aria-label',`View ${att.name||'image'}`);
+     photos.append(button);
+     if(!['ready','fetching','failed'].includes(button.dataset.photoState)){
+      button.dataset.photoState='waiting';
+      photosToLoad.push({att:{...att,messageId:msg.id,studentUid:openedUid},button});
+     }
     });
     item.append(photos);
     const ack=activeAcks[msg.id];
@@ -824,26 +847,124 @@ async function loadOlder(){
  }catch(error){status(friendlyError(error),true);}
  finally{olderLoading=false;renderMessages();}
 }
-async function showPhoto(att,button,version){
- const path=att.path;
- const fail=(message='Photo unavailable · tap to retry')=>{if(!button.isConnected)return;button.classList.remove('g8m-image-loading');button.textContent=message;button.addEventListener('click',()=>showPhoto(att,button,renderVersion),{once:true});};
- if(!button.isConnected)return;
- if(att.provider!=='drive'||!att.driveFileId){fail('Earlier attachment needs re-upload to Drive');return;}
- try{
-  let url=imageCache.get(path);
-  if(!url){
-   let task=photoQueue.get(path);
-   if(!task){task=driveRequest('read',{studentUid:openedUid,messageId:att.messageId||path.split('/')[2],driveFileId:att.driveFileId}).then(x=>{
-    if(!x?.data||!allowedTypes.has(x.contentType))throw new Error('Invalid Drive photo response');
-    const binary=atob(x.data);const data=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)data[i]=binary.charCodeAt(i);
-    return URL.createObjectURL(new Blob([data],{type:x.contentType}));
-   });photoQueue.set(path,task);}
-   url=await task;imageCache.set(path,url);photoQueue.delete(path);
+// Allow no more than two Drive photo reads at a time. Many simultaneous
+// Apps Script executions used to compete for RTDB receipts and timeout.
+function withPhotoReadSlot(task){
+ return new Promise((resolve,reject)=>{
+  const run=async()=>{
+   photoReadActive++;
+   try{resolve(await task());}catch(error){reject(error);}
+   finally{photoReadActive--;const next=photoReadWaiting.shift();if(next)next();}
+  };
+  if(photoReadActive<PHOTO_READ_CONCURRENCY)run();else photoReadWaiting.push(run);
+ });
+}
+function photoTransient(error){
+ const reason=String(error?.message||error||'').toLowerCase();
+ return /timeout|no confirmation|network|temporar|unavailable|service|quota|too many|rate limit|connection|fetch|busy|retry|exceeded/i.test(reason)
+  && !/permission|denied|not authorized|invalid|not found|missing|different student|access another|sign in|origin|unauthorized/i.test(reason);
+}
+function cachedPhotoUrl(path){
+ if(!imageCache.has(path))return '';
+ const url=imageCache.get(path);imageCache.delete(path);imageCache.set(path,url);
+ return url;
+}
+function cachePhotoUrl(path,url){
+ if(imageCache.has(path)){
+  const old=imageCache.get(path);imageCache.delete(path);
+  if(old!==url)URL.revokeObjectURL(old);
+ }
+ imageCache.set(path,url);
+ // Evict only images that are no longer displayed, including the full viewer.
+ // Keeping the currently visible object URLs avoids broken thumbnails.
+ if(imageCache.size>PHOTO_CACHE_MAX_ITEMS){
+  const live=new Set([...document.querySelectorAll('.g8m-image-ready[data-photo-path]')].map(el=>el.dataset.photoPath));
+  const displayed=$('g8mImageLarge')?.src||'';
+  for(const [key,old] of imageCache){
+   if(imageCache.size<=PHOTO_CACHE_MAX_ITEMS)break;
+   if(key===path||live.has(key)||old===displayed)continue;
+   imageCache.delete(key);URL.revokeObjectURL(old);
   }
-  if(!button.isConnected||!path.startsWith(`g8Messages/${openedUid}/`))return;
-  button.replaceChildren();button.classList.remove('g8m-image-loading');const img=document.createElement('img');img.src=url;img.alt='Private Drive attachment';img.loading='lazy';button.append(img);
-  button.onclick=()=>{$('g8mImageLarge').src=url;$('g8mImageViewer').hidden=false;};
- }catch(error){photoQueue.delete(path);console.warn('Private Drive photo:',error);fail('Photo access failed · tap to retry');}
+ }
+}
+function deleteCachedPhoto(path){
+ const old=imageCache.get(path);
+ if(old){imageCache.delete(path);URL.revokeObjectURL(old);}
+}
+function pausePhotoRetry(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+function privatePhotoURL(att){
+ const path=att.path;
+ const cached=cachedPhotoUrl(path);
+ if(cached)return Promise.resolve(cached);
+ if(photoQueue.has(path))return photoQueue.get(path);
+ const job=withPhotoReadSlot(async()=>{
+  const uid=att.studentUid||String(path.split('/')[1]||'');
+  const messageId=att.messageId||String(path.split('/')[2]||'');
+  for(let attempt=0;attempt<3;attempt++){
+   try{
+    const result=await driveRequest('read',{studentUid:uid,messageId,driveFileId:att.driveFileId},attempt===0?30000:40000);
+    if(!result?.data||!allowedTypes.has(result.contentType))throw new Error('Invalid Drive photo response');
+    const binary=atob(result.data),data=new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++)data[i]=binary.charCodeAt(i);
+    const url=URL.createObjectURL(new Blob([data],{type:result.contentType}));
+    cachePhotoUrl(path,url);
+    return url;
+   }catch(error){
+    if(attempt>=2||!photoTransient(error))throw error;
+    await pausePhotoRetry(800*(attempt+1));
+   }
+  }
+ }).finally(()=>photoQueue.delete(path));
+ photoQueue.set(path,job);
+ return job;
+}
+function openFullPhoto(url){
+ $('g8mImageLarge').src=url;
+ $('g8mImageViewer').hidden=false;
+}
+async function showPhoto(att,button,version){
+ if(!button.isConnected)return;
+ const path=att.path;
+ if(button.dataset.photoState==='ready'||button.dataset.photoState==='fetching')return;
+ button.dataset.photoState='fetching';
+ button.classList.remove('g8m-image-error','g8m-image-ready');
+ button.classList.add('g8m-image-loading');
+ button.textContent='Loading photo…';button.onclick=null;
+ const fail=(error)=>{
+  if(!button.isConnected||button.dataset.photoPath!==path)return;
+  button.dataset.photoState='failed';button.classList.remove('g8m-image-loading','g8m-image-ready');button.classList.add('g8m-image-error');
+  const reason=String(error?.message||error||'');
+  button.textContent=/permission|denied|unauthorized/i.test(reason)?'Photo access denied · Retry':
+   /not found|missing/i.test(reason)?'Photo missing from Drive · Retry':'Could not load photo · Retry';
+  button.title=reason||'Retry photo';
+  button.onclick=()=>{button.dataset.photoState='waiting';showPhoto(att,button,renderVersion);};
+ };
+ if(att.provider!=='drive'||!att.driveFileId){fail(new Error('Older attachment needs re-upload to Drive'));return;}
+ try{
+  const url=await privatePhotoURL(att);
+  if(!button.isConnected||button.dataset.photoPath!==path)return;
+  const img=document.createElement('img');img.alt=att.name||'Private Drive attachment';img.loading='eager';
+  img.src=url;
+  try{
+   if(typeof img.decode==='function')await img.decode();
+   else if(!img.complete)await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
+   if(!img.naturalWidth||!img.naturalHeight)throw new Error('Photo image could not be decoded');
+  }catch(error){deleteCachedPhoto(path);throw error;}
+  if(!button.isConnected||button.dataset.photoPath!==path)return;
+  const width=img.naturalWidth,height=img.naturalHeight;
+  // Actual image ratio. A portrait stays portrait, a landscape stays wide.
+  // Cap the displayed height without cropping or stretching long screenshots.
+  const single=!button.parentElement?.classList.contains('is-multiple');
+  const maxW=single?390:185,maxH=single?450:340;
+  const scale=Math.min(1,maxW/width,maxH/height);
+  const displayWidth=Math.max(30,Math.round(width*scale));
+  button.style.setProperty('--g8m-photo-width',displayWidth+'px');
+  button.style.setProperty('--g8m-photo-aspect',width+' / '+height);
+  button.classList.remove('g8m-image-loading','g8m-image-error');button.classList.add('g8m-image-ready');
+  button.dataset.photoState='ready';button.title='View full photo';
+  button.replaceChildren(img);
+  button.onclick=()=>openFullPhoto(url);
+ }catch(error){console.warn('Private Drive photo:',error);fail(error);}
 }
 
 async function acknowledge(messageId,st){if(!teacher||!openedUid)return;
