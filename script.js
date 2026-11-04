@@ -15671,8 +15671,17 @@ async function syncG8MessagesDirectoryFromCache(records, teacherMode = false) {
   if (!signed || (teacherMode ? !isTeacherAuthenticated() : isTeacherUser(signed))) return;
   const payload = {};
   for (const record of records || []) {
-    const uids = teacherMode && typeof getAdminStudentProfileUids === 'function'
+    // V5.9: mirror one PRIMARY account per real Student ID. Previously we
+    // created a separate directory row for every linked old account UID, which
+    // inflated the Admin Messages roster. NEVER remove existing UID rows/chats:
+    // the teacher's inbox groups historical accounts by Student ID and keeps
+    // each conversation accessible. A legacy account can still self-register
+    // its own directory entry when it actually signs in.
+    const linkedUids = teacherMode && typeof getAdminStudentProfileUids === 'function'
       ? getAdminStudentProfileUids(record) : [signed.uid];
+    const preferredUid = teacherMode && record?.authUid && linkedUids.includes(record.authUid)
+      ? String(record.authUid) : linkedUids[0];
+    const uids = teacherMode ? (preferredUid ? [preferredUid] : []) : [signed.uid];
     for (const uid of uids) {
       if (!teacherMode && uid !== signed.uid) continue;
       const row = g8mDirectoryRecord(record, uid);

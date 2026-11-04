@@ -272,7 +272,7 @@ async function boot(){
    stopTyping();closeReactionPicker();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);
    if(presenceHeartbeat){clearInterval(presenceHeartbeat);presenceHeartbeat=null;}
    ownPresencePath='';ownPresenceConnected=false;
-   conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
+   conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};$('g8mLinkedThreads').hidden=true;
    if(!account){
     if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
     else {showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
@@ -406,7 +406,7 @@ async function initWorkspace(){
   const summaryRef=ref(rtdb,`${BASE}/summary`);
   // Summary stream paints the inbox immediately; the slow roster is independent.
   rootUnsubs.push(onValue(summaryRef,snap=>{
-   summaries=snap.val()||{};renderSections();renderStudents();setConnection(true,'Live');
+   summaries=snap.val()||{};renderSections();renderStudents();if(openedUid)renderLinkedThreads(openedUid);setConnection(true,'Live');
    if(requestedUid&&!openedUid&&(summaries[requestedUid]||students.has(requestedUid)))openChat(requestedUid);
   },err=>{setConnection(false,'Inbox error');status(friendlyError(err),true);}));
   switchMobile('sections');
@@ -418,9 +418,10 @@ async function initWorkspace(){
    for(const [uid,record] of Object.entries(records)){
     if(!/^[A-Za-z0-9_-]{5,128}$/.test(uid)||!record||typeof record!=='object')continue;
     students.set(uid,{uid,name:short(record.name||'Student',100),
-     studentId:short(record.studentId||'',50),section:short(record.section||'Unassigned',100)});
+     studentId:short(record.studentId||'',50),section:short(record.section||'Unassigned',100),accountStatus:String(record.accountStatus||'active')});
    }
    renderSections();renderStudents();
+   if(openedUid)renderLinkedThreads(openedUid);
    if(requestedUid&&!openedUid&&(students.has(requestedUid)||summaries[requestedUid]))openChat(requestedUid);
   },error=>{
    console.warn('Messages RTDB directory unavailable:',error);
@@ -437,23 +438,74 @@ async function initWorkspace(){
 // V4.9: Directory data arrives via the RTDB listener in initWorkspace.
 // Keep this alias as a no-op for older integration hooks: no Firestore reads.
 async function loadStudentDirectory(){ return [...students.values()]; }
+// V5.9: A student is ONE inbox entry, even if old/current Auth UIDs differ.
+// Preserve EACH UID conversation and never combine their private messages or
+// infer identity from a matching name alone. Student ID is the grouping key.
+function normalizedInboxStudentId(raw){
+ const id=String(raw||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+ return id.length>=5 && id.length<=50 && !/^(?:0+|UNKNOWN|NONE|NA|STUDENT|TEMP|TEST)$/.test(id)?id:'';
+}
 function allPeople(){
  const merged=new Map(students);
- Object.keys(summaries).forEach(uid=>{if(!merged.has(uid)){merged.set(uid,person(uid));}});
- return [...merged.values()];
+ Object.keys(summaries).forEach(uid=>{if(!merged.has(uid))merged.set(uid,person(uid));});
+ const byIdentity=new Map();
+ for(const record of merged.values()){
+  const uid=String(record.uid||'');if(!uid)continue;
+  const sid=normalizedInboxStudentId(record.studentId||summaries[uid]?.studentId);
+  const key=sid?`sid:${sid}`:`uid:${uid}`;
+  if(!byIdentity.has(key))byIdentity.set(key,[]);
+  byIdentity.get(key).push({...record,uid});
+ }
+ const result=[];
+ for(const [key,linked] of byIdentity){
+  // The newest ACTUAL conversation wins for row ordering, but the identity is
+  // from a real directory record, not the arbitrary latest chat sender name.
+  const ordered=linked.slice().sort((a,b)=>{
+   const aActive=students.get(a.uid)?.accountStatus==='disabled'?0:1;
+   const bActive=students.get(b.uid)?.accountStatus==='disabled'?0:1;
+   return bActive-aActive || Number(summaries[b.uid]?.lastAtMs||0)-Number(summaries[a.uid]?.lastAtMs||0) || a.uid.localeCompare(b.uid);
+  });
+  const official=ordered.find(x=>students.has(x.uid)&&x.name&&x.name!=='Student')||ordered[0];
+  const latest=linked.slice().sort((a,b)=>Number(summaries[b.uid]?.lastAtMs||0)-Number(summaries[a.uid]?.lastAtMs||0))[0];
+  const allUids=ordered.map(x=>x.uid);
+  let unreadCount=0,checkingCount=0;
+  for(const uid of allUids){unreadCount+=unread(summaries[uid]);checkingCount+=needsChecking(uid);}
+  const representative=official||ordered[0];
+  result.push({
+   uid:representative.uid, uids:allUids, identityKey:key,
+   name:representative.name||'Student',studentId:representative.studentId||latest.studentId||'',
+   section:studentSection(representative.section==='Unassigned' && latest.section ? latest : representative),
+   unreadCount, checkingCount,
+   lastAtMs:Math.max(0,...allUids.map(uid=>Number(summaries[uid]?.lastAtMs||0))),
+   lastText:String(summaries[latest.uid]?.lastText || ''),
+  });
+ }
+ return result;
 }
-function matchesFilter(p){const s=summaries[p.uid]||{};
- if(filter==='unread' && unread(s)===0)return false;
- if(filter==='checking' && needsChecking(p.uid)===0)return false;
- if(search && ![p.name,p.studentId,p.section,s.lastText].join(' ').toLowerCase().includes(search))return false;
+function groupForUid(uid){return allPeople().find(p=>p.uids.includes(uid))||null;}
+function selectGroupThread(group){
+ // Prefer the active/most recently used account; unread historical threads
+ // remain selectable via the switcher rather than silently replying to old UIDs.
+ return group.uid;
+}
+function matchesFilter(p){
+ if(filter==='unread' && !p.unreadCount)return false;
+ if(filter==='checking' && !p.checkingCount)return false;
+ if(search){
+  const fields=[p.name,p.studentId,p.section,p.lastText];
+  for(const uid of p.uids)fields.push(summaries[uid]?.lastText,students.get(uid)?.name,students.get(uid)?.studentId);
+  if(!fields.join(' ').toLowerCase().includes(search))return false;
+ }
  return true;
 }
 function renderSections(){if(!teacher)return;
  const rootList=$('g8mSectionList');rootList.replaceChildren();const people=allPeople().filter(matchesFilter);
  const counts=new Map();
- for(const p of people){const name=studentSection(p);const obj=counts.get(name)||{name,people:0,unread:0,checking:0};obj.people++;obj.unread+=unread(summaries[p.uid]);obj.checking+=needsChecking(p.uid);counts.set(name,obj);}
+ for(const p of people){const name=studentSection(p);const obj=counts.get(name)||{name,people:0,unread:0,checking:0};obj.people++;obj.unread+=p.unreadCount;obj.checking+=p.checkingCount;counts.set(name,obj);}
  const rows=[{name:'*',label:'All Sections',people:people.length,unread:[...counts.values()].reduce((s,v)=>s+v.unread,0)},...([...counts.values()].sort((a,b)=>b.unread-a.unread || a.name.localeCompare(b.name)).map(r=>({...r,label:r.name})))];
  const tablet=$('g8mTabletSectionSelect');if(tablet){tablet.replaceChildren();rows.forEach(r=>{const o=document.createElement('option');o.value=r.name;o.textContent=r.label;tablet.append(o);});tablet.value=rows.some(r=>r.name===currentSection)?currentSection:'*';}
+ // Unread counts are MESSAGE counts; unlike the student total, they are summed
+ // across all linked UID conversations so the teacher doesn't miss older chats.
  const total=Object.values(summaries).reduce((n,s)=>n+unread(s),0);const badge=$('g8mTeacherTotal');badge.textContent=total>99?'99+':String(total);badge.hidden=!total;
  rows.forEach(r=>{
   const button=textEl('button','g8m-section-row'+(currentSection===r.name?' active':''),'');button.type='button';
@@ -469,18 +521,41 @@ function renderStudents(){if(!teacher)return;
  const name=currentSection==='*'?'All Sections':currentSection;
  $('g8mCurrentSection').textContent=name;
  const people=allPeople().filter(p=>matchesFilter(p) && (currentSection==='*'||studentSection(p)===currentSection));
- people.sort((a,b)=> unread(summaries[b.uid])-unread(summaries[a.uid]) || Number(summaries[b.uid]?.lastAtMs||0)-Number(summaries[a.uid]?.lastAtMs||0) || a.name.localeCompare(b.name));
+ people.sort((a,b)=> b.unreadCount-a.unreadCount || b.lastAtMs-a.lastAtMs || a.name.localeCompare(b.name));
  $('g8mStudentCount').textContent=`${people.length} student${people.length===1?'':'s'}`;
  const list=$('g8mStudentList');list.replaceChildren();
  people.forEach(p=>{
-  const row=textEl('button','g8m-student-row'+(p.uid===openedUid?' active':''),'');row.type='button';
+  const row=textEl('button','g8m-student-row'+(p.uids.includes(openedUid)?' active':''),'');row.type='button';
   row.append(textEl('span','g8m-student-avatar',iconLetter(p)));
-  const copy=textEl('span','g8m-row-copy','');copy.append(textEl('strong','',p.name),textEl('small','',short(summaries[p.uid]?.lastText || p.studentId || 'Start a conversation',42)));row.append(copy);
-  const n=unread(summaries[p.uid]);if(n)row.append(textEl('span','g8m-bubble-count',n>99?'99+':n));
-  row.addEventListener('click',()=>openChat(p.uid));list.append(row);
+  const copy=textEl('span','g8m-row-copy','');copy.append(textEl('strong','',p.name));
+  copy.append(textEl('small','',short(p.lastText||p.studentId||'Start a conversation',42)));
+  if(p.uids.length>1)copy.append(textEl('small','g8m-linked-hint',`${p.uids.length} linked conversations · history preserved`));
+  row.append(copy);
+  if(p.unreadCount)row.append(textEl('span','g8m-bubble-count',p.unreadCount>99?'99+':p.unreadCount));
+  row.addEventListener('click',()=>openChat(p.uids.includes(openedUid)?openedUid:selectGroupThread(p)));list.append(row);
  });
  if(!people.length)list.append(notice('No students match this filter. Try All or another section.'));
 }
+function renderLinkedThreads(uid){
+ const box=$('g8mLinkedThreads'),selector=$('g8mThreadSelect');
+ if(!box||!selector)return;
+ const group=teacher?groupForUid(uid):null;
+ if(!group||group.uids.length<2){box.hidden=true;selector.replaceChildren();return;}
+ const ordered=group.uids.slice().sort((a,b)=>Number(summaries[b]?.lastAtMs||0)-Number(summaries[a]?.lastAtMs||0));
+ selector.replaceChildren();
+ ordered.forEach((id,i)=>{
+  const option=document.createElement('option');option.value=id;
+  const sent=Number(summaries[id]?.lastAtMs||0);
+  const when=sent?`${dayLabel(sent)} ${formatTime(sent)}`:'No recent messages';
+  const unreadCount=unread(summaries[id]);
+  option.textContent=`Conversation ${i+1} · ${when}${unreadCount?` · ${unreadCount} unread`:''}`;
+  selector.append(option);
+ });
+ selector.value=uid;box.hidden=false;
+}
+$('g8mThreadSelect').addEventListener('change',event=>{
+ const uid=String(event.target.value||'');if(uid&&uid!==openedUid)openChat(uid);
+});
 function switchMobile(view){stopLongPressTimer();mobileView=view;workspace.dataset.mobileView=view;root.dataset.mobileChat=(view==='chat'?'true':'false');closeReactionPicker();}
 $('g8mSectionBack').addEventListener('click',()=>{if(!sending)switchMobile('sections');});
 $('g8mChatBack').addEventListener('click',()=>{if(sending)return;if(teacher)switchMobile('students');else leaveMessages();});
@@ -501,7 +576,7 @@ function openChat(uid){
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
  hasOlder=warm?.hasOlder||false;olderLoading=false;activeAcks=warm?.acks||{};seenAt=warm?.seenAt||0;reply=null;renderReply();
- if(teacher){const p=person(uid);$('g8mChatName').textContent=p.name;$('g8mChatMeta').textContent=[p.section,p.studentId].filter(Boolean).join(' · ');$('g8mChatAvatar').textContent=iconLetter(p);$('g8mComposer').hidden=false;renderStudents();}
+ if(teacher){const p=person(uid),group=groupForUid(uid);$('g8mChatName').textContent=group?.name||p.name;$('g8mChatMeta').textContent=[group?.section||p.section,group?.studentId||p.studentId].filter(Boolean).join(' · ');$('g8mChatAvatar').textContent=iconLetter(group||p);$('g8mComposer').hidden=false;renderLinkedThreads(uid);renderStudents();}
  if(activeMessages.length||olderMessages.length)renderMessages();
  else $('g8mMessages').replaceChildren(notice('Loading messages…'));
  switchMobile('chat');

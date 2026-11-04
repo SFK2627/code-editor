@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=58-direct-teacher-shortcut" />
+<link rel="stylesheet" href="messages.css?v=59-student-id-inbox" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -47,6 +47,7 @@
     </aside>
     <main class="g8m-conversation" id="g8mConversation" aria-label="Conversation">
       <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatPresence" class="g8m-presence-line" aria-live="polite">Checking activity…</small><small id="g8mChatMeta" class="g8m-chat-extra">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
+      <div id="g8mLinkedThreads" class="g8m-linked-threads" hidden><label for="g8mThreadSelect">Linked conversations</label><select id="g8mThreadSelect" aria-label="Choose a linked account conversation"></select><span>Older messages remain private and accessible.</span></div>
       <div class="g8m-feed-state" id="g8mFeedState" role="status" aria-live="polite">Connecting to chat…</div><div class="g8m-messages" id="g8mMessages" role="log" aria-live="polite" aria-relevant="additions text"><div class="g8m-empty">Select a conversation to begin.</div></div>
       <div id="g8mTypingIndicator" class="g8m-typing-indicator" hidden aria-live="polite"><span class="g8m-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="g8mTypingText">Typing…</span></div>
       <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
@@ -139,6 +140,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=58-direct-teacher-shortcut"></script>
+<script defer src="messages.js?v=59-student-id-inbox"></script>
 </body>
 </html>
