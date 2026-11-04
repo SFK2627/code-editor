@@ -8,7 +8,7 @@ const badges=[];
 function mountStudentShortcut(){
  if(!homeMessage||document.getElementById('studentHomeAnnouncementsBtn'))return;
  const button=document.createElement('a');button.href='announcements.html?from=student';button.id='studentHomeAnnouncementsBtn';button.className='g8-home-messages g8-home-announcements';button.setAttribute('aria-label','Open class announcements');
- button.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4l8 3V7l-8 3Z"/><path d="M11 7 20 3v18l-9-4"/><path d="m6 16 2 5"/><path d="M20 9a4 4 0 0 1 0 6"/></svg><span>Announcements</span><b id="studentHomeAnnouncementsBadge" class="g8-home-msg-badge" hidden>0</b>';
+ button.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4l8 3V7l-8 3Z"/><path d="M11 7 20 3v18l-9-4"/><path d="m6 16 2 5"/><path d="M20 9a4 4 0 0 1 0 6"/></svg><span class="sh-action-label"><span class="sh-label-full">Announcements</span><span class="sh-label-short">Updates</span></span><b id="studentHomeAnnouncementsBadge" class="g8-home-msg-badge" hidden>0</b>';
  // Moving from the verified Student Homepage to another G8Code page is internal
  // navigation, not an Exit App. Bypass the broad app exit guard ONLY when no
  // editor, wireframe, live game, or project save is at risk. Browser close/reload

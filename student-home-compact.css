@@ -1,0 +1,137 @@
+/* G8Code V5.29 — compact Student Home welcome header.
+   Loaded AFTER Messages and Announcements bridge styles.
+   Overrides layout only; existing colors/themes, routes, and badges remain intact. */
+#studentHomeScreen .sh-welcome {
+  min-height: 0;
+  margin-top: 12px;
+  border-radius: 18px;
+}
+#studentHomeScreen .sh-welcome-text {
+  width: 100%;
+  max-width: min(840px, 83%);
+  padding: 16px clamp(18px, 2.4vw, 28px) 17px;
+}
+#studentHomeScreen .sh-welcome h1 {
+  font-size: clamp(22px, 2.25vw, 28px);
+  line-height: 1.16;
+  margin: 6px 0 4px;
+}
+#studentHomeScreen .sh-welcome p { font-size: 12px; line-height: 1.35; }
+#studentHomeScreen .sh-profile-pills { margin-top: 8px; gap: 6px; }
+#studentHomeScreen .sh-profile-pills span { padding: 4px 8px; font-size: 10px; }
+#studentHomeScreen .sh-welcome-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  width: min(100%, 700px);
+  gap: 8px;
+  margin-top: 10px;
+}
+#studentHomeScreen .sh-welcome-actions > :is(button,a) {
+  min-width: 0;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 11px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  position: relative;
+  font-size: 11px;
+  line-height: 1.25;
+  font-weight: 750;
+  text-align: center;
+  white-space: nowrap;
+  text-decoration: none;
+}
+#studentHomeScreen .sh-welcome-actions > :is(.g8-home-messages,.g8-home-announcements) {
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.65);
+  background: rgba(255,255,255,.07);
+}
+#studentHomeScreen .sh-welcome-actions > :is(.g8-home-messages,.g8-home-announcements) svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+#studentHomeScreen .sh-welcome-actions .sh-action-icon {flex: 0 0 auto; font-size: 15px; line-height: 1}
+#studentHomeScreen .sh-welcome-actions .sh-action-label {min-width: 0; display: inline-flex; justify-content: center; align-items: center}
+#studentHomeScreen .sh-welcome-actions .sh-label-short { display: none }
+#studentHomeScreen .sh-welcome-actions .sh-action-arrow { opacity: .85; font-size: 12px }
+#studentHomeScreen .sh-welcome-actions .g8-home-msg-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  line-height: 18px;
+  border-radius: 99px;
+  font-size: 10px;
+  z-index: 3;
+}
+#studentHomeScreen .sh-welcome-actions .g8-home-msg-badge[hidden] { display: none !important; }
+#studentHomeScreen .sh-welcome-actions > :is(button,a):focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+@media (max-width: 900px) {
+  #studentHomeScreen .sh-welcome-text { max-width: 100%; padding-right: 18px; }
+  #studentHomeScreen .sh-hero-art { opacity: .14; right: -32px; pointer-events: none; }
+  #studentHomeScreen .sh-welcome-actions { width: min(100%, 690px); }
+}
+@media (max-width: 720px) {
+  #studentHomeScreen .sh-welcome { min-height: 0; margin-top: 10px; border-radius: 15px; }
+  #studentHomeScreen .sh-welcome-text { max-width: 100%; padding: 12px 12px 13px; }
+  #studentHomeScreen .sh-welcome h1,
+  body #studentHomeScreen .sh-welcome h1 { font-size: clamp(19px, 5vw, 24px) !important; line-height: 1.16; margin: 4px 0 3px; letter-spacing: -.5px; }
+  #studentHomeScreen .sh-small-kicker { font-size: 8px; letter-spacing: 1px; }
+  #studentHomeScreen .sh-welcome p { font-size: 10px; line-height: 1.25; }
+  #studentHomeScreen .sh-profile-pills { margin-top: 6px; gap: 5px; }
+  #studentHomeScreen .sh-profile-pills span { padding: 3px 7px; font-size: 9px; }
+  #studentHomeScreen .sh-hero-art { opacity: .09; right: -45px; }
+  #studentHomeScreen .sh-welcome-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+    margin-top: 9px;
+    width: 100%;
+  }
+  #studentHomeScreen .sh-welcome-actions > :is(button,a) {
+    min-width: 0;
+    width: 100%;
+    min-height: 56px;
+    padding: 6px 1px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 10px;
+    font-size: clamp(9px, 2.55vw, 11px);
+    line-height: 1.1;
+    overflow: visible;
+    white-space: nowrap;
+  }
+  #studentHomeScreen .sh-welcome-actions .sh-label-full,
+  #studentHomeScreen .sh-welcome-actions .sh-action-arrow,
+  #studentHomeScreen .sh-welcome-actions .sh-cta .sh-action-arrow { display: none !important; }
+  #studentHomeScreen .sh-welcome-actions .sh-label-short { display: inline; }
+  #studentHomeScreen .sh-welcome-actions .sh-action-icon { font-size: 17px; }
+  #studentHomeScreen .sh-welcome-actions > :is(.g8-home-messages,.g8-home-announcements) svg {
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
+  }
+  #studentHomeScreen .sh-welcome-actions .sh-action-label { line-height: 1.12; }
+  #studentHomeScreen .sh-section-heading { margin-top: 14px; }
+}
+@media (max-width: 360px) {
+  #studentHomeScreen .sh-welcome-text { padding: 11px 9px 12px; }
+  #studentHomeScreen .sh-welcome-actions { gap: 4px; }
+  #studentHomeScreen .sh-welcome-actions > :is(button,a) { min-height: 52px; font-size: 9px; padding: 5px 0; }
+  #studentHomeScreen .sh-welcome-actions .g8-home-msg-badge { right: -3px; top: -5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #studentHomeScreen .sh-welcome-actions > :is(button,a) { transition: none; }
+}
