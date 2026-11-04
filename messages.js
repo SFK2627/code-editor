@@ -744,6 +744,15 @@ async function markSeen(uid){
 function peerRole(){return teacher?'student':'teacher';}
 function messageById(id){return [...activeMessages,...olderMessages].find(msg=>msg.id===String(id));}
 const isDeletedMessage=msg=>!!(msg&&Number(msg.deletedAtMs)>0);
+// One message-level acknowledgment for each genuine student submission.
+// Shared projects are references, not photo attachments; both use /acks/{messageId}.
+// No Firestore request is needed to determine whether a submission can be checked.
+function isReviewableStudentSubmission(msg){
+ if(!msg || isDeletedMessage(msg) || msg.senderRole!=='student')return false;
+ if(msg.type==='project')return !!String(msg.projectId||'').trim();
+ const attachments=Array.isArray(msg.attachments)?msg.attachments:Object.values(msg.attachments||{});
+ return attachments.length>0;
+}
 const isDeletedReference=id=>!!deletedMessageIndex[String(id)]||isDeletedMessage(messageById(id));
 function absoluteTime(value){
  const n=Number(value);if(!Number.isFinite(n)||n<=0)return 'Unavailable';
@@ -1628,16 +1637,34 @@ function renderMessages(){
       photosToLoad.push({att:{...att,messageId:msg.id,studentUid:openedUid},button});
      }
     }
+   }
+   // V5.19 — photos AND saved-project shares use the SAME teacher-only RTDB
+   // acknowledgment. This is the message's Received/Checked state, not a
+   // grade or a claim that subsequent edits to the project were reviewed.
+   const isSharedProject=msg.type==='project' && !!msg.projectId;
+   const acknowledgeable=isReviewableStudentSubmission(msg);
+   if(acknowledgeable){
     const ack=activeAcks[msg.id];
-    if(teacher && msg.senderRole==='student'){
-     const controls=textEl('div','g8m-ack-actions','');
+    if(teacher){
+     const controls=textEl('div','g8m-ack-actions'+(isSharedProject?' g8m-project-ack-actions':''),'');
+     controls.setAttribute('role','group');
+     controls.setAttribute('aria-label',isSharedProject?'Saved project acknowledgment':'Photo acknowledgment');
      for(const st of ['received','checked']){
-      const b=textEl('button',ack?.status===st?'selected':'',st==='received'?'✓ Received':'✓✓ Checked');b.type='button';
-      b.title=st==='received'?'Acknowledge the attachment was received':'Confirm you reviewed the attachment (not a grade)';
+      const b=textEl('button',ack?.status===st?'selected':'',st==='received'?'✓ Received':'✓✓ Checked');
+      b.type='button';
+      b.setAttribute('aria-pressed',ack?.status===st?'true':'false');
+      b.title=st==='received'?'Confirm that the shared item was received':'Confirm that the shared item was reviewed (not a grade)';
       b.addEventListener('click',()=>acknowledge(msg.id,st));controls.append(b);
      }
      item.append(controls);
-    }else if(ack && msg.senderRole==='student')item.append(textEl('span','g8m-ack-chip',ack.status==='checked'?'✓✓ Checked by teacher':'✓ Received by teacher'));
+    }else if(ack){
+     // Existing photo acknowledgment visibility is retained on mobile.
+     item.append(textEl('span','g8m-ack-chip'+(isSharedProject?' g8m-project-ack-chip':''),
+      ack.status==='checked'?'✓✓ Checked by teacher':'✓ Received by teacher'));
+    }else if(isSharedProject){
+     // A project share makes sense to a student even before the teacher acts.
+     item.append(textEl('span','g8m-ack-chip g8m-project-ack-chip is-pending','○ Awaiting teacher acknowledgment'));
+    }
    }
    if(!isDeletedMessage(msg)&&!item.querySelector('.g8m-text')&&!attachments.length&&msg.type!=='project'){
     // Malformed older data must not silently remove a message from chat.
@@ -2311,21 +2338,27 @@ async function showPhoto(att,button,version){
  }catch(error){console.warn('Private Drive photo:',error);fail(error);}
 }
 
-async function acknowledge(messageId,st){if(!teacher||!openedUid)return;
+async function acknowledge(messageId,st){
+ if(!teacher || !openedUid || !user || !['received','checked'].includes(st))return;
+ const msg=[...activeMessages,...olderMessages].find(m=>String(m.id)===String(messageId));
+ if(!isReviewableStudentSubmission(msg))return;
+ const uid=openedUid; // Keep this write tied to the chosen student's chat.
  const previous=activeAcks[messageId]?.status || '';
+ if(previous===st)return;
  try{
-  await set(ref(rtdb,`${studentPath(openedUid)}/acks/${messageId}`),{status:st,atMs:serverTimestamp(),byUid:user.uid});
-  status(st==='checked'?'Marked Checked — no grade was changed.':'Marked Received — no grade was changed.');
-  if((previous==='checked')!== (st==='checked')){
-    try{await runTransaction(ref(rtdb,`${summaryPath(openedUid)}/needsChecking`),n=>Math.max(0,Math.min(9999,Number(n||0)+(st==='checked'?-1:1))));}catch(error){console.warn('Needs Checking sync pending:',error);}
+  await set(ref(rtdb,`${studentPath(uid)}/acks/${messageId}`),{status:st,atMs:serverTimestamp(),byUid:user.uid});
+  if(uid===openedUid)status(st==='checked'?'Marked Checked — no grade was changed.':'Marked Received — no grade was changed.');
+  if((previous==='checked') !== (st==='checked')){
+   try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.max(0,Math.min(9999,Number(n||0)+(st==='checked'?-1:1))));}
+   catch(error){console.warn('Needs Checking sync pending:',error);}
   }
- }catch(error){status(friendlyError(error),true);}
+ }catch(error){if(uid===openedUid)status(friendlyError(error),true);}
 }
 async function syncCheckingCount(uid){
  try{
   const snap=await get(ref(rtdb,`${studentPath(uid)}/messages`));const ackSnap=await get(ref(rtdb,`${studentPath(uid)}/acks`));
   const msg=snap.val()||{},acks=ackSnap.val()||{};
-  const n=Object.keys(msg).filter(id=>msg[id]?.senderRole==='student' && msg[id]?.attachments && (!acks[id] || acks[id].status!=='checked')).length;
+  const n=Object.keys(msg).filter(id=>isReviewableStudentSubmission(msg[id]) && (!acks[id] || acks[id].status!=='checked')).length;
   await set(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n);
  }catch(error){console.warn('Needs Checking count sync:',error);}
 }
@@ -2734,7 +2767,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
     [`${BASE}/directory/${uid}/section`]:data.section
    });}catch(error){syncIssue=true;console.warn('Directory sync pending',error);}
   }
-  if(attachments.length&&!teacher){try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.min(9999,Number(n||0)+1));}catch(error){syncIssue=true;console.warn('Photo saved; Needs Checking badge sync pending',error);}}
+  if(!teacher && (attachments.length || sharedProject)){try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.min(9999,Number(n||0)+1));}catch(error){syncIssue=true;console.warn('Shared item saved; Needs Checking badge sync pending',error);}}
  $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';selections.forEach(x=>URL.revokeObjectURL(x.url));selections=[];selectedProject=null;renderSelections();renderProjectSelection();reply=null;renderReply();
   if(uid===openedUid)pinMessage(key);
   // Firebase verified the write. Viewport visibility is NOT delivery status:
