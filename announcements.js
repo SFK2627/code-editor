@@ -4,8 +4,9 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id), BASE='g8AnnouncementsV1', MAX_IMAGES=10, MAX_PDFS=10, MAX_IMAGE_INPUT=30*1024*1024, MAX_PDF=3*1024*1024;
 const SRC=new URLSearchParams(location.search).get('from');
+const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,imageUrls:new Map(),viewerUrl:'',viewerFile:null,blobOwner:'',markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{}};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,imageUrls:new Map(),viewerUrl:'',viewerFile:null,blobOwner:'',markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -31,17 +32,39 @@ function path(p){return state.sdk.ref(state.db,BASE+'/'+p);}
 function on(p,callback,bag=state.unsubs){bag.push(state.sdk.onValue(path(p),s=>callback(s.val()||{}),err=>{console.error('Announcements RTDB:',err);toast(`Announcements permission/connection issue: ${err.message}`,true);setLive('RTDB error');}));}
 function theme(){const dark=document.body.classList.toggle('ga-dark');try{localStorage.setItem('g8-announcements-theme',dark?'dark':'light');}catch{}$('gaTheme').textContent=dark?'☀':'◐';}
 $('gaTheme').addEventListener('click',theme);try{if(localStorage.getItem('g8-announcements-theme')==='dark')theme();}catch{}
-$('gaBack').addEventListener('click',e=>{if(!state.user)return;e.preventDefault();location.href=state.teacher?'admin-v2.html':'index.html';});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.reactions={};state.comments={};state.displayedIds=[];$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';}
-async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Missing G8Code Firebase configuration.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');gate('Sign in to Announcements','Use your existing student account or teacher account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
- $('gaGate').hidden=true;$('gaWorkspace').hidden=false;document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
- if(state.teacher){loadTeacher();
+function backDestination(){
+ if(!state.user)return 'index.html';
+ if(!state.teacher)return 'index.html?g8mBack=student'; // Existing verified Student Homepage resume.
+ return SRC==='login'?'index.html':'admin-v2.html?g8mBack=overview';
+}
+function goBack(){cleanup();location.replace(backDestination());}
+function installSmartBack(){
+ if(state.backGuardInstalled)return;state.backGuardInstalled=true;
+ try{history.pushState({g8AnnouncementsRoleBack:true},'',location.href);window.addEventListener('popstate',goBack);}catch(error){console.info('Announcements browser Back guard:',error);}
+}
+$('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.catalog={};state.reactions={};state.comments={};state.displayedIds=[];$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';}
+async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Missing G8Code Firebase configuration.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
+ $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
+ if(state.teacher){loadTeacher();loadCatalog();
   try{const raw=sessionStorage.getItem('g8announcementPendingAttach');if(raw){const item=JSON.parse(raw);if(Date.now()-Number(item.atMs||0)<5*60*1000&&['lesson','activity'].includes(item.type)&&/^[\w-]{1,128}$/.test(item.itemId)){sessionStorage.removeItem('g8announcementPendingAttach');openComposer();state.files.push({type:item.type,itemId:item.itemId,name:txt(item.name,140)});renderAttachments();drawPreview();toast('Existing '+item.type+' attached. Add your announcement message and choose recipients.');}}}catch(error){console.info('Pending attachment:',error.message);}
  }else loadStudent();
  },error=>gate('Authentication error',error.message,true));}catch(err){gate('Announcements unavailable',err.message,false);setLive('Unavailable');}}
 function toggleLoginRole(){const teacher=$('gaLoginRole').value==='teacher';$('gaIdentityLabel').textContent=teacher?'Teacher email':'Student ID';$('gaLoginIdentity').type=teacher?'email':'text';$('gaLoginIdentity').placeholder=teacher?'Teacher email':'Student ID';}
-$('gaLoginRole').addEventListener('change',toggleLoginRole);if(SRC==='admin')$('gaLoginRole').value='teacher';toggleLoginRole();
-$('gaLogin').addEventListener('submit',async e=>{e.preventDefault();const button=$('gaLoginButton');button.disabled=true;$('gaLoginError').hidden=true;try{const teacher=$('gaLoginRole').value==='teacher';let id=txt($('gaLoginIdentity').value,110);if(!id)throw Error('Enter your existing G8Code account identity.');if(!teacher)id='sid-'+id.toLowerCase().replace(/[^a-z0-9]/g,'')+'@students.mcsian.app';const c=await state.sdk.signInWithEmailAndPassword(state.auth,id,$('gaLoginPassword').value);if(teacher&&!isTeacher(c.user))throw Error('Only the authorized teacher can access the Admin announcement creator.');}catch(err){$('gaLoginError').textContent=err.message||'Sign-in failed';$('gaLoginError').hidden=false;}finally{button.disabled=false;}});
+if(teacherShortcut){
+ $('gaLoginRole').value='teacher';$('gaLoginRole').hidden=true;
+ document.querySelector('label[for="gaLoginRole"]').hidden=true;
+ $('gaLoginIdentity').required=false;$('gaLoginIdentity').disabled=true;$('gaLoginIdentity').hidden=true;
+ $('gaIdentityLabel').hidden=true;
+ document.querySelector('label[for="gaLoginPassword"]').textContent='Admin Code';
+ $('gaLoginPassword').placeholder='Enter your teacher account password';
+ $('gaLoginButton').textContent='Open Teacher Announcements';
+ $('gaBack').href='index.html';
+}else{
+ $('gaLoginRole').addEventListener('change',toggleLoginRole);
+ if(SRC==='admin')$('gaLoginRole').value='teacher';toggleLoginRole();
+}
+$('gaLogin').addEventListener('submit',async e=>{e.preventDefault();const button=$('gaLoginButton');button.disabled=true;$('gaLoginError').hidden=true;try{const teacher=teacherShortcut||$('gaLoginRole').value==='teacher';let id=teacherShortcut?[...teachers][0]||'':txt($('gaLoginIdentity').value,110);if(!id)throw Error(teacherShortcut?'Authorized teacher account is not configured.':'Enter your existing G8Code account identity.');if(!teacher)id='sid-'+id.toLowerCase().replace(/[^a-z0-9]/g,'')+'@students.mcsian.app';const c=await state.sdk.signInWithEmailAndPassword(state.auth,id,$('gaLoginPassword').value);if(teacher&&!isTeacher(c.user))throw Error('Only the authorized teacher can access the Admin announcement creator.');$('gaLoginPassword').value='';}catch(err){$('gaLoginError').textContent=err.message||'Sign-in failed';$('gaLoginError').hidden=false;}finally{button.disabled=false;}});
 function loadStudent(){on(`feeds/${state.user.uid}`,data=>{state.posts=data;render();});on(`seen/${state.user.uid}`,data=>{state.seen=data;renderBadges();if(state.filter==='unread')render();else renderReadFlags();});}
 function loadTeacher(){on('posts',data=>{state.posts=data;render();}); // No Firestore use.
  // Existing Messages directory is an RTDB mirror; select only synchronized active accounts.
@@ -82,8 +105,99 @@ function drawPreview(){const x=$('gaComposePreview');x.replaceChildren(node('str
 $('gaRichText').addEventListener('paste',e=>{const html=e.clipboardData?.getData('text/html');if(html){e.preventDefault();document.execCommand('insertHTML',false,sanitizeHtml(html));}});
 function doCmd(cmd,value){$('gaRichText').focus();document.execCommand(cmd,false,value||null);drawPreview();}
 for(const b of document.querySelectorAll('[data-ga-cmd]'))b.addEventListener('click',()=>doCmd(b.dataset.gaCmd));$('gaTextSize').addEventListener('change',e=>doCmd('fontSize',e.target.value));$('gaTextColor').addEventListener('input',e=>doCmd('foreColor',e.target.value));$('gaFont').addEventListener('change',e=>doCmd('fontName',e.target.value));$('gaInsertLink').addEventListener('click',()=>{const u=cleanLink(prompt('Paste HTTPS link:')||'');if(!u)return;doCmd('createLink',u);});
-function addLink(type){let a;if(type==='link'){const url=cleanLink(prompt('Paste a web link (https://...)')||'');if(!url)return;const name=txt(prompt('Link display title:',url)||url,140);a={type:'link',url,name};}else if(type==='youtube'){const videoId=youtubeId(prompt('Paste the YouTube video URL:')||'');if(!videoId){toast('Use a valid YouTube watch, youtu.be or embed link.',true);return;}a={type:'youtube',videoId,name:txt(prompt('Video title:', 'YouTube video')||'YouTube video',140)};}else{const itemId=txt(prompt(`Paste the exact existing ${type} ID (from the Admin ${type==='lesson'?'Lesson Library':'Activities Given'}):`)||'',128);if(!/^[\w-]{1,128}$/.test(itemId)){toast('Enter a valid lesson/activity ID.',true);return;}a={type,itemId,name:txt(prompt(`${type==='lesson'?'Lesson':'Activity'} title:`)||type,140)};}state.files.push(a);renderAttachments();}
-$('gaAddLink').addEventListener('click',()=>addLink('link'));$('gaAddYoutube').addEventListener('click',()=>addLink('youtube'));$('gaAddLesson').addEventListener('click',()=>addLink('lesson'));$('gaAddActivity').addEventListener('click',()=>addLink('activity'));$('gaAddImages').addEventListener('click',()=>$('gaImageFiles').click());$('gaAddPdf').addEventListener('click',()=>$('gaPdfFiles').click());
+function cachedCatalog(type){
+ // Existing lesson/activity page already maintains these metadata caches. Reading
+ // them here consumes no Firestore or RTDB reads/writes.
+ const key=type==='lesson'?'studentCodeStudio.lessonLibrary.v1':'studentCodeStudio.givenActivities.v1';
+ try{
+  const data=JSON.parse(localStorage.getItem(key)||'null')||{};
+  const rows=type==='lesson'?data.lessons:data.items;
+  return Array.isArray(rows)?rows:[];
+ }catch{return [];}
+}
+function catalogItems(type){
+ const local=cachedCatalog(type),entry=state.catalog?.[type==='lesson'?'lessons':'activities'];
+ const remote=entry?.items||{};const rows=new Map();
+ // Once the verified admin mirror exists it is authoritative; older browser
+ // caches must not resurrect a deleted/unpublished resource.
+ if(!entry){for(const r of local){if(r&&/^[\w-]{1,128}$/.test(String(r.id||'')))rows.set(r.id,r);}}
+ for(const r of Object.values(remote)){if(r&&/^[\w-]{1,128}$/.test(String(r.id||'')))rows.set(r.id,r);}
+ return [...rows.values()].filter(r=>type==='lesson'||r.published===true||r.visibility==='published').sort((a,b)=>{
+  const term=a.term===b.term?0:(String(a.term||'').localeCompare(String(b.term||'')));
+  return term||Number(a.order||0)-Number(b.order||0)||String(a.title||'').localeCompare(String(b.title||''));
+ });
+}
+function loadCatalog(){
+ // The catalog is a teacher-only RTDB metadata mirror, synchronized from the
+ // *already loaded* Admin V2 lists. No separate academic Firestore query.
+ on('catalog',data=>{state.catalog=data||{};if(!$('gaResourcePicker').hidden)renderResourcePicker();});
+}
+function closeResourcePicker(){
+ $('gaResourcePicker').hidden=true;
+ if(!$('gaComposerModal').hidden){document.body.style.overflow='hidden';$('gaAdd'+(state.pickerType==='lesson'?'Lesson':'Activity')).focus({preventScroll:true});}
+ else document.body.style.overflow='';
+}
+function openResourcePicker(type){
+ if(!state.teacher)return;
+ state.pickerType=type;
+ $('gaPickerTitle').textContent=type==='lesson'?'Choose a Lesson':'Choose an Activity';
+ $('gaPickerDescription').textContent=type==='lesson'?'Select a lesson from your existing G8Code Lesson Library.':'Select a published activity from your existing Activities Given.';
+ $('gaPickerSearch').value='';$('gaPickerTerm').value='all';
+ $('gaResourcePicker').hidden=false;document.body.style.overflow='hidden';
+ renderResourcePicker();$('gaPickerSearch').focus({preventScroll:true});
+}
+function renderResourcePicker(){
+ if($('gaResourcePicker').hidden)return;
+ const type=state.pickerType,all=catalogItems(type),term=$('gaPickerTerm').value,
+ q=txt($('gaPickerSearch').value,120).toLowerCase(),host=$('gaPickerList');
+ const matching=all.filter(r=>(term==='all'||r.term===term)&&(!q||(`${r.title||''} ${r.description||''} ${r.term||''}`).toLowerCase().includes(q)));
+ host.replaceChildren();
+ for(const r of matching.slice(0,300)){
+  const selected=state.files.some(f=>f.type===type&&f.itemId===r.id);
+  const button=node('button','ga-picker-choice');button.type='button';button.dataset.selected=String(selected);
+  const ico=node('span','ga-picker-icon',type==='lesson'?'📘':r.isQuiz?'🛡️':r.isPeta?'📋':'📝');
+  const info=node('span','ga-picker-info');info.append(node('strong','',txt(r.title,140)||'Untitled resource'));
+  const detail=[r.term==='term1'?'Term 1':r.term==='term2'?'Term 2':r.term==='term3'?'Term 3':'',
+   type==='activity'?(r.audienceSection&&r.audienceSection!=='all'?r.audienceSection:'All sections'):(r.description||'PDF Lesson')].filter(Boolean).join(' · ');
+  info.append(node('small','',txt(detail,155)));
+  button.append(ico,info,node('span','ga-picker-choice-indicator',selected?'✓ Attached':'Attach +'));
+  button.addEventListener('click',()=>{
+   if(selected){toast('This '+type+' is already attached.');closeResourcePicker();return;}
+   state.files.push({type,itemId:r.id,name:txt(r.title,140)||type});
+   renderAttachments();drawPreview();closeResourcePicker();toast((type==='lesson'?'Lesson':'Activity')+' attached. Add more resources or publish your post.');
+  });
+  host.append(button);
+ }
+ if(!matching.length){
+  const blank=node('div','ga-picker-message');
+  blank.append(node('strong','',all.length?'No matching resources':'No '+(type==='lesson'?'lessons':'published activities')+' available yet'));
+  blank.append(node('span','',all.length?'Try a different title or term.':'Open the existing '+(type==='lesson'?'Lesson Library':'Activities Given')+' in Admin once to synchronize its saved list. This uses the existing Admin data, not new Firestore reads from Announcements.'));
+  host.append(blank);
+ }
+ $('gaPickerCount').textContent=`${matching.length} available · ${state.files.filter(f=>f.type===type).length} attached`;
+}
+$('gaPickerClose').addEventListener('click',closeResourcePicker);
+$('gaPickerDone').addEventListener('click',closeResourcePicker);
+document.querySelectorAll('[data-ga-close="resource"]').forEach(el=>el.addEventListener('click',closeResourcePicker));
+$('gaPickerSearch').addEventListener('input',renderResourcePicker);
+$('gaPickerTerm').addEventListener('change',renderResourcePicker);
+function addLink(type){
+ let a;
+ if(type==='link'){
+  const url=cleanLink(prompt('Paste a web link (https://...)')||'');if(!url)return;
+  const name=txt(prompt('Link display title:',url)||url,140);a={type:'link',url,name};
+ }else if(type==='youtube'){
+  const videoId=youtubeId(prompt('Paste the YouTube video URL:')||'');if(!videoId){toast('Use a valid YouTube URL.',true);return;}
+  a={type:'youtube',videoId,name:txt(prompt('Video title:','YouTube video')||'YouTube video',140)};
+ }else return;
+ state.files.push(a);renderAttachments();
+}
+$('gaAddLink').addEventListener('click',()=>addLink('link'));
+$('gaAddYoutube').addEventListener('click',()=>addLink('youtube'));
+$('gaAddLesson').addEventListener('click',()=>openResourcePicker('lesson'));
+$('gaAddActivity').addEventListener('click',()=>openResourcePicker('activity'));
+$('gaAddImages').addEventListener('click',()=>$('gaImageFiles').click());
+$('gaAddPdf').addEventListener('click',()=>$('gaPdfFiles').click());
 function renderAttachments(){const host=$('gaAttachmentList');host.replaceChildren();state.files.forEach((f,i)=>{const row=node('div','ga-attachment-item');row.append(node('span','',f.type==='image'?'🖼':f.type==='pdf'?'📄':f.type==='lesson'?'📘':f.type==='activity'?'📝':f.type==='youtube'?'▶':'🔗'),node('strong','',f.name),node('small','',f.type.toUpperCase()));for(const [mark,delta] of [['↑',-1],['↓',1]]){const b=node('button','',mark);b.type='button';b.title='Reorder';b.disabled=i+delta<0||i+delta>=state.files.length;b.addEventListener('click',()=>{const tmp=state.files[i];state.files[i]=state.files[i+delta];state.files[i+delta]=tmp;renderAttachments();});row.append(b);}const x=node('button','','×');x.type='button';x.title='Remove attachment';x.addEventListener('click',()=>{state.files.splice(i,1);renderAttachments();});row.append(x);host.append(row);});}
 function postFromEditor(id,status){const old=state.editingBase;const title=txt($('gaPostTitle').value,140);const bodyHtml=sanitizeHtml($('gaRichText').innerHTML);if(!title&&!plainHtml(bodyHtml)&&!state.files.length)throw Error('Write a title, message, or include an attachment.');return {id,title:title||'Class announcement',bodyHtml,background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,status,allowReplies:$('gaAllowReplies').checked,pinned:$('gaPinned').checked,audience:selectedAudience(),attachments:state.files.map(f=>({...f})),createdAtMs:old?.createdAtMs||Date.now(),updatedAtMs:Date.now(),publishedAtMs:status==='published'?(old?.publishedAtMs||Date.now()):0};}
 function feedCopy(p){return {id:p.id,title:p.title,bodyHtml:p.bodyHtml,background:p.background,bgColor:p.bgColor,font:p.font,status:p.status,allowReplies:p.allowReplies,pinned:p.pinned,attachments:p.attachments||[],createdAtMs:p.createdAtMs,publishedAtMs:p.publishedAtMs,updatedAtMs:p.updatedAtMs};}
@@ -109,6 +223,6 @@ function closeViewer(){state.viewerFile=null;if(state.viewerUrl){URL.revokeObjec
 $('gaViewerClose').addEventListener('click',closeViewer);document.querySelectorAll('[data-ga-close="viewer"]').forEach(el=>el.addEventListener('click',closeViewer));
 async function openFile(p,f){$('gaViewerModal').hidden=false;$('gaViewerTitle').textContent=f.name;$('gaViewerError').textContent='Loading private Drive attachment…';$('gaViewerBody').replaceChildren();$('gaViewerDownload').disabled=true;try{const cached=await getFileData(p,f);const url=cached;if(f.type==='image'){const img=node('img');img.alt=f.name;img.src=url;$('gaViewerBody').append(img);}else{const frame=node('iframe');frame.src=url;frame.title=f.name;$('gaViewerBody').append(frame);}$('gaViewerError').textContent='';$('gaViewerDownload').disabled=false;state.viewerFile={url,name:f.name};}catch(e){$('gaViewerError').textContent='File unavailable: '+e.message;}}
 $('gaViewerDownload').addEventListener('click',()=>{if(!state.viewerFile)return;const a=node('a');a.href=state.viewerFile.url;a.download=state.viewerFile.name;a.click();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaComposerModal').hidden)closeComposer();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaResourcePicker').hidden)closeResourcePicker();else if(!$('gaComposerModal').hidden)closeComposer();}});
 void boot();
 })();
