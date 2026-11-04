@@ -10,8 +10,6 @@
 <link rel="stylesheet" href="messages.css?v=519-project-acknowledgments" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
-  <!-- V5.36: shared visual consistency only; no JavaScript/backend changes. -->
-  <link rel="stylesheet" href="g8code-ui-polish-v538.css?v=538" />
 </head>
 <body>
 <div class="g8m-app" id="g8mApp" data-mode="loading">
@@ -65,7 +63,7 @@
   </div>
   <div id="g8mProjectViewer" class="g8m-project-modal g8m-project-view-modal" role="dialog" aria-modal="true" aria-labelledby="g8mViewerTitle" hidden>
     <section class="g8m-project-dialog g8m-project-view-dialog"><header><div><h2 id="g8mViewerTitle">Project Preview</h2><p id="g8mViewerMeta">Latest saved G8Code project · Read-only</p></div><button id="g8mViewerClose" type="button" aria-label="Close project viewer">×</button></header>
-      <div id="g8mViewerLoading" class="g8m-viewer-loader">Loading the latest saved project…</div>
+      <div id="g8mViewerLoading" class="g8m-viewer-loader">Loading latest project from Firestore…</div>
       <p id="g8mViewerError" class="g8m-viewer-error" hidden></p>
       <div id="g8mViewerWorkspace" class="g8m-viewer-workspace" hidden>
         <div class="g8m-viewer-toolbar">
@@ -152,6 +150,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=537-student-counts"></script>
+<script defer src="messages.js?v=519-project-acknowledgments"></script>
 </body>
 </html>

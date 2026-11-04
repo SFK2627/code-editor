@@ -92,7 +92,7 @@
 
   const getRestoredUser = async () => {
     if (typeof initFirebaseSync !== 'function' || !await initFirebaseSync()) {
-      throw new Error('G8Code sign-in is temporarily unavailable');
+      throw new Error('Firebase authentication is unavailable');
     }
     const authInstance = firebaseSync?.auth;
     const observeAuth = firebaseSync?.authModule?.onAuthStateChanged;

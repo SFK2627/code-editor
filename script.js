@@ -6062,51 +6062,12 @@ async function handleProtectedBackNavigation() {
 
 window.addEventListener('popstate', handleProtectedBackNavigation);
 
-// V5.33: A student moving to another G8Code page is not leaving the app.
-// Bypass the broad Exit App warning ONLY for the two trusted communication
-// pages, from the authenticated Student Homepage with absolutely no pending
-// editor/wireframe save or active game. Other destinations and browser close,
-// refresh, and actual unsaved work retain their existing protection.
-function allowSafeStudentInternalRoute(rawUrl) {
-  let destination;
-  try { destination = new URL(String(rawUrl || ''), location.href); }
-  catch (_) { return false; }
-  if (destination.origin !== location.origin ||
-      !/^(messages|announcements)\.html$/i.test(destination.pathname.split('/').pop() || '') ||
-      destination.pathname.slice(0, destination.pathname.lastIndexOf('/')) !==
-        location.pathname.slice(0, location.pathname.lastIndexOf('/'))) return false;
-  const activeUser = typeof getFirebaseActiveUser === 'function' ? getFirebaseActiveUser() : null;
-  if (appSession.mode !== 'student' || !appSession.student?.uid ||
-      activeUser?.uid !== appSession.student.uid ||
-      !document.body.classList.contains('student-home-active') ||
-      studentHomeScreen?.classList.contains('hidden')) return false;
-  if (studentProjectDirty || studentProjectSaveInFlight || studentProjectSaveQueued ||
-      studentProjectSaveTimer || wireframeMakerState?.dirty || wireframeMakerState?.saving ||
-      isMiniGameExitGuardActive()) return false;
-  appExitGuardState.allowNextUnload = true;
-  // A canceled click must not silently disable the later real exit warning.
-  setTimeout(() => {
-    if (document.visibilityState === 'visible') appExitGuardState.allowNextUnload = false;
-  }, 1300);
-  return true;
-}
-
 window.ICT8AppExitGuard = Object.freeze({
   arm: armAppExitGuard,
   isArmed: () => appExitGuardState.armed,
   shouldProtect: shouldProtectAppExit,
-  allowNextUnload: () => { appExitGuardState.allowNextUnload = true; },
-  allowSafeStudentRoute: allowSafeStudentInternalRoute
+  allowNextUnload: () => { appExitGuardState.allowNextUnload = true; }
 });
-// Keyboard activation and mouse/touch clicks share the same trusted-link path.
-// Do not preventDefault: normal browser navigation and target behavior stay native.
-document.addEventListener('click', event => {
-  if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey ||
-      event.shiftKey || event.altKey) return;
-  const link = event.target?.closest?.('a[href]');
-  if (!link || (link.target && link.target !== '_self') || link.hasAttribute('download')) return;
-  allowSafeStudentInternalRoute(link.getAttribute('href'));
-}, true);
 
 function showTeacherLoginError(message) {
   const rawMessage = String(message ?? '').trim();
@@ -15600,9 +15561,7 @@ async function addStudentAccountFromForm() {
 }
 
 function getAdminStudentIdentityKey(record = {}) {
-  // Match Student IDs consistently across roster and profile formatting:
-  // 2026-000123 and 2026000123 refer to the same verified ID.
-  const normalizedId = getStudentIdAuthKey(record.studentId || record.studentIdNormalized || record.rosterId || record.id || '');
+  const normalizedId = normalizeStudentId(record.studentId || record.studentIdNormalized || record.rosterId || record.id || '');
   if (normalizedId) return `id:${normalizedId}`;
   const authEmail = String(record.authEmail || '').trim().toLowerCase();
   if (authEmail) return `email:${authEmail}`;
@@ -27756,8 +27715,6 @@ function getNextLessonOrder(term = lessonAdminTerm?.value || 'term1') {
 }
 
 function resetLessonAdminEditor(options = {}) {
-  g8LessonPendingUpload = null;
-  g8LessonPendingNewId = '';
   lessonLibraryState.editingId = '';
   if (lessonAdminTitle) lessonAdminTitle.value = '';
   if (lessonAdminDescription) lessonAdminDescription.value = '';
@@ -27774,8 +27731,6 @@ function resetLessonAdminEditor(options = {}) {
 }
 
 function editLessonAdmin(lessonId = '') {
-  g8LessonPendingUpload = null;
-  g8LessonPendingNewId = '';
   const lesson = lessonLibraryState.lessons.find(item => item.id === lessonId);
   if (!lesson) return;
   lessonLibraryState.editingId = lesson.id;
@@ -27839,14 +27794,7 @@ function renderAdminLessonList() {
     </article>`).join('');
 }
 
-// V5.35: An uploaded PDF is retained for a retry if the subsequent lesson-list
-// save fails. Do not delete a verified upload after an ambiguous cloud timeout.
-let g8LessonPendingUpload = null;
-let g8LessonPendingNewId = '';
-let g8LessonPublishing = false;
-
 async function publishLessonFromAdmin() {
-  if (g8LessonPublishing) return;
   if (!isTeacherAuthenticated()) {
     setLessonAdminStatus('Log in as teacher before publishing lessons.', 'error');
     return;
@@ -27870,9 +27818,7 @@ async function publishLessonFromAdmin() {
     downloadUrl: existing.downloadUrl,
     source: existing.source
   } : null;
-  // The editor list must stay at the last confirmed state until cloud write succeeds.
-  const confirmedLessons = lessonLibraryState.lessons.slice();
-  g8LessonPublishing = true;
+  let newlyUploadedFileId = '';
   lessonAdminPublishBtn.disabled = true;
   const oldButtonText = lessonAdminPublishBtn.textContent;
   try {
@@ -27880,13 +27826,8 @@ async function publishLessonFromAdmin() {
       const file = lessonAdminFile?.files?.[0];
       if (file) {
         setLessonAdminStatus('Uploading PDF to your Google Drive...', 'loading');
-        if (g8LessonPendingUpload && g8LessonPendingUpload.file === file) {
-          fileData = g8LessonPendingUpload.data;
-          setLessonAdminStatus('Previous PDF upload confirmed. Retrying lesson save…', 'loading');
-        } else {
-          fileData = await uploadLessonPdfToGoogleDrive(file);
-          g8LessonPendingUpload = { file, data: fileData };
-        }
+        fileData = await uploadLessonPdfToGoogleDrive(file);
+        newlyUploadedFileId = fileData.fileId;
       } else if (!existing) {
         throw new Error('Choose a PDF file, or use Paste PDF / Drive Link.');
       }
@@ -27900,7 +27841,7 @@ async function publishLessonFromAdmin() {
     const record = normalizeLesson({
       ...(existing || {}),
       ...fileData,
-      id: existing?.id || (g8LessonPendingNewId || (g8LessonPendingNewId = `lesson-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)),
+      id: existing?.id || `lesson-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title,
       description,
       term,
@@ -27912,23 +27853,17 @@ async function publishLessonFromAdmin() {
     else lessonLibraryState.lessons.push(record);
     setLessonAdminStatus('Publishing lesson list...', 'loading');
     await saveLessonLibraryToCloud();
-    if (existing?.fileId && lessonLibraryState.sourceMode === 'upload' && fileData?.fileId === g8LessonPendingUpload?.data?.fileId && existing.fileId !== fileData.fileId) {
+    if (existing?.fileId && newlyUploadedFileId && existing.fileId !== newlyUploadedFileId) {
       deleteLessonDriveFile(existing.fileId).catch(error => console.warn('Old Drive lesson file was not deleted.', error));
     }
-    g8LessonPendingUpload = null;
     resetLessonAdminEditor({ keepTerm: true });
     setLessonAdminStatus(existing ? 'Lesson updated successfully.' : 'Lesson published successfully.', 'success');
     setStatus(existing ? 'Lesson updated' : 'Lesson published');
   } catch (error) {
     console.error('Could not publish lesson.', error);
-    lessonLibraryState.lessons = confirmedLessons;
-    renderAdminLessonList();
-    renderStudentLessonLibrary();
-    // No automatic Drive delete here: the cloud request may have committed
-    // shortly before a timeout. Keeping the confirmed upload also allows retry.
-    setLessonAdminStatus('Lesson save not confirmed. Your editor is unchanged; check the connection and try Save again.', 'error');
+    if (newlyUploadedFileId) deleteLessonDriveFile(newlyUploadedFileId).catch(() => {});
+    setLessonAdminStatus(error?.message || 'Could not publish the lesson.', 'error');
   } finally {
-    g8LessonPublishing = false;
     lessonAdminPublishBtn.disabled = false;
     lessonAdminPublishBtn.textContent = lessonLibraryState.editingId ? 'Save Changes' : (oldButtonText || 'Publish Lesson');
   }
@@ -28982,8 +28917,6 @@ function renderGivenActivityFileSelection(existingItem = null) {
 }
 
 function resetGivenActivityAdminEditor(options = {}) {
-  g8GivenPendingUploads = new WeakMap();
-  g8GivenPendingNewId = '';
   givenActivityState.editingId = '';
   if (givenActivityEditorBadge) givenActivityEditorBadge.textContent = 'New Activity';
   if (givenActivityEditorTitle) givenActivityEditorTitle.textContent = 'Create an Activity';
@@ -29007,8 +28940,6 @@ function resetGivenActivityAdminEditor(options = {}) {
 }
 
 function editGivenActivityAdmin(activityId = '') {
-  g8GivenPendingUploads = new WeakMap();
-  g8GivenPendingNewId = '';
   const item = givenActivityState.items.find(entry => entry.id === activityId);
   if (!item) return;
   givenActivityState.editingId = item.id;
@@ -29310,14 +29241,7 @@ async function refreshEngagementAnalytics() {
   await openEngagementAnalytics(engagementAnalyticsState.kind, engagementAnalyticsState.itemId, { live: true });
 }
 
-// V5.35: Retain verified Drive uploads across a retry with the SAME selected
-// File objects; never treat a failed lesson/activity list commit as published.
-let g8GivenPendingUploads = new WeakMap();
-let g8GivenPendingNewId = '';
-let g8GivenPublishing = false;
-
 async function publishGivenActivityFromAdmin() {
-  if (g8GivenPublishing) return;
   if (!isTeacherAuthenticated()) {
     setGivenActivityAdminStatus('Teacher login is required before publishing activities.', 'error');
     return;
@@ -29343,9 +29267,7 @@ async function publishGivenActivityFromAdmin() {
   if (isQuiz && givenActivityState.sourceMode === 'link' && givenActivityLinkTypeSelect?.value === 'link') {
     setGivenActivityAdminStatus('Quiz links must be PDF or Image, not an external website.', 'error'); return;
   }
-  const confirmedActivities = givenActivityState.items.slice();
   const buttonText = givenActivityPublishBtn?.textContent || 'Save Activity';
-  g8GivenPublishing = true;
   if (givenActivityPublishBtn) givenActivityPublishBtn.disabled = true;
   try {
     if (givenActivityState.sourceMode === 'upload') {
@@ -29353,17 +29275,15 @@ async function publishGivenActivityFromAdmin() {
       if (files.length > 20) throw new Error('Choose up to 20 PDF/image files per activity.');
       if (files.length) {
         const uploadedAttachments = [];
-        for (let index = 0; index < files.length; index += 1) {
-          const file = files[index];
-          let uploaded = g8GivenPendingUploads.get(file);
-          if (uploaded) {
-            setGivenActivityAdminStatus(`File ${index + 1} of ${files.length} already uploaded. Preparing to save…`, 'loading');
-          } else {
-            setGivenActivityAdminStatus(`Uploading file ${index + 1} of ${files.length}: ${file.name}`, 'loading');
-            uploaded = await uploadGivenActivityFileToGoogleDrive(file);
-            g8GivenPendingUploads.set(file, uploaded);
+        try {
+          for (let index = 0; index < files.length; index += 1) {
+            setGivenActivityAdminStatus(`Uploading file ${index + 1} of ${files.length}: ${files[index].name}`, 'loading');
+            const uploaded = await uploadGivenActivityFileToGoogleDrive(files[index]);
+            uploadedAttachments.push(normalizeGivenActivityAttachment({ ...uploaded, id: `attachment-${index + 1}` }, index, uploaded.materialType));
           }
-          uploadedAttachments.push(normalizeGivenActivityAttachment({ ...uploaded, id: `attachment-${index + 1}` }, index, uploaded.materialType));
+        } catch (error) {
+          await Promise.all(uploadedAttachments.filter(item => item.fileId).map(item => googleDriveFetch(`${LESSON_GOOGLE_API_BASE}/files/${encodeURIComponent(item.fileId)}`, { method: 'DELETE' }).catch(() => {})));
+          throw error;
         }
         const primary = uploadedAttachments[0];
         sourceRecord = {
@@ -29401,7 +29321,7 @@ async function publishGivenActivityFromAdmin() {
     const record = normalizeGivenActivity({
       ...(existing || {}),
       ...sourceRecord,
-      id: existing?.id || (g8GivenPendingNewId || (g8GivenPendingNewId = `given-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)),
+      id: existing?.id || `given-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       title,
       description,
       term,
@@ -29418,18 +29338,13 @@ async function publishGivenActivityFromAdmin() {
     else givenActivityState.items.push(record);
     setGivenActivityAdminStatus('Publishing activity list...', 'loading');
     await saveGivenActivitiesToCloud();
-    g8GivenPendingUploads = new WeakMap();
     resetGivenActivityAdminEditor({ keepTerm: true });
     renderAdminGivenActivityList();
     setGivenActivityAdminStatus(`${record.title} saved ${record.published ? 'and published' : 'as a draft'}.`, 'success');
   } catch (error) {
     console.warn('Could not save Activity Given.', error);
-    givenActivityState.items = confirmedActivities;
-    renderAdminGivenActivityList();
-    renderStudentGivenActivities();
-    setGivenActivityAdminStatus('Activity save not confirmed. Keep the editor open and try Save again; confirmed file uploads will be reused.', 'error');
+    setGivenActivityAdminStatus(error?.message || 'Could not save the activity.', 'error');
   } finally {
-    g8GivenPublishing = false;
     if (givenActivityPublishBtn) {
       givenActivityPublishBtn.disabled = false;
       givenActivityPublishBtn.textContent = givenActivityState.editingId ? 'Save Changes' : (buttonText.includes('Changes') ? 'Save Activity' : buttonText);
@@ -30521,7 +30436,7 @@ async function saveRubric(event) {
         : { ok: await saveActivitiesToCloud(), pending: false };
       if (syncTimer !== null) window.clearTimeout(syncTimer);
 
-      if (!cloud.ok) {
+      if (!cloud.ok && hasFirebaseConfig()) {
         const message = cloud.pending
           ? 'Activity saved on this device. Online saving has not been confirmed; check your connection before using another device.'
           : 'Activity saved on this device, but online saving failed. Check your connection and teacher login.';
@@ -44547,15 +44462,9 @@ They can join again later using the same share code.`,
 })();
 
 
-/* V5.34: route-scoped phone reconciliation.
- * Earlier versions observed EVERY descendant across the whole app. That woke
- * the layout reconciler for unrelated chat messages, announcements, grades,
- * and editor DOM updates. Observe actual route surfaces instead. */
+/* Stability pass: one event-driven phone layout reconciler replaces several polling loops. */
 (function installPhoneLayoutReconciler() {
   let scheduled = false;
-  let geometryDirty = true;
-  let wasNormalEditor = false;
-  let lastEditorNode = null;
 
   function isPhoneMode() {
     return document.documentElement?.dataset?.deviceMode === 'phone';
@@ -44573,30 +44482,23 @@ They can join again later using the same share code.`,
     const monitorBtn = document.getElementById('desktopPreviewBtn');
     const fullBtn = document.getElementById('fullPreviewBtn');
     const previewResultBtn = document.getElementById('resultFromPreviewBtn');
-    if (monitorBtn) {
-      const wanted = monitorBtn.classList.contains('active') ? '📱 Phone' : '🖥️ Monitor';
-      if (monitorBtn.textContent !== wanted) monitorBtn.textContent = wanted;
-    }
+    if (monitorBtn) monitorBtn.textContent = monitorBtn.classList.contains('active') ? '📱 Phone' : '🖥️ Monitor';
     if (fullBtn) {
-      if (fullBtn.textContent !== '⛶ Full') fullBtn.textContent = '⛶ Full';
-      if (fullBtn.style.color !== 'rgb(7, 17, 31)') fullBtn.style.color = '#07111f';
-      if (fullBtn.style.webkitTextFillColor !== 'rgb(7, 17, 31)') fullBtn.style.webkitTextFillColor = '#07111f';
+      fullBtn.textContent = '⛶ Full';
+      fullBtn.style.color = '#07111f';
+      fullBtn.style.webkitTextFillColor = '#07111f';
     }
     if (previewResultBtn) {
-      if (previewResultBtn.textContent !== '✓ Result') previewResultBtn.textContent = '✓ Result';
-      if (previewResultBtn.style.color !== 'rgb(255, 255, 255)') previewResultBtn.style.color = '#ffffff';
-      if (previewResultBtn.style.webkitTextFillColor !== 'rgb(255, 255, 255)') previewResultBtn.style.webkitTextFillColor = '#ffffff';
-      if (previewResultBtn.style.opacity !== '1') previewResultBtn.style.opacity = '1';
+      previewResultBtn.textContent = '✓ Result';
+      previewResultBtn.style.color = '#ffffff';
+      previewResultBtn.style.webkitTextFillColor = '#ffffff';
+      previewResultBtn.style.opacity = '1';
     }
   }
 
   function reconcile() {
     scheduled = false;
-    if (!isPhoneMode()) {
-      wasNormalEditor = false;
-      lastEditorNode = null;
-      return;
-    }
+    if (!isPhoneMode()) return;
     normalizePhoneLabels();
 
     const body = document.body;
@@ -44620,14 +44522,7 @@ They can join again later using the same share code.`,
     body.classList.toggle('editor-scroll-unlocked', normalEditor);
 
     if (normalEditor) {
-      // DOMTokenList.remove() emits an attribute mutation even when the token
-      // is absent in Chromium. Avoid waking the body class observer forever.
-      const staleEditorClasses = [
-        'student-route-lock', 'preview-fullscreen-active', 'preview-has-back-editor',
-        'editor-fullscreen-active', 'preview-inside-editor-fullscreen'
-      ];
-      const presentStaleClasses = staleEditorClasses.filter(name => body.classList.contains(name));
-      if (presentStaleClasses.length) body.classList.remove(...presentStaleClasses);
+      body.classList.remove('student-route-lock', 'preview-fullscreen-active', 'preview-has-back-editor', 'editor-fullscreen-active', 'preview-inside-editor-fullscreen');
       document.documentElement.style.overflow = '';
       document.documentElement.style.overflowY = '';
       document.documentElement.style.height = '';
@@ -44637,23 +44532,15 @@ They can join again later using the same share code.`,
       body.style.height = '';
       body.style.maxHeight = '';
       body.style.touchAction = 'pan-y';
-      // The editor already handles its own input updates. Full editor geometry
-      // work is needed when entering it, replacing it or resizing the phone,
-      // not whenever an unrelated message or grade updates elsewhere.
-      const editorNode = document.getElementById('codeEditor');
-      if (!wasNormalEditor || lastEditorNode !== editorNode || geometryDirty) {
-        window.requestAnimationFrame(() => {
-          if (!isPhoneMode() || !document.body.classList.contains('mobile-editor-normal')) return;
-          try { fitEditorToContent(); syncEditorScroll(); }
-          catch (error) { console.warn('Phone editor scroll refresh skipped', error); }
-        });
-      }
-      lastEditorNode = editorNode;
-    } else {
-      lastEditorNode = null;
+      window.requestAnimationFrame(() => {
+        try {
+          fitEditorToContent();
+          syncEditorScroll();
+        } catch (error) {
+          console.warn('Phone editor scroll refresh skipped', error);
+        }
+      });
     }
-    wasNormalEditor = normalEditor;
-    geometryDirty = false;
   }
 
   function schedule() {
@@ -44662,39 +44549,18 @@ They can join again later using the same share code.`,
     window.requestAnimationFrame(reconcile);
   }
 
-  const routeObserver = new MutationObserver(records => {
-    // Only direct body children are monitored for additions/removals; existing
-    // page roots are watched individually rather than the entire app subtree.
-    if (records.some(record => record.type === 'childList')) observeRouteSurfaces();
-    schedule();
-  });
-  const tracked = new WeakSet();
-  function trackSurface(element) {
-    if (!element || tracked.has(element)) return;
-    tracked.add(element);
-    routeObserver.observe(element, { attributes: true, attributeFilter: ['class', 'hidden', 'aria-hidden', 'style'] });
-  }
-  function observeRouteSurfaces() {
-    [
-      'editorPanel', 'activityCard', 'entryGate', 'studentLoginOverlay',
-      'changePasswordOverlay', 'projectNameOverlay', 'studentDashboard',
-      'studentDashboardScreen', 'adminOverlay'
-    ].forEach(id => trackSurface(document.getElementById(id)));
-    trackSurface(document.querySelector('.app-shell'));
-  }
-  routeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'], childList: true });
-  routeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-device-mode'] });
-  observeRouteSurfaces();
-
-  ['load', 'fullscreenchange', 'webkitfullscreenchange', 'online', 'offline'].forEach(name => {
+  ['load', 'resize', 'orientationchange', 'fullscreenchange', 'webkitfullscreenchange', 'online', 'offline'].forEach(name => {
     window.addEventListener(name, schedule, true);
   });
-  ['resize', 'orientationchange'].forEach(name => {
-    window.addEventListener(name, () => { geometryDirty = true; schedule(); }, { passive: true });
+  ['click', 'touchend', 'pointerup', 'input', 'change'].forEach(name => {
+    document.addEventListener(name, schedule, true);
   });
-  // Page actions can still change a route without toggling CSS classes; keep
-  // the existing event-driven fallback, but not every editor keystroke.
-  ['click', 'change'].forEach(name => document.addEventListener(name, schedule, true));
+  new MutationObserver(schedule).observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['class', 'hidden', 'aria-hidden']
+  });
   schedule();
 })();
 

@@ -1,0 +1,41 @@
+ICT 8 CONNECT / G8Code — STUDENT HOME DASHBOARD UPDATE (2026-11-01)
+
+WHAT'S NEW
+- New separate Student Home dashboard; the original My Projects remains intact.
+- Login / first-password-change / student resume opens Student Home behind the existing status modal.
+- Closing the login status modal with X or Escape, or selecting its first Continue card,
+  returns to Student Home instead of My Projects.
+- Academic summary reads current-term published status; numeric/color grade visibility
+  and trend follow the existing teacher settings. Unpublished values are not invented.
+- Completion/missing counts and up to three actual lacking tasks (or a friendly empty state).
+- Mirrored Code Explorer HTML/CSS/JS progress and resume text (existing progress storage).
+- Saved project count, recently updated project, and existing teacher feedback.
+- Functional quick links to Projects, Lessons, Activities, Code Explorer,
+  Recitation, Code Inbox, Mini-Games and Leaderboard.
+- Dedicated phone bottom navigation, responsive cards for phone/tablet/desktop,
+  smooth subtle animations with prefers-reduced-motion support.
+- Theme support for original light/dark and existing teacher-published full-app themes.
+- Home navigation on the My Projects header and in the editor's student navigation menus.
+- Lessons and Activities return to Student Home when opened from Student Home.
+- Code Explorer returns to Student Home when opened from Student Home.
+- Existing games, projects, Firestore rules, Apps Script, and admin sections were preserved.
+
+MODIFIED: index.html, script.js
+ADDED: student-home.css, STUDENT_HOME_DASHBOARD_UPDATE.txt
+
+TESTING
+1. Deploy these exact files to the existing G8Code hosting location; no data migration is required.
+2. Sign in with a test Student ID, close the existing status modal, verify Student Home.
+3. Open My Projects, Lessons, Activities and Explorer and verify the return navigation.
+4. Check one student with published requirements and another without published status.
+5. Test teacher grade visibility (color/number), theme changes, phone and desktop.
+6. Test Code Inbox, Recitation, Mini-Games and Leaderboard against the live backend.
+
+LOCAL QA PREVIEW
+A lightweight existing QA route now supports:
+  index.html?qaPreview=1&qaScreen=home
+This uses a demo student and does not log in or write to Firebase.
+This preview may still depend on loading the main app scripts in a browser.
+
+Checks completed: JavaScript syntax, HTML unique IDs, CSS parsing, ZIP integrity.
+Full live Firebase login and browser UI tests require testing on the deployed site.

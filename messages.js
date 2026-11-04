@@ -32,7 +32,7 @@ async function loadMessagesFirebaseSDK(){
   import(`${base}/firebase-auth.js`),
   import(`${base}/firebase-database.js`)
  ]);
- const timeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('Messages could not load. Check your internet connection and reopen this page.')),15000));
+ const timeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('Firebase libraries did not load. Check internet access or use the deployed G8Code website.')),15000));
  const [a, au, d] = await Promise.race([load, timeout]);
  ({initializeApp, getApps, getApp} = a);
  ({getAuth, onAuthStateChanged, signInWithEmailAndPassword} = au);
@@ -59,7 +59,7 @@ const DRIVE_UPLOAD_TARGET = 3 * 1024 * 1024;
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const teacherEmails = (window.MCS_TEACHER_EMAILS || []).map(x => String(x).toLowerCase());
 let app, auth, rtdb, firestore, user, teacher = false, profile = null;
-let sections = [], students = new Map(), summaries = {}, openedUid = '', currentSection = '*', directoryReady = false;
+let sections = [], students = new Map(), summaries = {}, openedUid = '', currentSection = '*';
 let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], activeAcks = {}, seenAt = 0;
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
 let olderMessages=[], hasOlder=false, olderLoading=false;
@@ -154,19 +154,9 @@ function syncMobileMessageMetaVisibility(){
 
 const short = (v,n=60) => String(v || '').slice(0,n);
 const isTeacher = account => teacherEmails.includes(String(account?.email || '').toLowerCase());
-function g8mFriendlyNotice(message){
- const raw=String(message??'').trim();
- if(!/(?:firebase|firestore|\brtdb\b|realtime\s+database|\bapps\s+script\b|\bbackend\b|\bworkspace\s+drive\b|permission[- ]denied|insufficient\s+permissions|\bdriveTransfers\b|firebase-config\.js|\bsdk\b)/i.test(raw))return raw;
- const lower=raw.toLowerCase();
- if(/(?:upload|photo|attachment|image|drive|transfer)/.test(lower))return 'Could not complete the photo request. Check your connection and try again.';
- if(/(?:permission|denied|rules|access)/.test(lower))return 'Messages is temporarily unavailable for this account. Please sign in again or contact your teacher.';
- if(/(?:project|preview|file)/.test(lower))return 'Could not load this project. Please try again.';
- if(/(?:login|sign.?in|auth)/.test(lower))return 'Sign-in is temporarily unavailable. Please try again.';
- return 'Messages could not connect. Check your connection and try again.';
-}
-function status(message, error=false){ const el=$('g8mSendStatus'); el.textContent=g8mFriendlyNotice(message); el.classList.toggle('error',error); }
-function showGate(title,detail,login=false){gate.hidden=false;workspace.hidden=true;gate.querySelector('h1').textContent=title;$('g8mGateText').textContent=g8mFriendlyNotice(detail);$('g8mQuickLogin').hidden=!login;}
-function setConnection(ok,detail){const el=$('g8mConnection'); el.textContent=g8mFriendlyNotice(detail || (ok?'Live':'Offline')); el.classList.toggle('online',Boolean(ok));}
+function status(message, error=false){ const el=$('g8mSendStatus'); el.textContent=message; el.classList.toggle('error',error); }
+function showGate(title,detail,login=false){gate.hidden=false;workspace.hidden=true;gate.querySelector('h1').textContent=title;$('g8mGateText').textContent=detail;$('g8mQuickLogin').hidden=!login;}
+function setConnection(ok,detail){const el=$('g8mConnection'); el.textContent=detail || (ok?'Live':'Offline'); el.classList.toggle('online',Boolean(ok));}
 function notice(text){const el=document.createElement('div');el.className='g8m-empty';el.textContent=text;return el;}
 function textEl(tag,className,text){const x=document.createElement(tag);if(className)x.className=className;x.textContent=text??'';return x;}
 function clearUnsubs(list){while(list.length){try{list.pop()();}catch(_){}}}
@@ -356,24 +346,11 @@ $('g8mBack').addEventListener('click',event=>{
 function unread(s){return Math.max(0,Number(s?.[teacher?'unreadTeacher':'unreadStudent']||0));}
 function needsChecking(uid){const s = summaries[uid];return Number(s?.needsChecking||0);}
 function person(uid){return students.get(uid) || {uid,name:summaries[uid]?.name||'Student',studentId:summaries[uid]?.studentId||'',section:summaries[uid]?.section||'Unassigned'};}
-function normalizedInboxSection(raw){
- return String(raw??'').trim().replace(/[–—]/g,'-').replace(/\s+/g,' ')
-  .replace(/^(?:Grade\s*8|G8|8)\s*(?:[-:|•]\s*)?/i,'')
-  .replace(/\bSaint\s+/gi,'St. ').replace(/\bSt\s*\.\s*/gi,'St. ')
-  .replace(/\bSt\.?\s*Faustina\s+(?:of\s+)?Kowalska\b/gi,'St. Faustina Kowalska')
-  .replace(/\bSt\.?\s*Camillus\s+(?:(?:de|of)\s+)?Lel(?:l)?is\b/gi,'St. Camillus de Lellis') || 'Unassigned';
-}
-function inboxSectionKey(raw){return normalizedInboxSection(raw).toUpperCase().replace(/[^A-Z0-9]/g,'');}
-function inboxNameKey(raw){
- let name=String(raw??'').trim().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
- if(/^[^,]+,[^,]+$/.test(name)){const parts=name.split(',');name=parts[1]+' '+parts[0];}
- const key=name.replace(/[^A-Z0-9]+/g,' ').trim().replace(/\s+/g,' ');
- return ['STUDENT','UNKNOWN','UNNAMED STUDENT','N A',''].includes(key)?'':key;
-}
-function studentSection(s){return normalizedInboxSection(s?.section);}
+function studentSection(s){return String(s?.section || 'Unassigned').trim()||'Unassigned';}
+function iconLetter(s){return String(s?.name || s?.studentName || 'S').trim().charAt(0).toUpperCase();}
 async function boot(){
  try{
-  if(!window.MCS_FIREBASE_CONFIG || !window.MCS_FIREBASE_DATABASE_URL)throw new Error('Messages is temporarily unavailable. Please try again later.');
+  if(!window.MCS_FIREBASE_CONFIG || !window.MCS_FIREBASE_DATABASE_URL)throw new Error('Firebase configuration or Realtime Database URL is missing.');
   setConnection(false,'Connecting…');
   await loadMessagesFirebaseSDK();
   app=getApps().length?getApp():initializeApp(window.MCS_FIREBASE_CONFIG);
@@ -392,10 +369,10 @@ async function boot(){
     clearMemoryPhotoCache();
     void prunePhotoDiskCache(nextPhotoOwner);
    }
-   conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};directoryReady=false;
+   conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
    if(!account){
     if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
-    else {showGate('Sign in to Messages',location.protocol==='file:'?'Please sign in with your G8Code account to continue.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
+    else {showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
     setConnection(false,'Sign in required');return;
    }
    $('g8mQuickLogin').hidden=true;
@@ -463,7 +440,7 @@ $('g8mQuickLogin').addEventListener('submit',async event=>{
  const password=$('g8mLoginPassword').value;
  const feedback=$('g8mLoginError'), button=$('g8mLoginSubmit');
  feedback.hidden=true;
- if(g8mTeacherShortcut && !identity){feedback.textContent='Teacher account access is unavailable. Please contact the administrator.';feedback.hidden=false;return;}
+ if(g8mTeacherShortcut && !identity){feedback.textContent='No authorized teacher email is configured in firebase-config.js.';feedback.hidden=false;return;}
  if(!identity||!password){feedback.textContent='Enter your Admin Code.';feedback.hidden=false;return;}
  button.disabled=true;button.textContent=g8mTeacherShortcut?'Verifying Admin Code…':'Signing in…';
  try{
@@ -504,10 +481,10 @@ $('g8mQuickLogin').addEventListener('submit',async event=>{
  }finally{button.disabled=false;button.textContent=g8mTeacherShortcut?'Open Teacher Messages':'Sign in to Messages';}
 });
 function friendlyError(error){let e=String(error?.message||error||'Could not connect.');
- if(/permission.denied|permission_denied|permission denied/i.test(e))return 'Messages is currently unavailable for this account. Please contact your teacher.';
- if(/drive|workspace|photo|attachment/i.test(e) && /configure|unavailable|not set/i.test(e))return 'Photo attachments are temporarily unavailable. Please contact your teacher.';
+ if(/permission.denied|permission_denied|permission denied/i.test(e))return 'Firebase permissions do not allow Messages yet. Deploy the supplied Realtime Database rules and check your account.';
+ if(/drive|workspace|photo|attachment/i.test(e) && /configure|unavailable|not set/i.test(e))return 'Google Workspace Drive is not configured yet. Set up the private Drive Apps Script bridge before sending photos.';
  if(/network|offline|fetch/i.test(e))return 'Connection failed. Check your internet connection, then reopen Messages.';
- return g8mFriendlyNotice(e);
+ return e;
 }
 async function initWorkspace(){
  gate.hidden=true;workspace.hidden=false;workspace.classList.toggle('student',!teacher);root.dataset.mode=role();syncThemeForRole();
@@ -534,7 +511,7 @@ async function initWorkspace(){
   // mirroring. It does NOT initiate a Firestore getDocs() collection scan.
   rootUnsubs.push(onValue(ref(rtdb,`${BASE}/directory`),snap=>{
    const records=snap.val()||{};
-   students.clear();directoryReady=true;
+   students.clear();
    for(const [uid,record] of Object.entries(records)){
     if(!/^[A-Za-z0-9_-]{5,128}$/.test(uid)||!record||typeof record!=='object')continue;
     students.set(uid,{uid,name:short(record.name||'Student',100),
@@ -565,62 +542,38 @@ function normalizedInboxStudentId(raw){
  return id.length>=5 && id.length<=50 && !/^(?:0+|UNKNOWN|NONE|NA|STUDENT|TEMP|TEST)$/.test(id)?id:'';
 }
 function allPeople(){
- // Directory UIDs define current enrollment. Summary-only UIDs are historical
- // conversations that MUST remain accessible to the teacher, but must not
- // inflate the enrolled-student count.
  const merged=new Map(students);
- for(const uid of Object.keys(summaries))if(!merged.has(uid))merged.set(uid,person(uid));
- const groups=new Map(),nameToVerified=new Map();
+ Object.keys(summaries).forEach(uid=>{if(!merged.has(uid))merged.set(uid,person(uid));});
+ const byIdentity=new Map();
  for(const record of merged.values()){
-  const uid=String(record.uid||'');if(!/^[A-Za-z0-9_-]{5,128}$/.test(uid))continue;
-  const dir=students.get(uid),summary=summaries[uid]||{};
-  const sid=normalizedInboxStudentId(dir?.studentId)||normalizedInboxStudentId(summary.studentId);
-  const name=String(dir?.name&&inboxNameKey(dir.name)?dir.name:summary.name||record.name||'Student');
-  const section=studentSection({section:(dir?.section&&inboxSectionKey(dir.section)!=='UNASSIGNED'?dir.section:summary.section||record.section)});
-  const enrolled=Boolean(dir && String(dir.accountStatus||'active').toLowerCase()!=='disabled' &&
-    inboxSectionKey(section)!=='UNASSIGNED' && (sid||inboxNameKey(name)));
-  const key=sid?'sid:'+sid:'uid:'+uid;
-  const member={...record,uid,name,section,sid,enrolled,nameKey:inboxNameKey(name),sectionKey:inboxSectionKey(section)};
-  if(!groups.has(key))groups.set(key,[]);
-  groups.get(key).push(member);
-  // Only a verified single ID can anchor a name-only historical account.
-  if(sid&&member.nameKey&&member.sectionKey!=='UNASSIGNED'){
-   const nk=member.nameKey+'|'+member.sectionKey;
-   if(!nameToVerified.has(nk))nameToVerified.set(nk,new Set());
-   nameToVerified.get(nk).add(key);
-  }
- }
- // An ID-less UID is visually attached to a verified group only when its
- // full name+section points to exactly one Student ID. All private chats
- // still open under their original UID and are never copied or merged.
- for(const [key,linked] of [...groups]){
-  if(!key.startsWith('uid:')||linked.length!==1)continue;
-  const row=linked[0];
-  if(!row.nameKey || row.nameKey.split(' ').length<2||row.sectionKey==='UNASSIGNED')continue;
-  const anchors=nameToVerified.get(row.nameKey+'|'+row.sectionKey);
-  if(anchors?.size!==1)continue;
-  const anchor=[...anchors][0];
-  if(groups.has(anchor)){groups.get(anchor).push(row);groups.delete(key);}
+  const uid=String(record.uid||'');if(!uid)continue;
+  const sid=normalizedInboxStudentId(record.studentId||summaries[uid]?.studentId);
+  const key=sid?`sid:${sid}`:`uid:${uid}`;
+  if(!byIdentity.has(key))byIdentity.set(key,[]);
+  byIdentity.get(key).push({...record,uid});
  }
  const result=[];
- for(const [key,linked] of groups){
+ for(const [key,linked] of byIdentity){
+  // The newest ACTUAL conversation wins for row ordering, but the identity is
+  // from a real directory record, not the arbitrary latest chat sender name.
   const ordered=linked.slice().sort((a,b)=>{
-   const aActive=a.enrolled?1:0,bActive=b.enrolled?1:0;
-   return bActive-aActive||Number(summaries[b.uid]?.lastAtMs||0)-Number(summaries[a.uid]?.lastAtMs||0)||a.uid.localeCompare(b.uid);
+   const aActive=students.get(a.uid)?.accountStatus==='disabled'?0:1;
+   const bActive=students.get(b.uid)?.accountStatus==='disabled'?0:1;
+   return bActive-aActive || Number(summaries[b.uid]?.lastAtMs||0)-Number(summaries[a.uid]?.lastAtMs||0) || a.uid.localeCompare(b.uid);
   });
-  const official=ordered.find(x=>x.enrolled&&x.sid&&x.nameKey)||ordered.find(x=>x.enrolled&&x.nameKey)||ordered.find(x=>students.has(x.uid)&&x.nameKey)||ordered[0];
+  const official=ordered.find(x=>students.has(x.uid)&&x.name&&x.name!=='Student')||ordered[0];
   const latest=linked.slice().sort((a,b)=>Number(summaries[b.uid]?.lastAtMs||0)-Number(summaries[a.uid]?.lastAtMs||0))[0];
-  const uids=ordered.map(x=>x.uid);
+  const allUids=ordered.map(x=>x.uid);
   let unreadCount=0,checkingCount=0;
-  for(const uid of uids){unreadCount+=unread(summaries[uid]);checkingCount+=needsChecking(uid);}
-  const enrolled=linked.some(row=>row.enrolled);
+  for(const uid of allUids){unreadCount+=unread(summaries[uid]);checkingCount+=needsChecking(uid);}
+  const representative=official||ordered[0];
   result.push({
-   uid:official.uid,uids,identityKey:key,enrolled,
-   name:official.name||'Student',studentId:official.sid||latest.sid||official.studentId||latest.studentId||'',
-   section:official.section!=='Unassigned'?official.section:latest.section,
-   unreadCount,checkingCount,
-   lastAtMs:Math.max(0,...uids.map(uid=>Number(summaries[uid]?.lastAtMs||0))),
-   lastText:String(summaries[latest.uid]?.lastText||''),
+   uid:representative.uid, uids:allUids, identityKey:key,
+   name:representative.name||'Student',studentId:representative.studentId||latest.studentId||'',
+   section:studentSection(representative.section==='Unassigned' && latest.section ? latest : representative),
+   unreadCount, checkingCount,
+   lastAtMs:Math.max(0,...allUids.map(uid=>Number(summaries[uid]?.lastAtMs||0))),
+   lastText:String(summaries[latest.uid]?.lastText || ''),
   });
  }
  return result;
@@ -647,8 +600,8 @@ function matchesFilter(p){
 function renderSections(){if(!teacher)return;
  const rootList=$('g8mSectionList');rootList.replaceChildren();const people=allPeople().filter(matchesFilter);
  const counts=new Map();
- for(const p of people){const name=studentSection(p);const obj=counts.get(name)||{name,people:0,older:0,unread:0,checking:0};if(p.enrolled)obj.people++;else obj.older++;obj.unread+=p.unreadCount;obj.checking+=p.checkingCount;counts.set(name,obj);}
- const rows=[{name:'*',label:'All Sections',people:people.filter(p=>p.enrolled).length,older:people.filter(p=>!p.enrolled).length,unread:[...counts.values()].reduce((s,v)=>s+v.unread,0)},...([...counts.values()].sort((a,b)=>b.unread-a.unread || a.name.localeCompare(b.name)).map(r=>({...r,label:r.name})))];
+ for(const p of people){const name=studentSection(p);const obj=counts.get(name)||{name,people:0,unread:0,checking:0};obj.people++;obj.unread+=p.unreadCount;obj.checking+=p.checkingCount;counts.set(name,obj);}
+ const rows=[{name:'*',label:'All Sections',people:people.length,unread:[...counts.values()].reduce((s,v)=>s+v.unread,0)},...([...counts.values()].sort((a,b)=>b.unread-a.unread || a.name.localeCompare(b.name)).map(r=>({...r,label:r.name})))];
  const tablet=$('g8mTabletSectionSelect');if(tablet){tablet.replaceChildren();rows.forEach(r=>{const o=document.createElement('option');o.value=r.name;o.textContent=r.label;tablet.append(o);});tablet.value=rows.some(r=>r.name===currentSection)?currentSection:'*';}
  // Unread counts are MESSAGE counts; unlike the student total, they are summed
  // across all linked UID conversations so the teacher doesn't miss older chats.
@@ -656,10 +609,7 @@ function renderSections(){if(!teacher)return;
  rows.forEach(r=>{
   const button=textEl('button','g8m-section-row'+(currentSection===r.name?' active':''),'');button.type='button';
   button.append(textEl('span','g8m-icon','▤'));
-  const copy=textEl('span','g8m-row-copy','');const countLabel=directoryReady
-   ?`${r.people} student${r.people===1?'':'s'}`+(r.older?` · ${r.older} older conversation${r.older===1?'':'s'}`:'')
-   :`${r.people+r.older} conversation${r.people+r.older===1?'':'s'}`;
-  copy.append(textEl('strong','',r.label),textEl('small','',countLabel));button.append(copy);
+  const copy=textEl('span','g8m-row-copy','');copy.append(textEl('strong','',r.label),textEl('small','',`${r.people} student${r.people===1?'':'s'}`));button.append(copy);
   if(r.unread)button.append(textEl('span','g8m-bubble-count',r.unread>99?'99+':r.unread));
   button.addEventListener('click',()=>{currentSection=r.name;renderSections();renderStudents();switchMobile('students');});
   rootList.append(button);
@@ -671,11 +621,7 @@ function renderStudents(){if(!teacher)return;
  $('g8mCurrentSection').textContent=name;
  const people=allPeople().filter(p=>matchesFilter(p) && (currentSection==='*'||studentSection(p)===currentSection));
  people.sort((a,b)=> b.unreadCount-a.unreadCount || b.lastAtMs-a.lastAtMs || a.name.localeCompare(b.name));
- const enrolledCount=people.filter(p=>p.enrolled).length;
- const olderCount=people.length-enrolledCount;
- $('g8mStudentCount').textContent=directoryReady
-  ?`${enrolledCount} student${enrolledCount===1?'':'s'}`+(olderCount?` · ${olderCount} older chat${olderCount===1?'':'s'}`:'')
-  :`${people.length} conversation${people.length===1?'':'s'}`;
+ $('g8mStudentCount').textContent=`${people.length} student${people.length===1?'':'s'}`;
  const list=$('g8mStudentList');list.replaceChildren();
  people.forEach(p=>{
   const row=textEl('button','g8m-student-row'+(p.uids.includes(openedUid)?' active':''),'');row.type='button';
@@ -1383,7 +1329,7 @@ async function unsendMessageForEveryone(){
   }catch(error){console.warn('Inbox preview update pending:',error);}
   deleteOverlay.hidden=true;deleteMessageTarget=null;
   status('Message unsent ✓ · The conversation now shows a deletion notice.');
- }catch(error){status(`Could not unsend message: ${friendlyError(error)}. Please try again.`,true);}
+ }catch(error){status(`Could not unsend message: ${friendlyError(error)}. Check RTDB rules deployment.`,true);}
  finally{deleteMessageBusy=false;}
 }
 $('g8mDeleteCancel').addEventListener('click',closeDeleteDialog);
@@ -2517,7 +2463,7 @@ function driveRequest(action,args={},maxWait=45000){
  return new Promise(async (resolve,reject)=>{
   const endpoint=driveUrl();
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(endpoint)){
-   reject(new Error('Photo attachments are temporarily unavailable. Please try again later.'));return;
+   reject(new Error('Missing Apps Script /exec URL. Check firebase-config.js and g8code-messages-drive-config.js.'));return;
   }
   if(!user){reject(new Error('Sign in to G8Code before using private photo attachments.'));return;}
   if(location.protocol!=='https:'){
@@ -2535,7 +2481,7 @@ function driveRequest(action,args={},maxWait=45000){
    else{reject(error);}
   };
   const actionLabel=action==='read'?'photo viewing':action==='probe'?'connection check':'photo upload';
-  timeout=setTimeout(()=>finish(new Error(`Your ${actionLabel} could not be confirmed. Check the conversation before trying again.`)),maxWait);
+  timeout=setTimeout(()=>finish(new Error(`No confirmation from Workspace Drive after ${Math.ceil(maxWait/1000)}s (${actionLabel}). Check Apps Script Executions and the private RTDB transfer rules. Do not retry repeatedly until checking Drive for an existing photo.`)),maxWait);
   try{
    unsub=onValue(receiptRef,snapshot=>{
     if(!snapshot.exists())return;
@@ -2544,7 +2490,7 @@ function driveRequest(action,args={},maxWait=45000){
     finish(receipt.ok?null:new Error(receipt.error||'Workspace Drive rejected this request.'),receipt.data);
     if(!receipt.ok)remove(receiptRef).catch(()=>{});
    },error=>{
-    finish(new Error(`Could not confirm the photo request. Please try again.`));
+    finish(new Error(`Cannot receive private Drive confirmation from RTDB: ${error?.message||error}. Add the driveTransfers security rule.`));
    },{onlyOnce:false});
    // Request content is POSTED only; token and photo contents are never in URLs.
    const fields=new URLSearchParams({g8mBridge:'1',action,nonce,origin:location.origin,idToken:token});
@@ -2559,7 +2505,7 @@ async function checkDriveBridge(){
  if(!driveBridgeCheckPromise){
   driveBridgeCheckPromise=(async()=>{
    const res=await driveRequest('probe',{},16000);
-   if(!res||res.version!==43)throw new Error('Photo attachments are temporarily unavailable. Please contact your teacher.');
+   if(!res||res.version!==43)throw new Error('Messages Drive bridge is outdated. Deploy the updated G8CodeMessagesDrive.gs in the existing Apps Script deployment.');
    driveBridgeReady=true;
   })().finally(()=>{driveBridgeCheckPromise=null;});
  }

@@ -2575,8 +2575,6 @@ html.g8-admin-next #adminOverlay :is(#givenActivityUploadPanel,#givenActivityLin
 </style>
 
 <link rel="stylesheet" href="messages-bridge.css?v=51" />
-  <!-- V5.36: shared visual consistency only; no JavaScript/backend changes. -->
-  <link rel="stylesheet" href="g8code-ui-polish-v538.css?v=538" />
 </head>
 <body class="entry-gate-active admin-v2-standalone">
 <div id="admV2StartupShield" role="status" aria-live="polite">
@@ -2596,7 +2594,7 @@ html.g8-admin-next #adminOverlay :is(#givenActivityUploadPanel,#givenActivityLin
       if (status) status.textContent = 'Admin V2 could not initialize in this folder.';
       if (error) {
         error.hidden = false;
-        error.textContent = 'This page could not load completely. Please use the official G8Code website and refresh.';
+        error.textContent = 'Missing or incompatible original app scripts. Confirm that this file is beside script.js, firebase-config.js, and style.css. Use your deployed HTTPS site for Firebase sign-in.';
       }
     }, 2400);
   });
@@ -5435,7 +5433,7 @@ https://example.com/song2.mp3"></textarea>
               <label class="grade-visibility-switch" for="gradeTrendEnabledInput"><input id="gradeTrendEnabledInput" type="checkbox" checked><span>Show animated grade trend vs. previous term</span></label>
             </div>
             <div class="grade-visibility-preview"><small>STUDENT PREVIEW</small><span id="gradeVisibilityPreview" class="grade-visibility-preview-content">GREEN</span></div>
-            <div class="grade-visibility-actions"><button id="saveGradeDisplaySettingsBtn" class="primary-btn" type="button">Save Grade Visibility</button><button id="rebuildGradeTrendsBtn" class="ghost-btn" type="button">Refresh Existing Grade Trends</button></div>
+            <div class="grade-visibility-actions"><button id="saveGradeDisplaySettingsBtn" class="primary-btn" type="button">Save Grade Visibility to Firebase</button><button id="rebuildGradeTrendsBtn" class="ghost-btn" type="button">Refresh Existing Grade Trends</button></div>
             <p id="gradeDisplaySettingsStatus" class="helper-note" role="status">Loading global settings…</p>
             <p class="helper-note"><strong>Grade trend:</strong> Automatically compare the published current grade (AW) with <strong>BA / PREV. GRADES</strong> in the same configured Google Sheets term tab, matched by Student ID. Preview and Publish include the comparison; Refresh Existing Grade Trends updates published arrows without resyncing scores. Previous numerical grades remain teacher-only.</p>
           </section>
@@ -5597,7 +5595,7 @@ https://example.com/song2.mp3"></textarea>
                 <h3 id="adminComplianceViewerTitle">Student Compliance Viewer</h3>
                 <p class="muted-text">See the latest published record for every section, even after another section is synced. Viewing does not sync Google Sheets.</p>
               </div>
-              <button id="refreshAdminComplianceViewerBtn" class="ghost-btn" type="button" title="Refresh the latest published records for all sections.">Refresh All Sections</button>
+              <button id="refreshAdminComplianceViewerBtn" class="ghost-btn" type="button" title="Fetch the latest published records for all sections directly from Firestore.">Refresh All Sections</button>
             </div>
 
             <div class="compliance-viewer-toolbar">
@@ -5640,7 +5638,7 @@ https://example.com/song2.mp3"></textarea>
               <h3 id="sectionPerformanceTitle">Section Performance Overview</h3>
               <p class="muted-text">Compare sections, monitor lackings and grade trends, and open individual student records. Numerical grades are teacher-only.</p>
             </div>
-            <button type="button" class="ghost-btn" id="sperfRefreshBtn" title="Refresh published records and private grades">Refresh Published Data</button>
+            <button type="button" class="ghost-btn" id="sperfRefreshBtn" title="Fetch latest published Firestore records and private grades">Refresh Published Data</button>
           </div>
           <div class="sperf-toolbar">
             <label>Academic Term
@@ -5817,7 +5815,7 @@ https://example.com/song2.mp3"></textarea>
                 <label>Due Date <span class="lesson-optional-label">Optional</span><input id="givenActivityDueDateInput" type="date" /></label>
                 <label>Visibility<select id="givenActivityVisibilitySelect"><option value="published">Published – students can see</option><option value="draft">Draft – teacher only</option></select></label>
                 <label class="given-activity-peta-setting" for="givenActivityQuizToggle">
-                  <span><strong>🛡️ Quiz — Warning Mode</strong><small>PDF/images only. Students accept a quiz notice before opening. One detected tab/app switch gives a warning; the second ends the attempt. Attempts are recorded for review.</small></span>
+                  <span><strong>🛡️ Quiz — Warning Mode</strong><small>PDF/images only. Students accept a quiz notice before opening. One detected tab/app switch gives a warning; the second ends the attempt. Attempts are recorded in Firebase.</small></span>
                   <span class="admin-switch"><input id="givenActivityQuizToggle" type="checkbox" /><span class="admin-switch-track"><span class="admin-switch-thumb"></span></span></span>
                 </label>
                 <label class="given-activity-peta-setting" for="givenActivityPetaToggle">
@@ -6226,7 +6224,7 @@ https://example.com/song3.mp3"></textarea>
             </div>
 
             <div class="code-explorer-admin-awards-foot">
-              <p id="codeExplorerAdminAwardsStatus" class="helper-note" role="status">Award certificates use the latest official leaderboard standings.</p>
+              <p id="codeExplorerAdminAwardsStatus" class="helper-note" role="status">Award certificates use the complete RTDB leaderboard snapshot and do not scan Firestore.</p>
               <div class="code-explorer-admin-awards-foot-actions">
                 <button id="codeExplorerAdminAwardsRevealPreviewBtn" class="primary-btn mini" type="button">▶ Preview Winner Reveal</button>
                 <button id="codeExplorerAdminAwardsRefreshBtn" class="ghost-btn mini" type="button">↻ Refresh Award Rankings</button>
@@ -7789,11 +7787,11 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261104-v535-save-reliability"></script>
+  <script src="script.js?v=20261104-v59-directory-dedupe"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
-  <script src="student-official-editor-bridge.js?v=20261104-v527-friendly-copy"></script>
+  <script src="student-official-editor-bridge.js?v=20261102-v225-integrated"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
     // toolbar code fails before binding the click handler.
@@ -8446,12 +8444,12 @@ try {
     document.body.classList.add('admin-open');
     if(typeof window.openAdminPanel!=='function'){
       banner.hidden=false;
-      banner.textContent='Admin could not load. Please refresh the G8Code page.';
+      banner.textContent='The original G8Code Admin engine did not load. Check that script.js and firebase-config.js exist in this folder.';
       return;
     }
     Promise.resolve(window.openAdminPanel()).catch(err=>{
       banner.hidden=false;
-      banner.textContent='Admin could not connect. Check your internet connection and try again.';
+      banner.textContent='Admin connection could not initialize. Check internet or Firebase SDK connectivity. The login form remains available.';
       console.error('G8Code Admin V2 startup:',err);
     });
   }
@@ -8467,7 +8465,7 @@ try {
   if (status) status.textContent = 'Admin V2 could not start.';
   if (msg) {
     msg.hidden = false;
-    msg.textContent = 'Admin could not start. Refresh the page or try again later.';
+    msg.textContent = 'An Admin startup dependency failed. Verify that the original script.js and Firebase configuration are available. Your original Admin remains unchanged.';
   }
 }
 </script>
