@@ -47,6 +47,11 @@ const safeSet = (key,value) => { try { window.localStorage.setItem(key,value); }
 const $ = id => document.getElementById(id);
 const root = $('g8mApp'), workspace = $('g8mWorkspace'), gate = $('g8mGate');
 const BASE = 'g8MessagesV1';
+// Entry source is explicit, not inferred from history or the signed-in role.
+// from=login: learn shortcut (teacher-only). from=admin: Admin V2.
+const g8mEntrySource = new URLSearchParams(location.search).get('from');
+const g8mTeacherShortcut = g8mEntrySource === 'login';
+const g8mTeacherEntry = g8mEntrySource === 'admin' || g8mTeacherShortcut;
 // Accept original images up to 30 MB; optimize large photos client-side before
 // transport so Apps Script receives a much smaller image and chats load quickly.
 const MAX_FILES = 3, MAX_SIZE = 30 * 1024 * 1024;
@@ -196,7 +201,7 @@ $('g8mRefresh').addEventListener('click',()=>refreshConversation(true));
 function applyTheme(name){root.dataset.theme=name;safeSet('g8code-message-theme',name);$('g8mTheme').textContent=name==='dark'?'☾':'☼';}
 function inheritedTheme(){
  const saved=safeGet('g8code-message-theme');
- const teacherRoute=new URLSearchParams(location.search).get('from')==='admin';
+ const teacherRoute=g8mTeacherEntry;
  if(teacherRoute){const a=safeGet('g8code.adminWorkspaceAppearance.v1');if(a==='dark'||a==='light')return a;}
  let settings={};try{settings=JSON.parse(safeGet('studentCodeStudio.loginReminderSettings.v1')||'{}')||{};}catch(_){}
  if(!teacherRoute && settings.applyThemeToEntireApp && !settings.allowStudentAppAppearanceChoice){
@@ -224,7 +229,10 @@ $('g8mTheme').addEventListener('click',()=>{if(!$('g8mTheme').hidden)applyTheme(
 const studentPath = uid => `${BASE}/chats/${uid}`;
 const summaryPath = uid => `${BASE}/summary/${uid}`;
 function role(){return teacher?'teacher':'student';}
-function roleDestination(){return teacher?'admin-v2.html?g8mBack=overview':'index.html?g8mBack=student';}
+function roleDestination(){
+ if(g8mTeacherShortcut) return 'index.html';
+ return teacher?'admin-v2.html?g8mBack=overview':'index.html?g8mBack=student';
+}
 function leaveMessages(){
   stopTyping();
   if(sending||[...pendingPhotoJobs.values()].some(job=>job.inProgress)){
@@ -265,9 +273,19 @@ async function boot(){
    if(presenceHeartbeat){clearInterval(presenceHeartbeat);presenceHeartbeat=null;}
    ownPresencePath='';ownPresenceConnected=false;
    conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
-   if(!account){showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);setConnection(false,'Sign in required');return;}
+   if(!account){
+    if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
+    else {showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
+    setConnection(false,'Sign in required');return;
+   }
    $('g8mQuickLogin').hidden=true;
    teacher=isTeacher(account);
+   // The login-page shortcut is teacher-only. A signed-in student cannot
+   // open the teacher inbox by choosing this route; require teacher Auth.
+   if(g8mTeacherShortcut && !teacher){
+    showGate('Teacher Messages · Admin Code','A student session is active. Enter the teacher Admin Code to securely switch to the authorized teacher account.',true);
+    setConnection(false,'Teacher sign-in required');return;
+   }
    try{
     if(teacher){ profile={uid:account.uid,name:'ICT Teacher'};}
     else{
@@ -298,19 +316,36 @@ function syncQuickLoginRole(){
  $('g8mLoginIdentity').type=teacherLogin?'email':'text';
  $('g8mLoginError').hidden=true;
 }
-$('g8mLoginRole').value=new URLSearchParams(location.search).get('from')==='admin'?'teacher':'student';
-$('g8mLoginRole').addEventListener('change',syncQuickLoginRole);
-syncQuickLoginRole();
+$('g8mLoginRole').value=g8mTeacherEntry?'teacher':'student';
+if(g8mTeacherShortcut){
+ // Admin Code mode is the SAME Firebase email/password sign-in used by Admin V2.
+ // No code is put in an RTDB path, URL, or client-side comparison.
+ $('g8mLoginRole').disabled=true;
+ $('g8mLoginRole').hidden=true;
+ document.querySelector('label[for="g8mLoginRole"]').hidden=true;
+ $('g8mLoginIdentity').required=false;
+ $('g8mLoginIdentity').disabled=true;
+ $('g8mLoginIdentity').hidden=true;
+ $('g8mLoginIdentityLabel').hidden=true;
+ document.querySelector('label[for="g8mLoginPassword"]').textContent='Admin Code';
+ $('g8mLoginPassword').placeholder='Enter your teacher account password';
+ $('g8mLoginSubmit').textContent='Open Teacher Messages';
+ root.dataset.entry='teacher-shortcut';
+ $('g8mBack').href='index.html';
+}
+if(!g8mTeacherShortcut)$('g8mLoginRole').addEventListener('change',syncQuickLoginRole);
+if(!g8mTeacherShortcut)syncQuickLoginRole();
 $('g8mQuickLogin').addEventListener('submit',async event=>{
  event.preventDefault();
  if(!auth||!signInWithEmailAndPassword)return;
- const teacherLogin=$('g8mLoginRole').value==='teacher';
- const identity=String($('g8mLoginIdentity').value||'').trim();
+ const teacherLogin=g8mTeacherShortcut || $('g8mLoginRole').value==='teacher';
+ const identity=g8mTeacherShortcut ? teacherEmails[0] : String($('g8mLoginIdentity').value||'').trim();
  const password=$('g8mLoginPassword').value;
  const feedback=$('g8mLoginError'), button=$('g8mLoginSubmit');
  feedback.hidden=true;
- if(!identity||!password)return;
- button.disabled=true;button.textContent='Signing in…';
+ if(g8mTeacherShortcut && !identity){feedback.textContent='No authorized teacher email is configured in firebase-config.js.';feedback.hidden=false;return;}
+ if(!identity||!password){feedback.textContent='Enter your Admin Code.';feedback.hidden=false;return;}
+ button.disabled=true;button.textContent=g8mTeacherShortcut?'Verifying Admin Code…':'Signing in…';
  try{
   let email=identity.toLowerCase();
   if(!teacherLogin){
@@ -318,7 +353,8 @@ $('g8mQuickLogin').addEventListener('submit',async event=>{
    if(!key || key.length>50)throw new Error('Please enter a valid Student ID.');
    email=`sid-${key}@students.mcsian.app`;
   }
-  await signInWithEmailAndPassword(auth,email,password);
+  const credential=await signInWithEmailAndPassword(auth,email,password);
+  if(g8mTeacherShortcut && !isTeacher(credential.user))throw new Error('This account is not authorized as the G8Code teacher.');
   $('g8mLoginPassword').value='';
  }catch(error){
   const initialCode=String(error.code||'');
@@ -342,10 +378,10 @@ $('g8mQuickLogin').addEventListener('submit',async event=>{
   }
   console.warn('G8Code Messages sign-in failed:',error);
   const code=String(error.code||'');
-  feedback.textContent=code.includes('invalid-credential')||code.includes('wrong-password')||code.includes('user-not-found')?
-   'Student ID/email or password is incorrect. Please use your existing G8Code credentials.':friendlyError(error);
+  feedback.textContent=(code.includes('invalid-credential')||code.includes('wrong-password')||code.includes('user-not-found'))?
+   (g8mTeacherShortcut?'Invalid Admin Code. Use the existing teacher account password.':'Student ID/email or password is incorrect. Please use your existing G8Code credentials.'):friendlyError(error);
   feedback.hidden=false;
- }finally{button.disabled=false;button.textContent='Sign in to Messages';}
+ }finally{button.disabled=false;button.textContent=g8mTeacherShortcut?'Open Teacher Messages':'Sign in to Messages';}
 });
 function friendlyError(error){let e=String(error?.message||error||'Could not connect.');
  if(/permission.denied|permission_denied|permission denied/i.test(e))return 'Firebase permissions do not allow Messages yet. Deploy the supplied Realtime Database rules and check your account.';
@@ -355,7 +391,7 @@ function friendlyError(error){let e=String(error?.message||error||'Could not con
 }
 async function initWorkspace(){
  gate.hidden=true;workspace.hidden=false;workspace.classList.toggle('student',!teacher);root.dataset.mode=role();syncThemeForRole();
- $('g8mBack').href=teacher?'admin-v2.html?g8mBack=overview':'index.html?g8mBack=student';
+ $('g8mBack').href=roleDestination();
  installSmartBackNavigation();
  $('g8mHeaderNote').textContent=teacher?'Teacher inbox · Private per student':'Official ICT teacher conversation';
  $('g8mComposer').querySelector('textarea').placeholder=teacher?'Write your reply…':'Message your teacher…';
