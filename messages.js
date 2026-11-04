@@ -1417,6 +1417,37 @@ async function g8mFillStackBacks(entries){
   }catch(error){console.warn('Stacked photo preview unavailable:',error?.message||error);}
  }));
 }
+// V5.18: Messenger-style display groups. Each message keeps its own RTDB ID,
+// status and actions; only consecutive messages from the SAME sender with a
+// real timestamp gap of <= 60 seconds share one visual group.
+const G8M_GROUP_WINDOW_MS = 60_000;
+function g8mSameVisualGroup(first, second){
+ if(!first||!second||!first.senderUid||first.senderUid!==second.senderUid)return false;
+ const a=Number(first.createdAtMs),b=Number(second.createdAtMs);
+ return Number.isFinite(a)&&Number.isFinite(b)&&a>0&&b>=a&&b-a<=G8M_GROUP_WINDOW_MS&&localDayKey(a)===localDayKey(b);
+}
+function g8mPeerInitial(msg){
+ if(!teacher)return 'T'; // The student's incoming peer is the ICT Teacher.
+ return iconLetter(person(String(msg.senderUid||'')))||'S';
+}
+function g8mAddGroupAvatar(anchor,msg){
+ const circle=textEl('span','g8m-thread-avatar'+(!teacher?' is-teacher':''),g8mPeerInitial(msg));
+ circle.setAttribute('aria-label',teacher?'Student profile initial':'Teacher profile initial');
+ circle.setAttribute('role','img');
+ anchor.append(circle);
+}
+// Explicit SELF-send intent: render the bubble WITHOUT the automatic
+// initial-bottom snap, then animate the same way as the centered down arrow.
+function g8mScrollAfterOwnSend(render){
+ const wasFollowing=g8mFollowLatest;
+ g8mFollowLatest=false;
+ render(); // preserves an existing reading anchor even when far up the feed
+ const feed=$('g8mMessages');
+ // Disable interpolation only if already right at bottom, or OS requests it.
+ g8mJumpLatest({smooth:!!feed&&g8mBottomGap()>8,settle:false});
+ // Reflow after the send must not forcibly reset an ongoing smooth animation.
+ if(!wasFollowing)g8mUpdateScrollLatest();
+}
 function renderMessages(){
  if(!openedUid)return;
  if(photoVisibilityObserver){photoVisibilityObserver.disconnect();photoVisibilityObserver=null;}
@@ -1446,6 +1477,14 @@ function renderMessages(){
   .filter((x,i,arr)=>x&&x.id&&!hiddenMessageIds[x.id]&&arr.findIndex(y=>y&&y.id===x.id)===i)
   .sort(compareMessages);
  const content=document.createDocumentFragment();
+ // Compute group neighbors from the exact rendered order (including local
+ // Sending photos), respecting deleted/hidden messages and date boundaries.
+ const g8mGrouping=new Map();
+ shown.forEach((msg,index)=>{
+  const joined=g8mSameVisualGroup(shown[index-1],msg);
+  const hasNext=g8mSameVisualGroup(msg,shown[index+1]);
+  g8mGrouping.set(String(msg.id),{joined,hasNext,last:!hasNext});
+ });
  const photosToLoad=[];
  const stackedPhotosToLoad=[];
  if(!shown.length){
@@ -1470,7 +1509,11 @@ function renderMessages(){
     content.append(divider);
    }
    const mine=msg.senderUid===user?.uid;
-   const item=textEl('article','g8m-message'+(mine?' own':''),'');
+   const group=g8mGrouping.get(String(msg.id))||{joined:false,hasNext:false,last:true};
+   const item=textEl('article','g8m-message'+(mine?' own':'')+
+    (group.joined?' g8m-group-joined':'')+
+    (group.hasNext?' g8m-group-has-next':'')+
+    (group.last?' g8m-group-last':'') ,'');
    item.dataset.messageId=String(msg.id);
    if(quoteFocusId===String(msg.id)&&Date.now()<quoteFocusUntil)item.classList.add('g8m-jump-focus');
    if(msg.__photoPending){
@@ -1525,7 +1568,9 @@ function renderMessages(){
      discard.addEventListener('click',()=>discardPhotoJob(job));
      label.append(retry,discard);
     }else label.classList.add('in-progress');
-    anchor.append(label);item.append(anchor);
+    anchor.append(label);
+    if(!mine&&group.last)g8mAddGroupAvatar(anchor,msg);
+    item.append(anchor);
     item.append(textEl('div','g8m-msg-meta',formatTime(job.createdAtMs)));
     content.append(item);
     continue;
@@ -1602,6 +1647,7 @@ function renderMessages(){
    // the outer message row (which can be wider than a short one-word message).
    const bubbleAnchor=textEl('div','g8m-bubble-anchor','');
    while(item.firstChild)bubbleAnchor.append(item.firstChild);
+   if(!mine&&group.last)g8mAddGroupAvatar(bubbleAnchor,msg);
    item.append(bubbleAnchor);
    const isTextOnly = !isDeletedMessage(msg) && !attachments.length && msg.type!=='image' && msg.type!=='project' && !!bubbleAnchor.querySelector('.g8m-text');
    if(isTextOnly){
@@ -1688,13 +1734,13 @@ function renderMessages(){
   for(const {att,button} of photosToLoad)void showPhoto(att,button,version);
   void g8mFillStackBacks(stackedPhotosToLoad);
  }
- if(!olderLoading && g8mFollowLatest)g8mLandAtBottomAfterRender();
+ if(!olderLoading && g8mFollowLatest && !g8mSmoothLatest)g8mLandAtBottomAfterRender();
  else if(readingAnchorId){
   const sameMessage=messageNode(readingAnchorId);
   if(sameMessage)log.scrollTop+=sameMessage.getBoundingClientRect().top-readingAnchorTop;
   else log.scrollTop=previousScrollTop;
  }else if(olderLoading)log.scrollTop+=log.scrollHeight-previousHeight;
- else log.scrollTop=previousScrollTop;
+ else if(!g8mSmoothLatest)log.scrollTop=previousScrollTop;
  g8mUpdateScrollLatest();
  syncMobileMessageMetaVisibility();
  lastSnapshotKey=shown.map(x=>x.id).join(':');
@@ -2634,8 +2680,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   selections=[];reply=null;
   $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';
   renderSelections();renderReply();stopTyping();
-  g8mFollowLatest=true;
-  renderMessages();g8mJumpLatest({smooth:g8mBottomGap()<700,settle:true});
+  g8mScrollAfterOwnSend(renderMessages);
   pinMessage(key);setSendEnabled();
   status('Photo added to chat · Sending securely…');
   queuePhotoJob(job);
@@ -2662,12 +2707,9 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
    const local={id:key,...confirmed.val(),__confirmedLocal:true};
    if(!activeMessages.some(m=>m.id===key))activeMessages.push(local);
    activeMessages.sort(compareMessages);
-   // A self-send is an explicit intent to view the NEW message, even if the
-   // user was far up the thread. Do not treat a confirmed off-screen send as
-   // an error. Use instant for long distances to avoid multi-second animation.
-   g8mFollowLatest=true;
-   renderMessages();
-   g8mJumpLatest({smooth:g8mBottomGap()<700,settle:true});
+   // A verified self-send always animates to the newly sent message, even
+   // after long backreading; user gestures still cancel that animation.
+   g8mScrollAfterOwnSend(renderMessages);
    pinMessage(key);
   }
   // Keep the message commit independent of unread and summary writes.

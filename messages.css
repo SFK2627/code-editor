@@ -751,3 +751,44 @@ html,body{overflow:hidden;overscroll-behavior:none}
  box-shadow:0 1px 4px rgba(0,0,0,.14);pointer-events:none;
 }
 .g8m-compose .g8m-scroll-latest .g8m-new-message-count[hidden]{display:none!important}
+
+
+/* V5.18 — Messenger-style consecutive message groups (display only).
+   Reserve a stable gutter for all incoming bubbles so letters never move
+   neighboring bubbles when the group grows or after a Seen/reaction update. */
+.g8m-messages>.g8m-message:not(.own){padding-left:37px;max-width:min(89%,500px)}
+.g8m-message:not(.own) .g8m-thread-avatar{
+ position:absolute;left:-36px;bottom:1px;width:28px;height:28px;
+ display:grid;place-items:center;border-radius:50%;z-index:1;
+ background:color-mix(in srgb,var(--accent) 16%,var(--paper));
+ border:1px solid color-mix(in srgb,var(--accent) 12%,var(--line));
+ color:var(--accent);font-size:12px;line-height:1;font-weight:800;
+ box-shadow:0 1px 4px #0001;pointer-events:none;user-select:none;
+}
+.g8m-message:not(.own) .g8m-thread-avatar.is-teacher{
+ background:#f3ddf5;color:#8547a1;border-color:#ebcbee;
+}
+.g8m-app[data-theme=dark] .g8m-thread-avatar.is-teacher{
+ background:#4b355a;color:#f0c9ff;border-color:#655076;
+}
+/* Message group borders: joined left/right corners resemble Messenger. */
+.g8m-message.g8m-group-has-next:not(.own) .g8m-text{border-bottom-left-radius:5px}
+.g8m-message.g8m-group-joined:not(.own) .g8m-text{border-top-left-radius:5px}
+.g8m-message.g8m-group-has-next.own .g8m-text{border-bottom-right-radius:5px}
+.g8m-message.g8m-group-joined.own .g8m-text{border-top-right-radius:5px}
+/* On desktop, remove the permanent 10px flex gap so grouped rows can sit
+   within 3px. Mobile already uses zero gap since V5.17. */
+@media(min-width:701px){
+ .g8m-messages{gap:0}
+ .g8m-messages>.g8m-message{margin-top:10px}
+ .g8m-messages>.g8m-message.g8m-group-joined{margin-top:3px}
+ .g8m-messages>.g8m-date{margin:14px 0 8px}
+}
+@media(max-width:700px){
+ .g8m-messages>.g8m-message:not(.own){padding-left:35px;max-width:91%}
+ .g8m-message:not(.own) .g8m-thread-avatar{left:-34px;width:27px;height:27px}
+ .g8m-messages>.g8m-message.g8m-group-joined{margin-top:3px}
+ /* Keep some breathing space for photo metadata without changing the ID grouping. */
+ .g8m-messages>.g8m-message.g8m-group-joined:has(.g8m-photo-grid),
+ .g8m-messages>.g8m-message.g8m-group-joined:has(.g8m-local-photo-grid){margin-top:6px}
+}
