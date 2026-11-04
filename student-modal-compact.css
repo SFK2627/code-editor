@@ -207,3 +207,161 @@
     flex: 1 1 auto !important;
   }
 }
+
+
+/* V5.31 — a single three-card status row on desktop AND phone.
+   The Standing card is deliberately centered to keep the published grade clear.
+   The numeric-vs-color privacy mode and trend icon remain controlled by JS. */
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.28fr) minmax(0, .96fr) !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  align-items: stretch !important;
+  margin-top: 7px !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights:has(> .login-reminder-progress-widget.hidden) {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights > .login-reminder-overview {
+  display: contents !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights > :is(.login-reminder-progress-widget, .login-reminder-overview > .login-reminder-standing, .login-reminder-overview > .login-lacking-reminder-recitation) {
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-progress-widget,
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-standing,
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation {
+  height: auto !important;
+  min-height: 90px !important;
+  margin: 0 !important;
+  padding: 10px !important;
+  border-radius: 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-progress-widget.hidden { display: none !important; }
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing-head {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  gap: 6px !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing-copy,
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing-copy > strong {
+  display: block !important;
+  text-align: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-grade-and-trend {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing-badge {
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1 !important;
+  padding: 5px 7px !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing[data-grade-display-mode="number"] .login-reminder-standing-badge b {
+  font-size: clamp(1.45rem, 3vw, 2rem) !important;
+  font-weight: 950 !important;
+  line-height: 1.05 !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing[data-grade-display-mode="color"] .login-reminder-standing-badge b {
+  font-size: clamp(.7rem, 1.4vw, .98rem) !important;
+  overflow-wrap: anywhere !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing[data-standing="unavailable"] .login-reminder-standing-badge b {
+  font-size: .68rem !important;
+  overflow-wrap: anywhere !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing-hint {
+  display: flex !important;
+  width: 100% !important;
+  justify-content: center !important;
+  text-align: center !important;
+  margin-top: auto !important;
+  padding-top: 0 !important;
+  border-top: none !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing-hint[hidden] { display: none !important; }
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-label,
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-score {
+  justify-content: center !important;
+  text-align: center !important;
+}
+#loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-score { margin-top: auto !important; }
+#loginLackingReminderOverlay .login-reminder-requirements-head { margin-top: 0 !important; margin-bottom: 8px !important; }
+#loginLackingReminderOverlay .login-reminder-requirements-head h3 { margin: 0 !important; }
+
+@media (max-width: 760px) {
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights {
+    grid-template-columns: minmax(0, .93fr) minmax(0, 1.27fr) minmax(0, .94fr) !important;
+    gap: 5px !important;
+    margin-top: 5px !important;
+  }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights:has(> .login-reminder-progress-widget.hidden) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-progress-widget,
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-standing,
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation {
+    min-height: 82px !important;
+    padding: 7px 5px !important;
+  }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing-copy > strong { font-size: .68rem !important; }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing[data-grade-display-mode="number"] .login-reminder-standing-badge b {
+    font-size: clamp(1.4rem, 6.7vw, 1.85rem) !important;
+  }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing[data-grade-display-mode="color"] .login-reminder-standing-badge b { font-size: .72rem !important; }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-reminder-standing-hint { margin-top: auto !important; }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights .login-lacking-reminder-recitation-score strong { font-size: 1.18rem !important; }
+}
+@media (max-width: 350px) {
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-highlights { gap: 4px !important; }
+  #loginLackingReminderOverlay .login-reminder-fixed-header .login-reminder-standing[data-grade-display-mode="number"] .login-reminder-standing-badge b { font-size: 1.45rem !important; }
+}
+
+/* Desktop: let short lists produce a genuinely compact modal, while long
+   published requirement lists remain independently scrollable. */
+@media (min-width: 761px) {
+  #loginLackingReminderOverlay .login-lacking-reminder-panel,
+  #loginLackingReminderOverlay[data-fit="tight"] .login-lacking-reminder-panel,
+  #loginLackingReminderOverlay[data-fit="ultra"] .login-lacking-reminder-panel {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - 28px) !important;
+  }
+  #loginLackingReminderOverlay .login-reminder-scroll-region {
+    flex: 0 1 auto !important;
+    min-height: 0 !important;
+    max-height: min(50dvh, 480px) !important;
+    overflow-y: auto !important;
+  }
+}

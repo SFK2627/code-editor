@@ -3077,9 +3077,7 @@ function renderLoginReminderMissingGroups(tasks, settings) {
       <ol>${group.map(task => `<li><span>${escapeHTML(task.title || 'Requirement')}</span><small>Needs completion</small></li>`).join('')}</ol>
     </details>`).join('');
   return `<div class="login-reminder-requirements-head">
-    <div><span class="login-reminder-requirements-overline">YOUR TO-DO LIST</span>
-      <h3>${escapeHTML(settings.missingListTitle || 'Requirements to complete')}</h3></div>
-    
+    <h3>Requirements to Complete</h3>
   </div><div class="login-reminder-requirements-groups">${sections}</div>`;
 }
 
