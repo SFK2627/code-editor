@@ -272,7 +272,7 @@ async function boot(){
    stopTyping();closeReactionPicker();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);
    if(presenceHeartbeat){clearInterval(presenceHeartbeat);presenceHeartbeat=null;}
    ownPresencePath='';ownPresenceConnected=false;
-   conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};$('g8mLinkedThreads').hidden=true;
+   conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
    if(!account){
     if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
     else {showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
@@ -406,7 +406,7 @@ async function initWorkspace(){
   const summaryRef=ref(rtdb,`${BASE}/summary`);
   // Summary stream paints the inbox immediately; the slow roster is independent.
   rootUnsubs.push(onValue(summaryRef,snap=>{
-   summaries=snap.val()||{};renderSections();renderStudents();if(openedUid)renderLinkedThreads(openedUid);setConnection(true,'Live');
+   summaries=snap.val()||{};renderSections();renderStudents();setConnection(true,'Live');
    if(requestedUid&&!openedUid&&(summaries[requestedUid]||students.has(requestedUid)))openChat(requestedUid);
   },err=>{setConnection(false,'Inbox error');status(friendlyError(err),true);}));
   switchMobile('sections');
@@ -421,7 +421,6 @@ async function initWorkspace(){
      studentId:short(record.studentId||'',50),section:short(record.section||'Unassigned',100),accountStatus:String(record.accountStatus||'active')});
    }
    renderSections();renderStudents();
-   if(openedUid)renderLinkedThreads(openedUid);
    if(requestedUid&&!openedUid&&(students.has(requestedUid)||summaries[requestedUid]))openChat(requestedUid);
   },error=>{
    console.warn('Messages RTDB directory unavailable:',error);
@@ -484,9 +483,12 @@ function allPeople(){
 }
 function groupForUid(uid){return allPeople().find(p=>p.uids.includes(uid))||null;}
 function selectGroupThread(group){
- // Prefer the active/most recently used account; unread historical threads
- // remain selectable via the switcher rather than silently replying to old UIDs.
- return group.uid;
+ // One clean row with no legacy-account selector. Open unread conversation first;
+ // otherwise choose the most recently active thread, falling back to the
+ // preferred/official UID. Underlying UID histories remain untouched in RTDB.
+ const unreadThreads=group.uids.filter(uid=>unread(summaries[uid])>0);
+ const candidates=unreadThreads.length?unreadThreads:group.uids.filter(uid=>Number(summaries[uid]?.lastAtMs||0)>0);
+ return candidates.slice().sort((a,b)=>Number(summaries[b]?.lastAtMs||0)-Number(summaries[a]?.lastAtMs||0))[0]||group.uid;
 }
 function matchesFilter(p){
  if(filter==='unread' && !p.unreadCount)return false;
@@ -529,33 +531,17 @@ function renderStudents(){if(!teacher)return;
   row.append(textEl('span','g8m-student-avatar',iconLetter(p)));
   const copy=textEl('span','g8m-row-copy','');copy.append(textEl('strong','',p.name));
   copy.append(textEl('small','',short(p.lastText||p.studentId||'Start a conversation',42)));
-  if(p.uids.length>1)copy.append(textEl('small','g8m-linked-hint',`${p.uids.length} linked conversations · history preserved`));
   row.append(copy);
   if(p.unreadCount)row.append(textEl('span','g8m-bubble-count',p.unreadCount>99?'99+':p.unreadCount));
-  row.addEventListener('click',()=>openChat(p.uids.includes(openedUid)?openedUid:selectGroupThread(p)));list.append(row);
+  row.addEventListener('click',()=>{
+   const currentIsGroup=p.uids.includes(openedUid);
+   const otherUnread=p.uids.some(uid=>uid!==openedUid&&unread(summaries[uid])>0);
+   const keepCurrent=currentIsGroup&&(!otherUnread||unread(summaries[openedUid])>0);
+   openChat(keepCurrent?openedUid:selectGroupThread(p));
+  });list.append(row);
  });
  if(!people.length)list.append(notice('No students match this filter. Try All or another section.'));
 }
-function renderLinkedThreads(uid){
- const box=$('g8mLinkedThreads'),selector=$('g8mThreadSelect');
- if(!box||!selector)return;
- const group=teacher?groupForUid(uid):null;
- if(!group||group.uids.length<2){box.hidden=true;selector.replaceChildren();return;}
- const ordered=group.uids.slice().sort((a,b)=>Number(summaries[b]?.lastAtMs||0)-Number(summaries[a]?.lastAtMs||0));
- selector.replaceChildren();
- ordered.forEach((id,i)=>{
-  const option=document.createElement('option');option.value=id;
-  const sent=Number(summaries[id]?.lastAtMs||0);
-  const when=sent?`${dayLabel(sent)} ${formatTime(sent)}`:'No recent messages';
-  const unreadCount=unread(summaries[id]);
-  option.textContent=`Conversation ${i+1} · ${when}${unreadCount?` · ${unreadCount} unread`:''}`;
-  selector.append(option);
- });
- selector.value=uid;box.hidden=false;
-}
-$('g8mThreadSelect').addEventListener('change',event=>{
- const uid=String(event.target.value||'');if(uid&&uid!==openedUid)openChat(uid);
-});
 function switchMobile(view){stopLongPressTimer();mobileView=view;workspace.dataset.mobileView=view;root.dataset.mobileChat=(view==='chat'?'true':'false');closeReactionPicker();}
 $('g8mSectionBack').addEventListener('click',()=>{if(!sending)switchMobile('sections');});
 $('g8mChatBack').addEventListener('click',()=>{if(sending)return;if(teacher)switchMobile('students');else leaveMessages();});
@@ -576,7 +562,7 @@ function openChat(uid){
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
  hasOlder=warm?.hasOlder||false;olderLoading=false;activeAcks=warm?.acks||{};seenAt=warm?.seenAt||0;reply=null;renderReply();
- if(teacher){const p=person(uid),group=groupForUid(uid);$('g8mChatName').textContent=group?.name||p.name;$('g8mChatMeta').textContent=[group?.section||p.section,group?.studentId||p.studentId].filter(Boolean).join(' · ');$('g8mChatAvatar').textContent=iconLetter(group||p);$('g8mComposer').hidden=false;renderLinkedThreads(uid);renderStudents();}
+ if(teacher){const p=person(uid),group=groupForUid(uid);$('g8mChatName').textContent=group?.name||p.name;$('g8mChatMeta').textContent=[group?.section||p.section,group?.studentId||p.studentId].filter(Boolean).join(' · ');$('g8mChatAvatar').textContent=iconLetter(group||p);$('g8mComposer').hidden=false;renderStudents();}
  if(activeMessages.length||olderMessages.length)renderMessages();
  else $('g8mMessages').replaceChildren(notice('Loading messages…'));
  switchMobile('chat');

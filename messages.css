@@ -562,11 +562,3 @@ html,body{overflow:hidden;overscroll-behavior:none}
 @media(prefers-reduced-motion:reduce){
  .g8m-focus-backdrop,.g8m-focus-shell{animation:none!important;transition:none!important}
 }
-
-/* V5.9: one student row, with switcher for separately secured linked-UID conversations. */
-.g8m-linked-hint{font-size:10px!important;opacity:.86;color:var(--muted)}
-.g8m-linked-threads{display:flex;flex:0 0 auto;align-items:center;gap:9px;min-width:0;padding:7px 14px;background:var(--accent-soft);border-bottom:1px solid var(--line);color:var(--ink)}
-.g8m-linked-threads label{white-space:nowrap;font-size:11px;font-weight:800;color:var(--accent)}
-.g8m-linked-threads select{min-width:0;max-width:100%;flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font-size:11px}
-.g8m-linked-threads span{font-size:10px;color:var(--muted)}
-@media(max-width:700px){.g8m-linked-threads{padding:6px 10px;gap:6px}.g8m-linked-threads label{font-size:10px}.g8m-linked-threads span{display:none}.g8m-linked-threads select{font-size:10px;padding:7px 4px}}
