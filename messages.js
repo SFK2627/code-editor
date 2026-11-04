@@ -829,6 +829,25 @@ function renderMessages(){
     preview.title=job.queued.length>1?'Open selected photos':'View photo';
     const img=document.createElement('img');img.src=front.url;img.alt=front.file.name;
     img.draggable=false;img.loading='eager';preview.append(img);
+    // Use the same mobile dimensions for the local Sending bubble and its
+    // confirmed Drive photo. A local object URL should never show at its raw
+    // camera pixel size in the conversation.
+    if(isCompactPhotoViewport()){
+     const applySize=()=>{
+      if(!img.naturalWidth||!img.naturalHeight)return;
+      const fit=chatPhotoDisplaySize(img.naturalWidth,img.naturalHeight,job.queued.length>1);
+      front.chatDisplaySize=fit;
+      preview.style.setProperty('--g8m-pending-width',fit.width+'px');
+      preview.style.setProperty('--g8m-pending-height',fit.height+'px');
+      preview.style.setProperty('--g8m-pending-aspect',img.naturalWidth+' / '+img.naturalHeight);
+     };
+     if(front.chatDisplaySize){
+      preview.style.setProperty('--g8m-pending-width',front.chatDisplaySize.width+'px');
+      preview.style.setProperty('--g8m-pending-height',front.chatDisplaySize.height+'px');
+     }
+     img.addEventListener('load',applySize,{once:true});
+     if(img.complete&&img.naturalWidth)applySize();
+    }
     if(job.queued.length>1){
      preview.classList.add('is-photo-stack');
      preview.append(textEl('span','g8m-photo-count',`${job.queued.length} photos`));
@@ -1330,6 +1349,18 @@ document.addEventListener('keydown',event=>{
 if('ResizeObserver' in window){
  new ResizeObserver(()=>{if(!imageViewer.hidden&&imageViewerFitW)imageViewerMeasure(true);}).observe(imageStage);
 }else window.addEventListener('resize',()=>imageViewerMeasure(true));
+// Shared mobile chat-image sizing: local optimistic previews and confirmed
+// Drive thumbnails must use identical bounds so the bubble never jumps from
+// a giant portrait to a compact image after upload. Desktop retains V5.4 sizing.
+function isCompactPhotoViewport(){return window.matchMedia('(max-width:700px)').matches;}
+function chatPhotoDisplaySize(width,height,multiple=false){
+ const w=Math.max(1,Number(width)||1),h=Math.max(1,Number(height)||1);
+ const compact=isCompactPhotoViewport();
+ const maxW=compact?(multiple?Math.min(250,Math.floor(window.innerWidth*.74)):Math.min(270,Math.floor(window.innerWidth*.74))):(multiple?185:390);
+ const maxH=compact?(multiple?280:300):(multiple?340:450);
+ const scale=Math.min(1,maxW/w,maxH/h);
+ return {width:Math.max(20,Math.round(w*scale)),height:Math.max(20,Math.round(h*scale))};
+}
 async function showPhoto(att,button,version){
  if(!button.isConnected)return;
  const path=att.path;
@@ -1363,9 +1394,7 @@ async function showPhoto(att,button,version){
   // Actual image ratio. A portrait stays portrait, a landscape stays wide.
   // Cap the displayed height without cropping or stretching long screenshots.
   const single=!button.parentElement?.classList.contains('is-multiple');
-  const maxW=single?390:185,maxH=single?450:340;
-  const scale=Math.min(1,maxW/width,maxH/height);
-  const displayWidth=Math.max(30,Math.round(width*scale));
+  const displayWidth=chatPhotoDisplaySize(width,height,!single).width;
   button.style.setProperty('--g8m-photo-width',displayWidth+'px');
   const stack=button.closest('.g8m-photo-stack');
   if(stack){stack.style.setProperty('--g8m-stack-width',displayWidth+'px');}

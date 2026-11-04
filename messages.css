@@ -427,3 +427,28 @@ html,body{overflow:hidden;overscroll-behavior:none}
  .g8m-image-viewer .g8m-gallery-nav{height:34px;min-width:29px;padding:0 4px;font-size:24px}
 }
 @media(prefers-reduced-motion:reduce){.g8m-message.g8m-jump-focus>.g8m-bubble-anchor{animation:none}}
+
+
+/* V5.5 — Mobile Sending photos use the same compact, natural proportions as
+   their confirmed chat thumbnails. Desktop sizing and all viewer gestures stay
+   unchanged. The temporary placeholder is bounded even before image decode. */
+@media (max-width:700px){
+ .g8m-pending-photo .g8m-local-photo-grid,
+ .g8m-pending-photo .g8m-local-photo-grid.is-multiple{
+  display:flex;flex-direction:column;align-items:flex-end;
+  width:fit-content;max-width:100%;min-width:0;
+ }
+ .g8m-pending-photo .g8m-local-photo-front{
+  flex:none;box-sizing:border-box;display:block;overflow:hidden;
+  width:var(--g8m-pending-width,min(50vw,180px));
+  height:var(--g8m-pending-height,auto);
+  aspect-ratio:var(--g8m-pending-aspect,4 / 3);
+  max-width:100%;max-height:300px;
+ }
+ .g8m-pending-photo .g8m-local-photo-front>img,
+ .g8m-pending-photo .g8m-local-photo-grid.is-multiple .g8m-local-photo-front>img{
+  display:block;width:100%;height:100%;max-width:none;max-height:none;
+  object-fit:contain;object-position:center;
+ }
+ .g8m-pending-photo .g8m-photo-job-status{max-width:min(100%,270px)}
+}
