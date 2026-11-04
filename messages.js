@@ -109,6 +109,34 @@ const safeStamp = value => { const n=Number(value); return Number.isFinite(n) &&
 const dateOf = x => new Date(safeStamp(x));
 const formatTime = x => x ? new Intl.DateTimeFormat('en-PH',{hour:'numeric',minute:'2-digit'}).format(dateOf(x)) : '';
 const dayLabel = x => new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',year:'numeric'}).format(dateOf(x));
+const localDayKey = ms => { const d=dateOf(ms); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+function chatDayDividerLabel(firstMessageTime){
+ const today=new Date(), yesterday=new Date(today);
+ yesterday.setDate(yesterday.getDate()-1); // Calendar day, never a rolling 24-hour window.
+ const key=localDayKey(firstMessageTime);
+ const prefix=key===localDayKey(today.getTime())?'Today · ':
+  key===localDayKey(yesterday.getTime())?'Yesterday · ':'';
+ return `${prefix}${dayLabel(firstMessageTime)} · ${formatTime(firstMessageTime)}`;
+}
+// V5.13: only plain text messages reveal their metadata by tapping on phones.
+// Keep the chosen ID in memory across Seen/reaction rerenders; never store in RTDB.
+let selectedMobileMetaMessageId='';
+const mobileChatSize = () => window.matchMedia('(max-width:700px)').matches;
+function toggleTextMessageMeta(item,id){
+ if(!mobileChatSize())return;
+ const same=selectedMobileMetaMessageId===String(id);
+ for(const node of $('g8mMessages')?.querySelectorAll('.g8m-text-only')||[]){
+  node.classList.remove('g8m-meta-revealed');
+  const text=node.querySelector('.g8m-text.g8m-text-tap');
+  if(text)text.setAttribute('aria-expanded','false');
+ }
+ selectedMobileMetaMessageId=same?'':String(id);
+ if(!same){
+  item.classList.add('g8m-meta-revealed');
+  item.querySelector('.g8m-text.g8m-text-tap')?.setAttribute('aria-expanded','true');
+ }
+}
+
 const short = (v,n=60) => String(v || '').slice(0,n);
 const isTeacher = account => teacherEmails.includes(String(account?.email || '').toLowerCase());
 function status(message, error=false){ const el=$('g8mSendStatus'); el.textContent=message; el.classList.toggle('error',error); }
@@ -595,6 +623,7 @@ function openChat(uid){
   conversationMemory.set(openedUid,{messages:activeMessages.slice(-120),older:olderMessages.slice(-80),acks:{...activeAcks},seenAt,hasOlder});
   if(conversationMemory.size>10)conversationMemory.delete(conversationMemory.keys().next().value);
  }
+ selectedMobileMetaMessageId='';
  clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
@@ -1121,8 +1150,15 @@ function renderMessages(){
  for(const msg of shown){
   try{
    const at=safeStamp(msg.createdAtMs);
-   const date=dayLabel(at);
-   if(date!==currentDay){currentDay=date;content.append(textEl('div','g8m-date',date));}
+   const date=localDayKey(at);
+   if(date!==currentDay){
+    currentDay=date;
+    const divider=textEl('div','g8m-date','');
+    divider.setAttribute('role','separator');
+    divider.setAttribute('aria-label',chatDayDividerLabel(at));
+    divider.append(textEl('span','g8m-date-label',chatDayDividerLabel(at)));
+    content.append(divider);
+   }
    const mine=msg.senderUid===user?.uid;
    const item=textEl('article','g8m-message'+(mine?' own':''),'');
    item.dataset.messageId=String(msg.id);
@@ -1252,6 +1288,22 @@ function renderMessages(){
    const bubbleAnchor=textEl('div','g8m-bubble-anchor','');
    while(item.firstChild)bubbleAnchor.append(item.firstChild);
    item.append(bubbleAnchor);
+   const isTextOnly = !attachments.length && msg.type!=='image' && msg.type!=='project' && !!bubbleAnchor.querySelector('.g8m-text');
+   if(isTextOnly){
+    item.classList.add('g8m-text-only');
+    if(selectedMobileMetaMessageId===String(msg.id))item.classList.add('g8m-meta-revealed');
+    // The bubble, never an image or project link, is the tap target.
+    const textBubble=bubbleAnchor.querySelector('.g8m-text');
+    textBubble.classList.add('g8m-text-tap');
+    textBubble.setAttribute('role','button');
+    textBubble.setAttribute('tabindex','0');
+    textBubble.setAttribute('aria-label','Show or hide message time and Seen status');
+    textBubble.setAttribute('aria-expanded',item.classList.contains('g8m-meta-revealed')?'true':'false');
+    textBubble.addEventListener('click',()=>toggleTextMessageMeta(item,msg.id));
+    textBubble.addEventListener('keydown',event=>{
+     if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTextMessageMeta(item,msg.id);}
+    });
+   }
    const meta=textEl('div','g8m-msg-meta','');meta.append(textEl('span','',formatTime(at)));
    if(mine){const seenLabel=textEl('span','g8m-seen-label',seenLabelFor(msg));meta.append(seenLabel);}
    item.append(meta);
