@@ -32,7 +32,7 @@ async function loadMessagesFirebaseSDK(){
   import(`${base}/firebase-auth.js`),
   import(`${base}/firebase-database.js`)
  ]);
- const timeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('Firebase libraries did not load. Check internet access or use the deployed G8Code website.')),15000));
+ const timeout = new Promise((_,reject)=>setTimeout(()=>reject(new Error('Messages could not load. Check your internet connection and reopen this page.')),15000));
  const [a, au, d] = await Promise.race([load, timeout]);
  ({initializeApp, getApps, getApp} = a);
  ({getAuth, onAuthStateChanged, signInWithEmailAndPassword} = au);
@@ -154,9 +154,19 @@ function syncMobileMessageMetaVisibility(){
 
 const short = (v,n=60) => String(v || '').slice(0,n);
 const isTeacher = account => teacherEmails.includes(String(account?.email || '').toLowerCase());
-function status(message, error=false){ const el=$('g8mSendStatus'); el.textContent=message; el.classList.toggle('error',error); }
-function showGate(title,detail,login=false){gate.hidden=false;workspace.hidden=true;gate.querySelector('h1').textContent=title;$('g8mGateText').textContent=detail;$('g8mQuickLogin').hidden=!login;}
-function setConnection(ok,detail){const el=$('g8mConnection'); el.textContent=detail || (ok?'Live':'Offline'); el.classList.toggle('online',Boolean(ok));}
+function g8mFriendlyNotice(message){
+ const raw=String(message??'').trim();
+ if(!/(?:firebase|firestore|\brtdb\b|realtime\s+database|\bapps\s+script\b|\bbackend\b|\bworkspace\s+drive\b|permission[- ]denied|insufficient\s+permissions|\bdriveTransfers\b|firebase-config\.js|\bsdk\b)/i.test(raw))return raw;
+ const lower=raw.toLowerCase();
+ if(/(?:upload|photo|attachment|image|drive|transfer)/.test(lower))return 'Could not complete the photo request. Check your connection and try again.';
+ if(/(?:permission|denied|rules|access)/.test(lower))return 'Messages is temporarily unavailable for this account. Please sign in again or contact your teacher.';
+ if(/(?:project|preview|file)/.test(lower))return 'Could not load this project. Please try again.';
+ if(/(?:login|sign.?in|auth)/.test(lower))return 'Sign-in is temporarily unavailable. Please try again.';
+ return 'Messages could not connect. Check your connection and try again.';
+}
+function status(message, error=false){ const el=$('g8mSendStatus'); el.textContent=g8mFriendlyNotice(message); el.classList.toggle('error',error); }
+function showGate(title,detail,login=false){gate.hidden=false;workspace.hidden=true;gate.querySelector('h1').textContent=title;$('g8mGateText').textContent=g8mFriendlyNotice(detail);$('g8mQuickLogin').hidden=!login;}
+function setConnection(ok,detail){const el=$('g8mConnection'); el.textContent=g8mFriendlyNotice(detail || (ok?'Live':'Offline')); el.classList.toggle('online',Boolean(ok));}
 function notice(text){const el=document.createElement('div');el.className='g8m-empty';el.textContent=text;return el;}
 function textEl(tag,className,text){const x=document.createElement(tag);if(className)x.className=className;x.textContent=text??'';return x;}
 function clearUnsubs(list){while(list.length){try{list.pop()();}catch(_){}}}
@@ -350,7 +360,7 @@ function studentSection(s){return String(s?.section || 'Unassigned').trim()||'Un
 function iconLetter(s){return String(s?.name || s?.studentName || 'S').trim().charAt(0).toUpperCase();}
 async function boot(){
  try{
-  if(!window.MCS_FIREBASE_CONFIG || !window.MCS_FIREBASE_DATABASE_URL)throw new Error('Firebase configuration or Realtime Database URL is missing.');
+  if(!window.MCS_FIREBASE_CONFIG || !window.MCS_FIREBASE_DATABASE_URL)throw new Error('Messages is temporarily unavailable. Please try again later.');
   setConnection(false,'Connecting…');
   await loadMessagesFirebaseSDK();
   app=getApps().length?getApp():initializeApp(window.MCS_FIREBASE_CONFIG);
@@ -372,7 +382,7 @@ async function boot(){
    conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
    if(!account){
     if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
-    else {showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
+    else {showGate('Sign in to Messages',location.protocol==='file:'?'Please sign in with your G8Code account to continue.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
     setConnection(false,'Sign in required');return;
    }
    $('g8mQuickLogin').hidden=true;
@@ -440,7 +450,7 @@ $('g8mQuickLogin').addEventListener('submit',async event=>{
  const password=$('g8mLoginPassword').value;
  const feedback=$('g8mLoginError'), button=$('g8mLoginSubmit');
  feedback.hidden=true;
- if(g8mTeacherShortcut && !identity){feedback.textContent='No authorized teacher email is configured in firebase-config.js.';feedback.hidden=false;return;}
+ if(g8mTeacherShortcut && !identity){feedback.textContent='Teacher account access is unavailable. Please contact the administrator.';feedback.hidden=false;return;}
  if(!identity||!password){feedback.textContent='Enter your Admin Code.';feedback.hidden=false;return;}
  button.disabled=true;button.textContent=g8mTeacherShortcut?'Verifying Admin Code…':'Signing in…';
  try{
@@ -481,10 +491,10 @@ $('g8mQuickLogin').addEventListener('submit',async event=>{
  }finally{button.disabled=false;button.textContent=g8mTeacherShortcut?'Open Teacher Messages':'Sign in to Messages';}
 });
 function friendlyError(error){let e=String(error?.message||error||'Could not connect.');
- if(/permission.denied|permission_denied|permission denied/i.test(e))return 'Firebase permissions do not allow Messages yet. Deploy the supplied Realtime Database rules and check your account.';
- if(/drive|workspace|photo|attachment/i.test(e) && /configure|unavailable|not set/i.test(e))return 'Google Workspace Drive is not configured yet. Set up the private Drive Apps Script bridge before sending photos.';
+ if(/permission.denied|permission_denied|permission denied/i.test(e))return 'Messages is currently unavailable for this account. Please contact your teacher.';
+ if(/drive|workspace|photo|attachment/i.test(e) && /configure|unavailable|not set/i.test(e))return 'Photo attachments are temporarily unavailable. Please contact your teacher.';
  if(/network|offline|fetch/i.test(e))return 'Connection failed. Check your internet connection, then reopen Messages.';
- return e;
+ return g8mFriendlyNotice(e);
 }
 async function initWorkspace(){
  gate.hidden=true;workspace.hidden=false;workspace.classList.toggle('student',!teacher);root.dataset.mode=role();syncThemeForRole();
@@ -1329,7 +1339,7 @@ async function unsendMessageForEveryone(){
   }catch(error){console.warn('Inbox preview update pending:',error);}
   deleteOverlay.hidden=true;deleteMessageTarget=null;
   status('Message unsent ✓ · The conversation now shows a deletion notice.');
- }catch(error){status(`Could not unsend message: ${friendlyError(error)}. Check RTDB rules deployment.`,true);}
+ }catch(error){status(`Could not unsend message: ${friendlyError(error)}. Please try again.`,true);}
  finally{deleteMessageBusy=false;}
 }
 $('g8mDeleteCancel').addEventListener('click',closeDeleteDialog);
@@ -2463,7 +2473,7 @@ function driveRequest(action,args={},maxWait=45000){
  return new Promise(async (resolve,reject)=>{
   const endpoint=driveUrl();
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(endpoint)){
-   reject(new Error('Missing Apps Script /exec URL. Check firebase-config.js and g8code-messages-drive-config.js.'));return;
+   reject(new Error('Photo attachments are temporarily unavailable. Please try again later.'));return;
   }
   if(!user){reject(new Error('Sign in to G8Code before using private photo attachments.'));return;}
   if(location.protocol!=='https:'){
@@ -2481,7 +2491,7 @@ function driveRequest(action,args={},maxWait=45000){
    else{reject(error);}
   };
   const actionLabel=action==='read'?'photo viewing':action==='probe'?'connection check':'photo upload';
-  timeout=setTimeout(()=>finish(new Error(`No confirmation from Workspace Drive after ${Math.ceil(maxWait/1000)}s (${actionLabel}). Check Apps Script Executions and the private RTDB transfer rules. Do not retry repeatedly until checking Drive for an existing photo.`)),maxWait);
+  timeout=setTimeout(()=>finish(new Error(`Your ${actionLabel} could not be confirmed. Check the conversation before trying again.`)),maxWait);
   try{
    unsub=onValue(receiptRef,snapshot=>{
     if(!snapshot.exists())return;
@@ -2490,7 +2500,7 @@ function driveRequest(action,args={},maxWait=45000){
     finish(receipt.ok?null:new Error(receipt.error||'Workspace Drive rejected this request.'),receipt.data);
     if(!receipt.ok)remove(receiptRef).catch(()=>{});
    },error=>{
-    finish(new Error(`Cannot receive private Drive confirmation from RTDB: ${error?.message||error}. Add the driveTransfers security rule.`));
+    finish(new Error(`Could not confirm the photo request. Please try again.`));
    },{onlyOnce:false});
    // Request content is POSTED only; token and photo contents are never in URLs.
    const fields=new URLSearchParams({g8mBridge:'1',action,nonce,origin:location.origin,idToken:token});
@@ -2505,7 +2515,7 @@ async function checkDriveBridge(){
  if(!driveBridgeCheckPromise){
   driveBridgeCheckPromise=(async()=>{
    const res=await driveRequest('probe',{},16000);
-   if(!res||res.version!==43)throw new Error('Messages Drive bridge is outdated. Deploy the updated G8CodeMessagesDrive.gs in the existing Apps Script deployment.');
+   if(!res||res.version!==43)throw new Error('Photo attachments are temporarily unavailable. Please contact your teacher.');
    driveBridgeReady=true;
   })().finally(()=>{driveBridgeCheckPromise=null;});
  }

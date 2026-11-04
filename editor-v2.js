@@ -57,8 +57,17 @@ function editorHistoryStep(direction){
 
 const escapeHTML=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 function clone(v){return JSON.parse(JSON.stringify(v))}
-function toast(message,kind=''){const el=document.createElement('div');el.className='toast '+kind;el.textContent=message;$('toastHost').append(el);setTimeout(()=>el.remove(),3800)}
-function status(message){$('saveState').textContent=message;$('connectionStatus').textContent=message}
+function studioFriendlyNotice(message){
+ const raw=String(message??'').trim();
+ if(!/(?:firebase|firestore|\brtdb\b|realtime\s+database|\bbackend\b|\bapps\s+script\b|permission[- ]denied|insufficient\s+permissions|firebase-config\.js|\bsdk\b)/i.test(raw))return raw;
+ const lower=raw.toLowerCase();
+ if(/(?:send|transfer|reply|inbox)/.test(lower))return 'Could not send your code. Check your connection and try again.';
+ if(/(?:permission|denied|rules|access)/.test(lower))return 'This action is not available for your account. Please contact your teacher.';
+ if(/(?:login|sign.?in|auth|account)/.test(lower))return 'Sign in to your G8Code account and try again.';
+ return 'The service is temporarily unavailable. Please try again.';
+}
+function toast(message,kind=''){const el=document.createElement('div');el.className='toast '+kind;el.textContent=studioFriendlyNotice(message);$('toastHost').append(el);setTimeout(()=>el.remove(),3800)}
+function status(message){$('saveState').textContent=studioFriendlyNotice(message);$('connectionStatus').textContent=studioFriendlyNotice(message)}
 function title(name){state.name=String(name||'Untitled Project').slice(0,80);$('projectTitle').value=state.name;document.title=state.name+' · G8Code Studio'}
 function fileType(name){const ext=name.split('.').pop().toLowerCase();return ext==='html'?'html':ext==='css'?'css':ext==='js'?'js':null}
 function fileMap(lang=state.lang){return state.code[GROUP[lang]]}
@@ -919,7 +928,7 @@ function watchStudioAdminSettings(){
   },err=>console.warn('Studio admin theme/settings live updates unavailable:',err));
  }catch(err){console.warn('Studio settings watcher:',err)}
 }
-async function initFirebase(){const firebase=window.firebase;if(!firebase?.initializeApp||!window.MCS_FIREBASE_CONFIG){status('Guest · Firebase SDK unavailable');return}try{const app=firebase.apps.length?firebase.app():firebase.initializeApp(window.MCS_FIREBASE_CONFIG);db=firebase.firestore(app);auth=firebase.auth(app);auth.onAuthStateChanged(async user=>{if(!user&&state.collab)stopCollab();state.auth=user;state.guest=!user||STUDIO_FORCE_GUEST;state.profile=null;$('authPill').textContent=user&&!STUDIO_FORCE_GUEST?'Student connected':'Guest mode';document.body.classList.toggle('studio-guest-mode',!user||STUDIO_FORCE_GUEST);if(user&&!STUDIO_FORCE_GUEST){try{const snap=await profileRef().get();if(snap.exists){state.profile=snap.data()||{};$('authPill').textContent=state.profile.name||state.profile.firstName||'Student connected';status('● Connected to G8Code');}else{status('Signed in · no student profile');toast('Your Firebase account has no student profile. Open G8Code for verification.','error')}}catch(err){status('Signed in · profile unavailable');console.warn(err)}await cloudRoot();watchStudioAdminSettings();const parameter=new URLSearchParams(location.search);if(parameter.get('project'))await loadProject(parameter.get('project'));else if(!state.dirty)restoreStudentRecovery(user.uid);if(parameter.get('join')&&state.profile&&!studioJoinHandoffStarted){studioJoinHandoffStarted=true;await joinCollab(parameter.get('join'));}}else{if(studioAdminSettingsUnsub){studioAdminSettingsUnsub();studioAdminSettingsUnsub=null}status('● Guest practice · local only');await cloudRoot();if(STUDIO_PARAMS.get('return')==='admin'&&STUDIO_FORCE_GUEST){try{const saved=JSON.parse(sessionStorage.getItem(DRAFT)||'null');if(saved?.code&&Date.now()-Number(saved.updated||0)<86400000){state.code=normalizeCode(saved.code);state.projectId='';state.project=null;state.lastPracticeCheck=saved.practiceCheck||null;title(saved.name||'Guest draft');state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);state.dirty=!!saved.dirty;runPreview();status('✓ Guest draft restored after Admin');}}catch(e){console.warn('Guest Admin-return draft could not be restored',e)}}if(STUDIO_PARAMS.get('project')&&!STUDIO_FORCE_GUEST){toast('Sign in to open your saved G8Code project.','error');setTimeout(openAccount,180)}}renderResultQuick();});}catch(err){console.error(err);status('Guest practice · cloud unavailable');toast('Firebase could not connect. Local practice remains available.','error')}}
+async function initFirebase(){const firebase=window.firebase;if(!firebase?.initializeApp||!window.MCS_FIREBASE_CONFIG){status('Guest · Offline practice');return}try{const app=firebase.apps.length?firebase.app():firebase.initializeApp(window.MCS_FIREBASE_CONFIG);db=firebase.firestore(app);auth=firebase.auth(app);auth.onAuthStateChanged(async user=>{if(!user&&state.collab)stopCollab();state.auth=user;state.guest=!user||STUDIO_FORCE_GUEST;state.profile=null;$('authPill').textContent=user&&!STUDIO_FORCE_GUEST?'Student connected':'Guest mode';document.body.classList.toggle('studio-guest-mode',!user||STUDIO_FORCE_GUEST);if(user&&!STUDIO_FORCE_GUEST){try{const snap=await profileRef().get();if(snap.exists){state.profile=snap.data()||{};$('authPill').textContent=state.profile.name||state.profile.firstName||'Student connected';status('● Connected to G8Code');}else{status('Signed in · no student profile');toast('Your G8Code student profile could not be found. Sign in through Student Homepage.','error')}}catch(err){status('Signed in · profile unavailable');console.warn(err)}await cloudRoot();watchStudioAdminSettings();const parameter=new URLSearchParams(location.search);if(parameter.get('project'))await loadProject(parameter.get('project'));else if(!state.dirty)restoreStudentRecovery(user.uid);if(parameter.get('join')&&state.profile&&!studioJoinHandoffStarted){studioJoinHandoffStarted=true;await joinCollab(parameter.get('join'));}}else{if(studioAdminSettingsUnsub){studioAdminSettingsUnsub();studioAdminSettingsUnsub=null}status('● Guest practice · local only');await cloudRoot();if(STUDIO_PARAMS.get('return')==='admin'&&STUDIO_FORCE_GUEST){try{const saved=JSON.parse(sessionStorage.getItem(DRAFT)||'null');if(saved?.code&&Date.now()-Number(saved.updated||0)<86400000){state.code=normalizeCode(saved.code);state.projectId='';state.project=null;state.lastPracticeCheck=saved.practiceCheck||null;title(saved.name||'Guest draft');state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);state.dirty=!!saved.dirty;runPreview();status('✓ Guest draft restored after Admin');}}catch(e){console.warn('Guest Admin-return draft could not be restored',e)}}if(STUDIO_PARAMS.get('project')&&!STUDIO_FORCE_GUEST){toast('Sign in to open your saved G8Code project.','error');setTimeout(openAccount,180)}}renderResultQuick();});}catch(err){console.error(err);status('Guest practice · cloud unavailable');toast('Could not connect. Local practice remains available.','error')}}
 // Guest sign-in uses the same trusted Student ID -> Firebase account lookup as the main app.
 // No passwords are persisted, and no new Auth account is created from the Studio modal.
 let studioGuestSaveAfterLogin=false;
@@ -957,7 +966,7 @@ function guestLoginToSave(){
 }
 function showStudioSaveSuccess(){const overlay=$('studioSaveSuccess');if(!overlay)return;overlay.classList.remove('hidden');clearTimeout(showStudioSaveSuccess.timer);showStudioSaveSuccess.timer=setTimeout(()=>overlay.classList.add('hidden'),1250)}
 function openAccount(){
- if(!auth){toast('Firebase is not ready. Check your connection and try again.','error');return}
+ if(!auth){toast('The service is not ready. Check your connection and try again.','error');return}
  if(auth.currentUser&&!state.guest){
   openDialog('Student account',`<p><strong>${escapeHTML(state.profile?.name||auth.currentUser.email||'Student')}</strong></p><p class="subtext">Your G8Code session is connected to My Projects.</p>`,[
    {label:'Guest practice',action:()=>{state.guest=true;document.body.classList.add('studio-guest-mode');$('authPill').textContent='Guest practice';closeDialog();toast('Switched to local guest practice')}},
@@ -973,7 +982,7 @@ function openAccount(){
 function studioSignInErrorText(e){
  const code=String(e?.code||'').toLowerCase();
  if(code==='auth/invalid-credential'||code==='auth/wrong-password'||code==='auth/user-not-found')return 'Student ID or password not recognized. Check your credentials; if this is your first login, activate your account on the main G8Code page.';
- if(code==='auth/network-request-failed'||code==='unavailable')return 'Could not connect to Firebase. Check your internet connection and try again.';
+ if(code==='auth/network-request-failed'||code==='unavailable')return 'Could not connect. Check your internet connection and try again.';
  if(code==='auth/too-many-requests')return 'Too many attempts. Please wait before trying again.';
  if(code==='permission-denied')return 'Student account could not be verified. Open the main G8Code login or ask your teacher for help.';
  return String(e?.message||'Sign in failed. Please try again.');
@@ -983,7 +992,7 @@ async function signInStudent(){
  const raw=$('signInStudentId')?.value||'',pass=$('signInPassword')?.value||'',key=studioStudentKey(raw);
  const message=$('signinMessage');
  if(!key||!pass){if(message)message.textContent='Enter your Student ID and password.';return}
- if(!auth||!db){if(message)message.textContent='Firebase connection unavailable. Check your internet connection.';return}
+ if(!auth||!db){if(message)message.textContent='Connection unavailable. Check your internet connection.';return}
  const btn=qs('#dialogFooter .primary');
  studioStudentLoginBusy=true;if(btn){btn.disabled=true;btn.textContent='Signing in…'}
  if(message)message.textContent='Finding your G8Code account…';
@@ -1672,7 +1681,7 @@ function collabMemberList(){const c=state.collab;if(!c)return [];const list=new 
   if(state.auth?.uid)list.set(state.auth.uid,{...(list.get(state.auth.uid)||{}),uid:state.auth.uid,name:collabName(),role:c.isHost?'host':'member',online:true,color:collabColor(state.auth.uid)});
   return [...list.values()].filter(x=>x.online!==false)
 }
-function collabMemberMarkup(){const c=state.collab;if(!c)return '';const members=collabMemberList();return `<div class="studio-collab-summary"><div><span class="studio-collab-live-dot"></span><strong>${escapeHTML(c.isHost?'You are the host':'You joined a project')}</strong><small>${escapeHTML(c.sessionData?.projectName||state.name)} · ${members.length} online</small></div><span class="studio-collab-session-code">${escapeHTML(c.code)}</span></div><div class="studio-collab-access-status"><b>Access:</b> ${escapeHTML(c.access==='view'?'View only':'Can edit together')} · <span>${escapeHTML(c.liveStatus||'Connecting direct peers…')}</span></div><div class="studio-collab-members" aria-label="Connected collaborators">${members.map(m=>{const me=m.uid===state.auth?.uid,cur=m.cursor||{};return `<div class="studio-collab-member" style="--collab-color:${collabColor(m.uid)}"><span class="studio-collab-avatar">${escapeHTML(String(m.name||'?').trim()[0]||'?')}</span><span class="studio-collab-member-text"><strong>${escapeHTML(m.name||'Student')}${me?' <em>(You)</em>':''}</strong><small>${m.role==='host'?'Host':'Member'}${cur.fileName?' · Editing '+escapeHTML(cur.fileName):' · Connected'}</small></span>${c.isHost&&!me&&m.role!=='host'?`<button type="button" class="studio-collab-kick" data-collab-kick="${escapeHTML(m.uid)}" aria-label="Remove ${escapeHTML(m.name||'member')}" title="Remove this member from the live session">Kick</button>`:'<span class="studio-collab-presence-dot" aria-label="Online"></span>'}</div>`}).join('')}</div><p class="studio-collab-hint">Live typing and named cursors use direct WebRTC + CRDT. Firestore is only used to find the room and exchange connection details, not for keystrokes.</p>`}
+function collabMemberMarkup(){const c=state.collab;if(!c)return '';const members=collabMemberList();return `<div class="studio-collab-summary"><div><span class="studio-collab-live-dot"></span><strong>${escapeHTML(c.isHost?'You are the host':'You joined a project')}</strong><small>${escapeHTML(c.sessionData?.projectName||state.name)} · ${members.length} online</small></div><span class="studio-collab-session-code">${escapeHTML(c.code)}</span></div><div class="studio-collab-access-status"><b>Access:</b> ${escapeHTML(c.access==='view'?'View only':'Can edit together')} · <span>${escapeHTML(c.liveStatus||'Connecting direct peers…')}</span></div><div class="studio-collab-members" aria-label="Connected collaborators">${members.map(m=>{const me=m.uid===state.auth?.uid,cur=m.cursor||{};return `<div class="studio-collab-member" style="--collab-color:${collabColor(m.uid)}"><span class="studio-collab-avatar">${escapeHTML(String(m.name||'?').trim()[0]||'?')}</span><span class="studio-collab-member-text"><strong>${escapeHTML(m.name||'Student')}${me?' <em>(You)</em>':''}</strong><small>${m.role==='host'?'Host':'Member'}${cur.fileName?' · Editing '+escapeHTML(cur.fileName):' · Connected'}</small></span>${c.isHost&&!me&&m.role!=='host'?`<button type="button" class="studio-collab-kick" data-collab-kick="${escapeHTML(m.uid)}" aria-label="Remove ${escapeHTML(m.name||'member')}" title="Remove this member from the live session">Kick</button>`:'<span class="studio-collab-presence-dot" aria-label="Online"></span>'}</div>`}).join('')}</div><p class="studio-collab-hint">Work together in real time. Everyone sees edits and cursors as they happen.</p>`}
 function renderCollabPresence(){const c=state.collab,show=Boolean(c&&collabMembersAllowed()),count=show?collabMemberList().length:0;for(const id of ['studioCollabPill','focusMembers','focusMobileMembers']){const el=$(id);if(!el)continue;el.classList.toggle('hidden',!show);if(show){el.textContent=`👥 ${count} online`;el.title=`${count} classmates in room ${c.code}`}}const badge=$('studioCollabMobileCount');if(badge){badge.classList.toggle('hidden',!show);badge.textContent=String(count)}const roster=$('studioCollabRoster');if(roster&&show)roster.innerHTML=collabMemberMarkup();renderCollabCursors()}
 function collabTextSignature(value){let n=2166136261;for(let i=0;i<value.length;i++){n^=value.charCodeAt(i);n=Math.imul(n,16777619)}return (n>>>0).toString(36)+':'+value.length}
 function collabOwnCursor(){return {uid:state.auth?.uid||'',name:collabName(),lang:state.lang,fileName:fileName(),position:input.selectionStart,signature:collabTextSignature(input.value),updatedAtMs:Date.now(),editingAtMs:state.unsavedSince||0}}
@@ -1727,8 +1736,8 @@ function openSessionActions(){const s=state.collab;if(!s)return;openDialog('Live
 // of delivery: only a committed server write earns the "saved to inbox" state.
 function studioTransferFailure(error, context='send'){
  const code=String(error?.code||'').toLowerCase(),message=String(error?.message||'');
- if(/permission-denied|permission denied|missing or insufficient permissions/i.test(code+' '+message))return `Firestore permission denied while trying to ${context}. Ask your teacher to review the Code Transfer Firestore rules. Nothing was confirmed sent.`;
- if(/unavailable|network|failed to fetch|offline|deadline-exceeded/i.test(code+' '+message))return 'Cannot reach Firebase right now. Check your connection and try again. Nothing was confirmed sent.';
+ if(/permission-denied|permission denied|missing or insufficient permissions/i.test(code+' '+message))return `Could not ${context} because access was denied. Please contact your teacher. Nothing was sent.`;
+ if(/unavailable|network|failed to fetch|offline|deadline-exceeded/i.test(code+' '+message))return 'Could not connect right now. Check your connection and try again. Nothing was sent.';
  if(/resource-exhausted|quota/i.test(code+' '+message))return 'Transfer quota or storage limit reached. Nothing was confirmed sent.';
  return message||`Could not ${context}. Nothing was confirmed sent.`;
 }
@@ -1752,7 +1761,7 @@ async function verifyStudioTransferRecipient(value){
  if(route?.accountStatus==='disabled'||roster?.accountStatus==='disabled')throw Error('This student account is disabled. Nothing was sent.');
  if(route?.activated===false&&!roster?.authUid)throw Error('This student account has not been activated. Nothing was sent.');
  const registered=Boolean((route?.authEmail&&route?.activated!==false)||(roster?.authUid&&roster?.accountStatus!=='disabled'));
- if(!registered)throw Error(permissionIssue?'Cannot verify this Student ID because Firebase rules blocked the lookup. Ask the Admin to check student directory permissions; nothing was sent.':'No active registered G8Code account found for that Student ID. Nothing was sent.');
+ if(!registered)throw Error(permissionIssue?'Could not verify this Student ID. Please contact your teacher; nothing was sent.':'No active registered G8Code account found for that Student ID. Nothing was sent.');
  return {studentId:String(roster?.studentId||route?.studentId||studentId).trim(),key,uid:String(roster?.authUid||route?.authUid||''),name:String(roster?.name||route?.name||'').trim(),section:String(roster?.section||'').trim()};
 }
 async function sendCode(replyTo=''){
@@ -1793,13 +1802,13 @@ async function sendCode(replyTo=''){
    if(busy||finished)return;
    let item;try{item=snapshot()}catch(err){report('error','Check your information',err.message);return}
    if(verified&&verifiedSignature===item.signature){
-    busy=true;primary().disabled=true;report('pending','Sending…','Saving the transfer and receiver inbox record to Firebase.');
+    busy=true;primary().disabled=true;report('pending','Sending…','Sending your code and updating the recipient inbox…');
     try{
      if(!auth?.currentUser||auth.currentUser.uid!==state.auth?.uid||state.guest)throw Error('Your student session has changed. Sign in again.');
      const now=Date.now(),transferId='v2-'+now.toString(36)+'-'+crypto.getRandomValues(new Uint32Array(1))[0].toString(36),from=state.profile||{};
      const payload={schemaVersion:1,senderUid:state.auth.uid,senderStudentId:from.studentId||from.studentIdNormalized||'',senderName:from.name||'Student',senderSection:from.section||'',receiverUid:verified.uid,receiverStudentId:verified.studentId,receiverStudentIdAuthKey:verified.key,projectId:state.projectId||'',projectName:state.name,activityId:state.project?.selectedActivityId||'',activityTitle:state.project?.activityTitle||'',fileCount:item.files.length,fileNames:item.files.map(f=>f.name),totalBytes:item.files.reduce((n,f)=>n+f.bytes,0),message:item.message,replyToTransferId:String(reply.transferId||''),files:item.files,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtMs:now};
      const summary={schemaVersion:1,transferId,senderUid:payload.senderUid,senderStudentId:payload.senderStudentId,senderName:payload.senderName,senderSection:payload.senderSection,receiverUid:verified.uid,receiverStudentId:verified.studentId,receiverStudentIdAuthKey:verified.key,projectName:state.name,activityTitle:payload.activityTitle,fileCount:item.files.length,fileNames:payload.fileNames,totalBytes:payload.totalBytes,message:item.message,status:'unread',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtMs:now};
-     if(!db||typeof db.batch!=='function')throw Error('Firebase connection unavailable. Nothing was sent.');
+     if(!db||typeof db.batch!=='function')throw Error('Connection unavailable. Nothing was sent.');
      const batch=db.batch();batch.set(transferRef(transferId),payload);batch.set(inboxRef(verified.key).doc(transferId),summary);
      await batch.commit();
      // Firestore accepted both records atomically; opening/reading is up to recipient.

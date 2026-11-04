@@ -1712,7 +1712,7 @@ async function saveLoginReminderSettingsToCloud() {
   const settings = persistLoginReminderSettings(getLoginReminderSettingsFromControls());
   const ready = await initFirebaseSync();
   if (!ready) {
-    setLoginReminderSettingsStatus('Firebase is not ready. Check the connection and try again.', 'error');
+    setLoginReminderSettingsStatus('The service is not ready. Check your connection and try again.', 'error');
     return false;
   }
   if (!isTeacherAuthenticated()) {
@@ -4117,7 +4117,7 @@ function mergeAdminSnapshotRows(baseRows = [], changedRows = [], keyGetter = nul
 async function loadAdminUpdatedRows(collectionRef, sinceMs = 0, mapDoc = null) {
   const { getDocs, query, where, orderBy, limit, startAfter } = firebaseSync.modules;
   if (typeof query !== 'function' || typeof where !== 'function' || typeof orderBy !== 'function' || typeof limit !== 'function') {
-    throw new Error('Incremental admin refresh is unavailable in this Firebase runtime.');
+    throw new Error('Quick refresh is unavailable. Use Refresh All Sections.');
   }
   const safeSince = Math.max(0, Number(sinceMs || 0) - ADMIN_DELTA_OVERLAP_MS);
   const rows = [];
@@ -5706,7 +5706,7 @@ function hasFirebaseConfig() {
   );
 
   if (!hasConfig) {
-    firebaseSync.lastError = 'Firebase config is missing or disabled. Upload firebase-config.js, or use the updated script.js with built-in config.';
+    firebaseSync.lastError = 'Connection settings are unavailable. Refresh the page and try again.';
   }
 
   return hasConfig;
@@ -5732,7 +5732,7 @@ function isTeacherAuthenticated() {
 
 function getTeacherEmailText() {
   const allowed = getAllowedTeacherEmails();
-  return allowed.length ? allowed.join(', ') : 'any authenticated Firebase user';
+  return allowed.length ? allowed.join(', ') : 'an authorized teacher account';
 }
 
 function getDefaultTeacherEmail() {
@@ -6099,15 +6099,15 @@ function getFirebaseLoginErrorMessage(error) {
   const code = error?.code || '';
 
   if (code === 'auth/operation-not-allowed') {
-    return 'Email/Password login is not enabled yet. Go to Firebase Console > Authentication > Sign-in method > Email/Password > Enable.';
+    return 'Login is not available right now. Please contact your administrator.';
   }
 
   if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-    return 'Login failed. Make sure you created this teacher account in Firebase Authentication > Users and entered the correct password.';
+    return 'Login failed. Check your teacher account and password, then try again.';
   }
 
   if (code === 'auth/unauthorized-domain') {
-    return 'This website domain is not authorized. In Firebase Console, go to Authentication > Settings > Authorized domains and add sfk2627.github.io.';
+    return 'This website cannot be used for sign-in right now. Please contact your administrator.';
   }
 
   if (code === 'auth/invalid-email') {
@@ -6122,7 +6122,7 @@ function getFirebaseLoginErrorMessage(error) {
     return 'Network error. Check your internet connection and try again.';
   }
 
-  return error?.message || 'Login failed. Check your Firebase Authentication setup.';
+  return error?.message || 'Login failed. Please check your account details and try again.';
 }
 
 function setTeacherLoginLoading(isLoading, mode = 'password') {
@@ -6258,7 +6258,7 @@ function initFirebaseWithCompatSDK() {
     setStatus('Connected');
     return true;
   } catch (error) {
-    console.warn('Firebase compat SDK initialization failed.', error);
+    console.warn('The app could not start. Refresh and try again.', error);
     firebaseSync.lastError = error?.message || String(error);
     return false;
   }
@@ -6298,7 +6298,7 @@ async function initFirebaseSync() {
           import(`https://www.gstatic.com/firebasejs/${version}/firebase-auth.js`)
         ]),
         15000,
-        'Firebase took too long to load. Check the connection and try again.'
+        'The app is taking too long to connect. Please try again.'
       );
 
       const app = appModule.getApps && appModule.getApps().length
@@ -6314,7 +6314,7 @@ async function initFirebaseSync() {
       setStatus('Connected');
       return true;
     } catch (error) {
-      console.warn('Firebase connection failed. Guest/local mode will continue.', error);
+      console.warn('Connection failed. Offline practice is still available.', error);
       firebaseSync.lastError = error?.message || String(error);
       firebaseSync.enabled = false;
       firebaseSync.initialized = false;
@@ -6453,7 +6453,7 @@ async function saveActivitiesToCloud() {
     setStatus('Saved');
     return true;
   } catch (error) {
-    console.warn('Could not save activities to Firebase.', error);
+    console.warn('Could not save the activities online.', error);
     setStatus('Save failed');
     return false;
   }
@@ -6462,7 +6462,7 @@ async function saveActivitiesToCloud() {
 async function saveStudentAssistanceSettingsToCloud(settings = studentAssistanceSettings) {
   const ready = await initFirebaseSync();
   if (!ready) {
-    setAssistanceSettingsStatus(`Firebase is not ready. ${firebaseSync.lastError || 'Check the connection and uploaded files.'}`, 'error');
+    setAssistanceSettingsStatus(`The service is not ready. Check your connection and try again.`, 'error');
     return false;
   }
 
@@ -6484,7 +6484,7 @@ async function saveStudentAssistanceSettingsToCloud(settings = studentAssistance
     return true;
   } catch (error) {
     console.warn('Could not publish student assistance settings.', error);
-    setAssistanceSettingsStatus('Firebase rejected the settings update. Check teacher login and Firestore Rules.', 'error');
+    setAssistanceSettingsStatus('Could not save these settings. Sign in again and try once more.', 'error');
     return false;
   }
 }
@@ -6671,7 +6671,7 @@ async function saveAiRubricSettingsToCloud() {
         }
       });
     } else if (settings.enabled) {
-      throw new Error('Secure Apps Script bridge is required before Smart Review can be enabled for students.');
+      throw new Error('The secure review service must be connected before Smart Review can be enabled for students.');
     }
 
     const { setDoc, serverTimestamp } = firebaseSync.modules;
@@ -6700,7 +6700,7 @@ async function saveAiRubricSettingsToCloud() {
     return true;
   } catch (error) {
     console.error('Could not save Smart Review settings.', error);
-    setAiRubricSettingsStatus(error?.message || 'Save failed. Check teacher login and the Apps Script bridge.', 'error');
+    setAiRubricSettingsStatus(error?.message || 'Save failed. Check your teacher login and connection.', 'error');
     return false;
   } finally {
     if (saveAiRubricSettingsBtn) saveAiRubricSettingsBtn.disabled = false;
@@ -6952,7 +6952,7 @@ async function saveSubmissionToCloud(result) {
     setStatus('Result saved to project');
     return true;
   } catch (error) {
-    console.warn('Could not save submission to Firebase.', error);
+    console.warn('Could not save the submission.', error);
     setStatus('Project saved; submission history failed');
     return false;
   }
@@ -7043,7 +7043,7 @@ async function startFirebaseMode() {
 
 /* =========================================================
    FREE STUDENT ACCOUNTS + CLOUD PROJECTS
-   Uses only Firebase Authentication and Cloud Firestore.
+   Uses only Student Account Service and Cloud Firestore.
    No Cloud Functions, Storage, or paid backend is required.
    ========================================================= */
 function normalizeStudentId(value) {
@@ -7115,7 +7115,7 @@ function shouldUseRtdbMiniGameLedger() {
 
 async function getActiveFirebaseIdToken(options = {}) {
   const ready = await initFirebaseSync();
-  if (!ready || !firebaseSync.auth) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  if (!ready || !firebaseSync.auth) throw new Error(firebaseSync.lastError || 'The service is not ready.');
   const user = getFirebaseActiveUser();
   if (!user || typeof user.getIdToken !== 'function') throw new Error('Session expired. Sign in again.');
   return user.getIdToken(options.forceRefresh === true);
@@ -7140,7 +7140,7 @@ function utf8PayloadByteLength(value = '') {
 
 async function rtdbRestRequest(path = '', options = {}) {
   const baseUrl = getMcsRealtimeDatabaseUrl();
-  if (!baseUrl) throw new Error('Realtime Database URL is not configured.');
+  if (!baseUrl) throw new Error('The connection is temporarily unavailable.');
   const idToken = options.idToken || await getActiveFirebaseIdToken();
   const encodedPath = encodeRtdbPath(path);
   const query = new URLSearchParams();
@@ -7167,11 +7167,11 @@ async function rtdbRestRequest(path = '', options = {}) {
     try { data = JSON.parse(text); } catch (_) { data = text; }
   }
   if (!response.ok) {
-    let message = data?.error || data?.message || `Realtime Database request failed (${response.status}).`;
+    let message = data?.error || data?.message || `The request could not be completed. Please try again.`;
     const isTwoPlayerSignal = String(path || '').startsWith('codeDuelSignals');
     const denied = response.status === 401 || response.status === 403 || /permission denied|unauthorized|permission-denied/i.test(String(message || ''));
     if (isTwoPlayerSignal && denied) {
-      message = 'Student ID pairing is blocked by Realtime Database rules. Publish the updated codeDuelSignals rules, then reopen the 2-player game and try again.';
+      message = 'Pairing is temporarily unavailable. Reopen the game and try again.';
     }
     const error = new Error(String(message));
     error.status = response.status;
@@ -7265,11 +7265,11 @@ async function saveCodeUnoAdminVideoSetting() {
 async function callAppsScriptSecure(payload = {}, options = {}) {
   const url = getMcsAppsScriptUrl();
   if (!url) {
-    throw new Error('Apps Script Web App URL is not configured yet. Paste it in firebase-config.js as window.MCS_APPS_SCRIPT_URL.');
+    throw new Error('This feature is not available right now. Please contact the administrator.');
   }
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth) {
-    throw new Error('Firebase is not ready. Refresh the page and try again.');
+    throw new Error('The service is not ready. Refresh the page and try again.');
   }
   const user = getFirebaseActiveUser();
   if (!user) {
@@ -9518,7 +9518,7 @@ async function createStudentAccountFromRoster(studentId, password, preloadedRost
 function getStudentAuthErrorMessage(error) {
   const code = String(error?.code || '');
   if (code.includes('mcsian/auth-email-conflict')) return 'An Authentication account already exists for this Student ID, but 123456 could not open it. Ask your teacher to run Student Records → Login Check/Recovery. Do not create a duplicate account.';
-  if (code.includes('mcsian/default-password-not-active')) return 'Default 123456 could not open the Firebase account for this Student ID. Ask your teacher to use Login Check, then Reset Pass if needed. Your projects can be preserved.';
+  if (code.includes('mcsian/default-password-not-active')) return 'The default password did not work for this Student ID. Ask your teacher to check or reset the account.';
   if (code.includes('mcsian/not-ready')) return 'This Student ID has no available registration record yet. Ask your teacher to check Student Records.';
   if (code.includes('email-already-in-use')) return 'This Student ID already has an activated account. Use the password you created. The default 123456 works only for first login.';
   if (code.includes('mcsian/no-recovery-slot')) return 'Recovery login slots are disabled for safety. Use Login Check/Recovery to find the correct existing account.';
@@ -9528,8 +9528,8 @@ function getStudentAuthErrorMessage(error) {
   }
   if (code.includes('too-many-requests')) return 'Login is temporarily paused after repeated attempts. Please stop trying for a few minutes. If you are unsure of the password, ask your teacher to use Reset Pass.';
   if (code.includes('network-request-failed')) return 'Internet connection problem. Please reconnect and try again.';
-  if (code.includes('operation-not-allowed')) return 'Student login is not enabled yet. The teacher must enable Email/Password in Firebase Authentication.';
-  if (code.includes('unauthorized-domain')) return 'This website domain must be added to Firebase Authentication authorized domains.';
+  if (code.includes('operation-not-allowed')) return 'Student login is temporarily unavailable. Please contact your teacher.';
+  if (code.includes('unauthorized-domain')) return 'This website cannot complete sign-in. Please contact your teacher.';
   if (isFirestorePermissionError(error)) return 'Your account needs a quick teacher repair before it can open. Please give your Student ID to your teacher. Do not keep retrying the login.';
   return error?.message || 'Login failed. Check your Student ID and password.';
 }
@@ -9640,7 +9640,7 @@ async function loginStudent() {
           credential = signedIn.credential;
         } catch (signInError) {
           const error = new Error(
-            'The Student ID already has a Firebase Authentication account, but its password is not 123456. Use Admin → Student Records → Login Check/Recovery. Do not create a duplicate account.'
+            'This Student ID already has an account with a different password. Use Login Check/Recovery instead of creating another account.'
           );
           error.code = 'mcsian/auth-email-conflict';
           error.cause = signInError;
@@ -9779,7 +9779,7 @@ async function saveStudentNewPassword() {
   }
 }
 
-// The login gate may only offer Continue when Firebase Authentication still
+// The login gate may only offer Continue when Student Account Service still
 // holds the SAME valid student identity. A cached name alone is never proof.
 function syncVerifiedStudentContinue(user = getFirebaseActiveUser(), profile = null) {
   const validProfile = profile || (user && !isTeacherUser(user) && appSession.student?.uid === user.uid ? appSession.student : null);
@@ -10980,7 +10980,7 @@ async function saveAcademicTermSettingsToCloud(settings = academicTermSettings) 
   const safe = persistAcademicTermSettings(settings);
   if (!isTeacherAuthenticated()) throw new Error('Teacher login is required to save the Academic Term Schedule.');
   const ready = await initFirebaseSync();
-  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
   const { setDoc, serverTimestamp } = firebaseSync.modules;
   await setDoc(getCloudActivitiesDocRef(), {
     academicTermSettings: safe,
@@ -11197,14 +11197,14 @@ function applyGradeDisplaySettings(value = {}) {
   }
 }
 async function loadGradeDisplaySettingsFromCloud() {
-  if (!(await initFirebaseSync())) throw new Error('Firebase is unavailable.');
+  if (!(await initFirebaseSync())) throw new Error('The service is temporarily unavailable.');
   const { getDoc, getDocFromServer } = firebaseSync.modules;
   // A missing/failed read means COLOR ONLY; never trust stale local permissions.
   const reader = typeof getDocFromServer === 'function' && navigator.onLine !== false ? getDocFromServer : getDoc;
   const snapshot = await reader(getGradeDisplaySettingsDocRef());
   applyGradeDisplaySettings(snapshotExists(snapshot) ? snapshotData(snapshot) : DEFAULT_GRADE_DISPLAY_SETTINGS);
   if (gradeDisplaySettingsStatus && isTeacherAuthenticated()) {
-    gradeDisplaySettingsStatus.textContent = 'Saved global setting loaded from Firebase.';
+    gradeDisplaySettingsStatus.textContent = 'Saved settings loaded.';
   }
   return gradeDisplaySettings;
 }
@@ -11506,7 +11506,7 @@ async function loadComplianceSettingsFromCloud(options = {}) {
     return null;
   }
   const ready = await initFirebaseSync();
-  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
   const { getDoc } = firebaseSync.modules;
   const cloudSettings = await withSelectiveFirestoreCache('adminSettings:compliance', SELECTIVE_CACHE_LONG_MS, async () => {
     const snapshot = await getDoc(getComplianceSettingsDocRef());
@@ -11530,7 +11530,7 @@ async function saveComplianceSettingsToCloud(settings = {}) {
     throw new Error('Login as teacher first so Compliance settings can be saved and reused on other devices.');
   }
   const ready = await initFirebaseSync();
-  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
   const { setDoc, serverTimestamp } = firebaseSync.modules;
   const cleanSettings = JSON.parse(JSON.stringify(normalized));
   await setDoc(getComplianceSettingsDocRef(), {
@@ -11770,15 +11770,15 @@ function complianceFailureDetail(error, stage = 'Operation') {
 
   let nextStep = '';
   if (/grade reader did not answer|grade reader returned an unreadable response/.test(source)) {
-    nextStep = 'Secure grade reader did not respond. Open the HOSTED HTTPS app, and redeploy the matching v644 Code.gs as a NEW Apps Script version at the configured /exec URL.';
+    nextStep = 'The grade reader is not responding. Check your connection and contact the administrator if this continues.';
   } else if (/grade preview needs your hosted https|grade bridge requires a valid https/.test(source)) {
     nextStep = 'Open the live HTTPS Code Editor website; grade sync cannot run from a file:/// copy.';
   } else if (/no uniquely matching grading tab|multiple grading tabs|numbered headers|grade columns|id number header|learners names header/.test(source)) {
     nextStep = 'The grading sheet layout did not match uniquely. Check the selected term/tab and the sheet header labels. No scores were published.';
   } else if (/permission-denied|missing or insufficient permissions|insufficient permissions|access settings still block/.test(source)) {
     nextStep = role === 'teacher signed in'
-      ? 'Access denied by the live database. Check that the rules were PUBLISHED in the same Firebase project, then log out and sign in again.'
-      : 'Admin Firebase login is missing or not the teacher account. Log out completely and sign in through Admin Login.';
+      ? 'Access denied. Sign out and sign in again. If it continues, contact the administrator.'
+      : 'Use the authorized teacher account to sign in through Admin Login.';
   } else if (/no active firebase teacher session|not the configured teacher|teacher login is required|auth\/|unauthenticated|sign[ -]?in/.test(source)) {
     nextStep = 'Teacher login needs refreshing. Log out completely, reload, and log in again using the teacher account.';
   } else if (/not-ready|not ready|unavailable|network|offline|too long|timed? ?out|deadline-exceeded/.test(source)) {
@@ -11788,7 +11788,7 @@ function complianceFailureDetail(error, stage = 'Operation') {
   } else if (/resource-exhausted|quota|too large|maximum size/.test(source)) {
     nextStep = 'Request limit or document size issue. Try one section at a time.';
   } else if (/google sheets|spreadsheet|no student records|no section checked|sheet link/.test(source)) {
-    nextStep = 'Could not read the selected grading sheet. Verify the sheet link and Apps Script permissions, then use Preview.';
+    nextStep = 'Could not read the selected grading sheet. Verify the sheet link and try Preview again.';
   } else {
     nextStep = 'Could not finish this step. Open the browser Console for the underlying error (do not share tokens or grade data).';
   }
@@ -12234,15 +12234,15 @@ async function fetchAllPublishedComplianceRecords() {
   let snapshot;
   if (typeof modules.getDocsFromServer === 'function') {
     snapshot = await withTimeout(modules.getDocsFromServer(collectionRef), APP_NETWORK_TIMEOUT_MS,
-      'Reading published records from Firestore took too long. Please try Refresh Viewer again.');
+      'Loading published records took too long. Please use Refresh Viewer again.');
   } else if (typeof collectionRef.get === 'function') {
     // Firebase compat SDK: explicitly prevent serving a stale local snapshot.
     snapshot = await withTimeout(collectionRef.get({ source: 'server' }), APP_NETWORK_TIMEOUT_MS,
-      'Reading published records from Firestore took too long. Please try Refresh Viewer again.');
+      'Loading published records took too long. Please use Refresh Viewer again.');
   } else {
     // Firebase modular getDocs ordinarily attempts the server when online.
     snapshot = await withTimeout(modules.getDocs(collectionRef), APP_NETWORK_TIMEOUT_MS,
-      'Reading published records from Firestore took too long. Please try Refresh Viewer again.');
+      'Loading published records took too long. Please use Refresh Viewer again.');
   }
   return Array.from(snapshot?.docs || [])
     .map(docSnap => sanitizeComplianceStudentRecord({
@@ -12264,7 +12264,7 @@ async function loadAdminComplianceViewer(options = {}) {
     if (refreshAdminComplianceViewerBtn) refreshAdminComplianceViewerBtn.disabled = true;
     try {
       const ready = await initFirebaseSync();
-      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+      if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
       const forceServer = options.force === true || options.deep === true;
       const cached = forceServer ? null : await getSelectiveFirestoreCacheEntry(
         ADMIN_COMPLIANCE_ALL_SECTIONS_CACHE_KEY, { allowExpired: false });
@@ -12608,7 +12608,7 @@ async function loadSectionPerformancePrivateGrades(options = {}) {
   sperfLoadingTerm = term;
   const generation = sperfSessionGeneration;
   const work = (async () => {
-    if (!(await initFirebaseSync()) || !isTeacherAuthenticated()) throw new Error('Teacher Firebase login is required for numerical grade analysis.');
+    if (!(await initFirebaseSync()) || !isTeacherAuthenticated()) throw new Error('Teacher login is required for numerical grade analysis.');
     const reader = firebaseSync.modules.getDocFromServer || firebaseSync.modules.getDoc;
     let index = 0, done = 0, failed = 0;
     const worker = async () => {
@@ -13000,14 +13000,14 @@ function requestComplianceJsonp(baseUrl, params = {}, timeoutMs = 75000) {
   return new Promise((resolve, reject) => {
     const urlText = String(baseUrl || '').trim();
     if (!urlText) {
-      reject(new Error('Paste the Apps Script Web App URL first.'));
+      reject(new Error('Enter the secure service URL first.'));
       return;
     }
     let url;
     try {
       url = new URL(urlText);
     } catch (error) {
-      reject(new Error('Invalid Apps Script URL. Use the deployed /exec URL.'));
+      reject(new Error('The service URL is invalid. Check the URL and try again.'));
       return;
     }
     const callbackName = `mcsComplianceCallback_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
@@ -13027,7 +13027,7 @@ function requestComplianceJsonp(baseUrl, params = {}, timeoutMs = 75000) {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error('This section took too long to read from Google Sheets. Check that the sheet link is correct and the Apps Script account has access.'));
+      reject(new Error('This section took too long to load. Check the sheet link and try again.'));
     }, timeoutMs);
 
     function cleanup() {
@@ -13047,7 +13047,7 @@ function requestComplianceJsonp(baseUrl, params = {}, timeoutMs = 75000) {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error('Could not load the Apps Script endpoint. Make sure it is deployed as a Web App.'));
+      reject(new Error('Could not connect to the grade service. Check the connection and try again.'));
     };
     script.async = true;
     script.src = url.toString();
@@ -13093,7 +13093,7 @@ async function requestComplianceJsonpWithRetry(baseUrl, params = {}, options = {
     }
   }
 
-  throw new Error(`Google Sheets did not respond for ${sectionName} after ${retries + 1} try/tries. Try syncing again, or check that this section sheet link is shared with the Apps Script account.`);
+  throw new Error(`Grade information for ${sectionName} could not be loaded. Check the sheet link and try syncing again.`);
 }
 
 function renderComplianceSyncPreview(payload = {}) {
@@ -13133,7 +13133,7 @@ function renderComplianceSyncPreview(payload = {}) {
 async function callTeacherGradingSheetBridge(payload = {}, options = {}) {
   const endpoint = getMcsAppsScriptUrl();
   if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/i.test(endpoint)) {
-    throw new Error('Grade reader: set the deployed Code Editor Apps Script /exec URL in firebase-config.js.');
+    throw new Error('Grade records could not be loaded right now. Please contact the administrator.');
   }
   const hostOrigin = String(window.location.origin || '');
   if (!/^https:\/\/[a-z0-9.-]+(?::\d{2,5})?$/i.test(hostOrigin)) {
@@ -13142,7 +13142,7 @@ async function callTeacherGradingSheetBridge(payload = {}, options = {}) {
   const firebaseReady = await initFirebaseSync();
   const user = firebaseSync.auth?.currentUser;
   if (!firebaseReady || !user || !isTeacherUser(user)) {
-    throw new Error('Grade reader: Firebase teacher sign-in is required.');
+    throw new Error('Teacher sign-in is required to view these grades.');
   }
   const idToken = await user.getIdToken(true);
   const timeoutMs = Math.max(10000, Number(options.timeoutMs || 90000));
@@ -13251,7 +13251,7 @@ async function addTrustedSheetScoresToCompliance(students = [], sectionConfig = 
   if (previousTermForGradeTrend(settings.term) &&
       (!Object.prototype.hasOwnProperty.call(response, 'previousGradeMatchedCount') ||
        !(response.students || []).every(row => Object.prototype.hasOwnProperty.call(row, 'previousTermGrade')))) {
-    throw new Error('Secure grade reader has not been updated to read PREV. GRADES (BA). Deploy the updated Code.gs as a NEW Apps Script web-app version before syncing.');
+    throw new Error('Previous-grade comparison is not available. Please contact the administrator before syncing.');
   }
   const byStudent = new Map((response.students || []).map(item => [normalizeStudentId(item.studentId), item]));
   const enriched = students.map(student => {
@@ -13298,8 +13298,8 @@ async function addTrustedSheetScoresToCompliance(students = [], sectionConfig = 
 async function pullComplianceFromGoogleSheets(options = {}) {
   const settings = getComplianceSettingsFromControls();
   saveComplianceSettings(settings);
-  if (!settings.scriptUrl) throw new Error('Paste the Apps Script Web App URL first.');
-  if (!settings.syncKey) throw new Error('Enter the Sync Key used in Apps Script.');
+  if (!settings.scriptUrl) throw new Error('Enter the secure service URL first.');
+  if (!settings.syncKey) throw new Error('Enter your secure Sync Key.');
   const configuredSections = getSelectedComplianceSectionsForSync(settings);
   const taskPayload = getCurrentComplianceTaskPayload(settings);
   const selectedSectionNames = configuredSections.map(item => item.section || item.code || 'Section');
@@ -13358,7 +13358,7 @@ async function pullComplianceFromGoogleSheets(options = {}) {
       });
 
       if (!payload || payload.ok === false) {
-        throw new Error(payload?.error || 'Apps Script did not return a valid response.');
+        throw new Error(payload?.error || 'The grade service did not return a valid response.');
       }
 
       const students = Array.isArray(payload.students) ? payload.students : [];
@@ -13443,13 +13443,13 @@ async function previewComplianceSync() {
 async function verifyComplianceTeacherWriteSession() {
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth || !firebaseSync.modules?.getDoc) {
-    throw new Error(`Firebase is not ready to publish. ${firebaseSync.lastError || 'Reconnect to the internet and reload.'}`);
+    throw new Error(`Publishing is unavailable. Reconnect to the internet and try again.`);
   }
 
   // Do not fall back to firebaseSync.currentUser; that can be an observer cache.
   const user = firebaseSync.auth.currentUser;
   if (!user) {
-    throw new Error('No active Firebase teacher session. Close Admin, sign in with your teacher account again, and retry.');
+    throw new Error('Your teacher session has expired. Sign in again and retry.');
   }
 
   // Force refresh the token used by Firestore. Never print or store token bytes.
@@ -13462,14 +13462,14 @@ async function verifyComplianceTeacherWriteSession() {
       await user.getIdToken(true);
     }
   } catch (error) {
-    throw new Error(`Could not refresh Firebase teacher session (${error?.code || 'auth error'}). Sign out, then sign in again.`);
+    throw new Error(`Your teacher session could not be refreshed. Sign out and sign in again.`);
   }
 
   const email = String(claims.email || user.email || '').trim().toLowerCase();
   const configuredTeachers = getAllowedTeacherEmails();
   // Server-side Firestore rules remain the ultimate authorization authority.
   if (!email || !configuredTeachers.includes(email)) {
-    throw new Error(`The Firebase account used for publishing (${email || 'unknown'}) is not the configured teacher account. Sign out of any Student session and log in as teacher.`);
+    throw new Error(`Only the authorized teacher account can publish. Sign out and log in as teacher.`);
   }
   const projectId = String(window.MCS_FIREBASE_CONFIG?.projectId || '(unknown project)');
 
@@ -13481,7 +13481,7 @@ async function verifyComplianceTeacherWriteSession() {
     await serverRead(getComplianceSettingsDocRef());
   } catch (error) {
     if (isFirestorePermissionError(error) || /permission|insufficient/i.test(String(error?.message || ''))) {
-      const denied = new Error(`Firebase rejected teacher-only access in project ${projectId}. Confirm the published rules and teacher login.`);
+      const denied = new Error(`Teacher access was not approved. Sign in with the authorized account and try again.`);
       denied.code = 'permission-denied';
       throw denied;
     }
@@ -13569,7 +13569,7 @@ async function rebuildPublishedGradeTrends() {
         if (response.teacherOnlyNumericalGrades !== true ||
             !Object.prototype.hasOwnProperty.call(response, 'previousGradeMatchedCount') ||
             !Array.isArray(response.students)) {
-          throw new Error('Deployed Apps Script does not expose BA / PREV. GRADES. Publish the NEW Code.gs version.');
+          throw new Error('Previous-grade comparison is not available for this sheet. Please contact the administrator.');
         }
         const memberIds = new Set(members.map(snap => normalizeStudentId(snapshotData(snap).studentIdNormalized || snap.id)));
         response.students.forEach(row => {
@@ -14133,7 +14133,7 @@ async function loadQuizMonitorRows() {
   if (!activityId || !isTeacherAuthenticated()) return;
   quizNode('quizMonitorList').textContent = 'Loading verified attempts…';
   try {
-    if (!await initFirebaseSync()) throw new Error('Firebase is not connected.');
+    if (!await initFirebaseSync()) throw new Error('Could not connect. Please try again.');
     const { collection, getDocs } = firebaseSync.modules;
     const ref = collection(firebaseSync.db, firebaseSync.collectionName, firebaseSync.documentId, 'quizAttempts', activityId, 'students');
     const docs = await getDocs(ref);
@@ -15462,8 +15462,8 @@ function normalizeStudentRecord(record = {}) {
 
 function getRosterRegistrationErrorMessage(error) {
   const code = String(error?.code || error?.message || '');
-  if (code.includes('permission-denied')) return 'Teacher login is required, or firestore.rules was not published yet.';
-  if (code.includes('unavailable')) return 'Firebase is temporarily unavailable. Try again in a moment.';
+  if (code.includes('permission-denied')) return 'Teacher login is required for this action.';
+  if (code.includes('unavailable')) return 'The service is temporarily unavailable. Try again in a moment.';
   if (code.includes('network')) return 'Network problem while saving the student record.';
   return error?.message || 'Could not save the student record.';
 }
@@ -15544,11 +15544,11 @@ async function addStudentAccountFromForm() {
       catch (authLookupError) { console.info('New-roster Auth availability check skipped.', authLookupError); }
     }
     if (authCollision?.exists) {
-      setStudentAdminStatus(`${student.name} was added to the roster, but this Student ID already has a Firebase Auth account. Default 123456 may not work; use Login Check and Reset Pass (keeps the UID and projects).`, 'warn');
+      setStudentAdminStatus(`${student.name} was added to the roster. This Student ID already has an account; use Login Check and Reset Pass if needed.`, 'warn');
     } else if (authCollision && !authCollision.exists) {
       setStudentAdminStatus(`${student.name} was added. Student ID: ${student.studentId} · Verified first-login password: 123456`, 'success');
     } else {
-      setStudentAdminStatus(`${student.name} was added to the roster. Default 123456 works for a genuinely new Firebase Auth account. Run Login Check if an earlier Auth account might exist.`, 'success');
+      setStudentAdminStatus(`${student.name} was added to the roster. Use Login Check if a previous account already exists.`, 'success');
     }
     resetAdminStudentMobileRenderLimit();
     renderAdminStudentTracker();
@@ -15658,7 +15658,7 @@ function g8mDirectoryFingerprint(rows) {
   return (hash >>> 0).toString(36);
 }
 async function g8mDirectoryDatabase() {
-  if (!window.MCS_FIREBASE_DATABASE_URL || !window.MCS_FIREBASE_CONFIG) throw new Error('Messages RTDB configuration missing.');
+  if (!window.MCS_FIREBASE_DATABASE_URL || !window.MCS_FIREBASE_CONFIG) throw new Error('Messages connection is temporarily unavailable.');
   if (!g8mDirectorySdkPromise) {
     g8mDirectorySdkPromise = (async () => {
       const version = window.MCS_FIREBASE_SDK_VERSION || '10.12.5';
@@ -15825,7 +15825,7 @@ async function loadAdminStudents(options = {}) {
     // No new Firestore query: mirror this already-loaded Admin roster to RTDB
     // so Messages can list all students, including those without prior chats.
     void syncG8MessagesDirectoryFromAdminCache(adminStudentsCache).catch(error =>
-      console.warn('Messages RTDB student-directory mirror unavailable:', error));
+      console.warn('Student list for Messages is temporarily unavailable:', error));
     const mergedDuplicates = Math.max(0, rawCount - adminStudentsCache.length);
     populateAdminSectionFilter();
     renderAdminStudentTracker();
@@ -16005,7 +16005,7 @@ async function repairAdminStudentRoster(studentId = '', uid = '', triggerButton 
 
   const displayName = student.name || normalizedId || 'this student';
   const confirmed = await appConfirm(
-    `Repair the missing roster record for ${displayName}?\n\nThis will copy only the existing Student ID, name, section, Auth email, and UID into studentRoster.\n\nIt will NOT change the password, Firebase Auth account, UID, or projects.`,
+    `Repair the missing roster record for ${displayName}?\n\nThis will copy only the existing Student ID, name, section, Auth email, and UID into studentRoster.\n\nIt will NOT change the password, account, account ID, or projects.`,
     {
       title: 'Repair Missing Roster',
       kicker: 'Safe account cleanup',
@@ -16039,7 +16039,7 @@ async function repairAdminStudentRoster(studentId = '', uid = '', triggerButton 
 
     await appAlert(
       result.status === 'created'
-        ? `Roster repair complete for ${displayName}.\n\nThe existing Firebase UID and Auth email were preserved. Password and projects were not changed.\n\nLogin Check should now show the roster record as found.`
+        ? `Roster repair complete for ${displayName}.\n\nThe existing account information was preserved. Password and projects were not changed.\n\nLogin Check should now show the roster record as found.`
         : `A roster record already exists for ${displayName}. No account data was changed.`,
       {
         title: 'Roster Repair Complete',
@@ -16106,7 +16106,7 @@ async function repairAllMissingRosterRecords() {
   }
 
   const confirmed = await appConfirm(
-    `Repair ${candidates.length} missing roster record${candidates.length === 1 ? '' : 's'} from existing working student profiles?\n\nOnly accounts with exactly ONE linked profile will be repaired automatically.\n\nPasswords, Firebase Auth accounts, UIDs, and projects will NOT be changed.${ambiguousCount ? `\n\n${ambiguousCount} multiple-profile account${ambiguousCount === 1 ? '' : 's'} will be skipped for safety.` : ''}`,
+    `Repair ${candidates.length} missing roster record${candidates.length === 1 ? '' : 's'} from existing working student profiles?\n\nOnly accounts with exactly ONE linked profile will be repaired automatically.\n\nPasswords, existing accounts, account IDs, and projects will NOT be changed.${ambiguousCount ? `\n\n${ambiguousCount} multiple-profile account${ambiguousCount === 1 ? '' : 's'} will be skipped for safety.` : ''}`,
     {
       title: 'Repair All Missing Roster',
       kicker: 'Safe bulk cleanup',
@@ -16158,7 +16158,7 @@ async function repairAllMissingRosterRecords() {
       ambiguousCount ? `${ambiguousCount} multiple-profile account${ambiguousCount === 1 ? '' : 's'} skipped for safety.` : '',
       failed ? `${failed} record${failed === 1 ? '' : 's'} failed and can be checked individually.` : '',
       '',
-      'No passwords, Firebase Auth accounts, UIDs, or projects were changed.'
+      'No passwords, accounts, account IDs, or projects were changed.'
     ].filter(Boolean).join('\n');
 
     setStudentAdminStatus(
@@ -16716,7 +16716,7 @@ async function loadAdminOnlinePresence(options = {}) {
     } else {
       // Safe rollout fallback while RTDB URL is blank/not configured.
       const ready = await initFirebaseSync();
-      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+      if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
       const { getDocs, query, where, orderBy, limit } = firebaseSync.modules;
       const presenceQuery = query(
         getOnlinePresenceCollectionRef(),
@@ -16745,9 +16745,9 @@ async function loadAdminOnlinePresence(options = {}) {
   } catch (error) {
     console.warn('Could not load online presence.', error);
     const message = shouldUseRtdbPresence()
-      ? `Realtime Database presence could not load: ${error?.message || 'check the RTDB URL and rules.'}`
+      ? `Online status could not load. Please try again.`
       : (/permission|insufficient/i.test(error?.message || '')
-        ? 'Firebase Rules may need to allow the onlinePresence collection. Firestore rejected the read.'
+        ? 'Online status is temporarily unavailable. Please try again later.'
         : (error?.message || 'Could not load online students.'));
     setOnlinePresenceStatus(message, 'error');
     return [];
@@ -16815,7 +16815,7 @@ async function showAdminStudentRecoveryHelper(studentId, uid = '') {
     copyNote,
     '',
     'For stuck first login or forgotten password:',
-    '1. Run Login Check for this Student ID to verify the actual Firebase Auth account.',
+    '1. Run Login Check for this Student ID to verify the account.',
     '2. If an Auth account exists, use Admin Reset Pass for a new temporary password.',
     '3. Give that password privately to the student; require a new password at login.',
     '4. If no Auth account exists, the roster-only student can activate with 123456.',
@@ -17137,7 +17137,7 @@ async function queryAdminStudentProfilesForDiagnostic(studentId = '', student = 
 // Teacher-only live Firebase Auth lookup from the Apps Script bridge. This
 // distinguishes a roster-only record from an Auth account that has no profile.
 async function inspectStudentFirebaseAuth(studentId, authEmail = '') {
-  if (!getMcsAppsScriptUrl()) throw new Error('Apps Script URL is not configured.');
+  if (!getMcsAppsScriptUrl()) throw new Error('The secure service has not been set up.');
   return callAppsScriptSecure({
     action: 'inspectStudentAuthById',
     studentId: normalizeStudentId(studentId),
@@ -17231,7 +17231,7 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
     }
 
     if (firebaseAuthInspection?.exists) {
-      lines.push(formatDiagnosticStatusLine('Firebase Authentication', 'pass', `Existing Auth account found · UID ${firebaseAuthInspection.uid}`));
+      lines.push(formatDiagnosticStatusLine('Student Account Service', 'pass', `Existing account found · Account ID ${firebaseAuthInspection.uid}`));
       if (!profileRecords.length) {
         warnings.push('An Auth account exists, but no student profile is linked. Default 123456 is NOT guaranteed. Use Reset Pass; it can now recover this account by verified Auth UID without deleting it.');
       }
@@ -17239,15 +17239,15 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
         blockers.push('Roster UID differs from the actual Auth UID. Do not reset until the identity is reconciled.');
       }
       if (profileUids.length && !profileUids.includes(firebaseAuthInspection.uid)) {
-        blockers.push('Actual Firebase Auth UID does not match any linked student profile. Review possible Student ID collision before Reset Pass.');
+        blockers.push('This account does not match a linked student profile. Review possible Student ID collision before Reset Pass.');
       }
     } else if (firebaseAuthInspection && firebaseAuthInspection.exists === false) {
-      lines.push(formatDiagnosticStatusLine('Firebase Authentication', 'info', 'No existing Auth user for this generated Student ID email'));
+      lines.push(formatDiagnosticStatusLine('Student Account Service', 'info', 'No existing Auth user for this generated Student ID email'));
       if (rosterAuthUid || profileUids.length) warnings.push('Roster/profile refers to an Auth account that no longer exists; use teacher recovery before attempting another activation.');
     } else if (firebaseAuthInspectionError) {
-      warnings.push(`Secure Firebase Auth lookup unavailable: ${firebaseAuthInspectionError}`);
+      warnings.push(`Secure account lookup unavailable. Please try again.`);
     } else {
-      info.push('Actual Auth status was not checked (secure Apps Script lookup unavailable).');
+      info.push('Account status could not be verified right now.');
     }
 
     if (!profileRecords.length) {
@@ -17257,7 +17257,7 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
     }
 
     if (profileRecords.length > 1) {
-      warnings.push(`Duplicate linked app profiles detected (${profileRecords.length}). Admin list will merge them, but old duplicate profiles may still exist in Firestore.`);
+      warnings.push(`Duplicate linked student profiles detected (${profileRecords.length}). The Admin list combines them; review the older entries if needed.`);
     }
 
     if (rosterAuthUid && profileUids.length && !profileUids.includes(rosterAuthUid)) {
@@ -17316,7 +17316,7 @@ async function runAdminStudentLoginDiagnostic(studentId = '', uid = '') {
       `Password-change needed: ${mustChangeValues.length ? mustChangeValues.join(' / ') : 'No profile yet'}`,
       `Profile status: ${profileStatusValues.length ? profileStatusValues.join(' / ') : 'No profile yet'}`,
       '',
-      'Important: this browser app cannot view or verify the actual Firebase password. Use Reset Pass only when the secure Apps Script bridge is configured. Reset Pass changes only the selected existing Firebase UID password; it must not create a new profile or move projects. If this row has multiple linked profiles, use Recovery first.'
+      'Important: the current password cannot be viewed here. Use Reset Pass only for an account you have verified. Reset Pass changes only the password for the selected existing account; it will not create a new profile or move projects. If this row has multiple linked profiles, use Recovery first.'
     );
 
     setStudentAdminStatus(blockers.length ? `${displayName}: login blocker found.` : warnings.length ? `${displayName}: login check completed with warning.` : `${displayName}: login check passed.`, blockers.length ? 'error' : warnings.length ? 'warning' : 'success');
@@ -17357,14 +17357,14 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
   let selectedProfileChoice = null;
 
   if (!getMcsAppsScriptUrl()) {
-    setStudentAdminStatus('Reset Pass needs the Apps Script Web App URL in firebase-config.js.', 'warn');
+    setStudentAdminStatus('Password reset is temporarily unavailable. Please contact the administrator.', 'warn');
     await appAlert([
       'Reset Pass is not configured yet.',
       '',
-      'This safe reset needs the Apps Script bridge so the backend can reset the existing Firebase Auth password without creating a duplicate profile.',
+      'The password reset service is temporarily unavailable. No account changes were made.',
       '',
       'Setup summary:',
-      '1. Open Google Apps Script.',
+      '1. Open your account recovery service settings.',
       '2. Paste the supplied Code.gs.',
       '3. Deploy as Web App: Execute as Me, access Anyone.',
       '4. Paste the /exec URL into firebase-config.js as window.MCS_APPS_SCRIPT_URL.',
@@ -17392,15 +17392,15 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
       const routeForLookup = await loadStudentLoginRoute(resolvedId).catch(() => null);
       inspected = await inspectStudentFirebaseAuth(resolvedId, routeForLookup?.authEmail || student?.authEmail || '');
     } catch (inspectionError) {
-      setStudentAdminStatus(`Could not verify Firebase Auth for ${displayName}. No password was changed.`, 'error');
+      setStudentAdminStatus(`Could not verify the account for ${displayName}. No password was changed.`, 'error');
       await appAlert(`Secure Auth lookup failed: ${inspectionError?.message || 'Try Login Check again.'}\n\nDo not delete or recreate the student account.`, {
         title: 'Could not verify Auth identity', danger: true
       });
       return;
     }
     if (inspected?.disabled) {
-      setStudentAdminStatus('Firebase Auth account is disabled. Password reset alone cannot enable login.', 'error');
-      await appAlert('This Firebase Auth user is disabled. Check the user status in Firebase Authentication before resetting a password.', { title: 'Disabled Auth account', danger: true });
+      setStudentAdminStatus('The account is disabled. Resetting the password will not enable login.', 'error');
+      await appAlert('This account is disabled. Review its status before resetting a password.', { title: 'Disabled Auth account', danger: true });
       return;
     }
     if (!inspected?.exists || !inspected.uid) {
@@ -17409,7 +17409,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
         `Student: ${displayName}`,
         `Student ID: ${resolvedId}`,
         '',
-        'The secure Auth lookup found no existing Firebase account.',
+        'No existing account was found.',
         'This is a genuine roster-only first login. Use Student ID + 123456.',
         '',
         'If that still fails, run Login Check for conflicting login routes.'
@@ -17418,7 +17418,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
     }
     const linkedUid = String(student?.authUid || '').trim();
     if (linkedUid && linkedUid !== inspected.uid) {
-      setStudentAdminStatus('Existing roster UID and Firebase Auth UID do not match. Reset blocked.', 'error');
+      setStudentAdminStatus('Student roster and account IDs do not match. Reset was blocked.', 'error');
       await appAlert('The roster UID conflicts with the actual Auth UID. Run Login Check before attempting a password reset.', { title: 'Identity mismatch', danger: true });
       return;
     }
@@ -17430,7 +17430,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
     });
     if (conflictingStudent) {
       setStudentAdminStatus('Auth account may belong to another Student ID; Reset blocked.', 'error');
-      await appAlert('Another roster row uses the same Firebase account/email. Correct the Student ID collision before Reset Pass. No account was changed.', { title: 'Possible Student ID collision', danger: true });
+      await appAlert('Another student record uses this account/email. Correct the Student ID collision before Reset Pass.', { title: 'Possible Student ID collision', danger: true });
       return;
     }
     targetUid = inspected.uid;
@@ -17456,10 +17456,10 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
     `Reset password for ${displayName}?`,
     '',
     `Student ID: ${resolvedId}`,
-    `Firebase UID: ${targetUid}`,
+    `Account ID: ${targetUid}`,
     selectedProfileChoice ? `Selected profile: Profile ${selectedProfileChoice.profileNumber} · ${Number(selectedProfileChoice.projectCount || 0)} project${Number(selectedProfileChoice.projectCount || 0) === 1 ? '' : 's'} · ${selectedProfileChoice.lastProjectName || 'No project name'}` : '',
     '',
-    'This will reset only the existing Firebase Auth password for this UID.',
+    'This will reset only the password for this existing account.',
     'It will NOT delete projects, create a new account, or move any project records.',
     '',
     'After reset, the student must log in using the temporary password shown here and create a new password.'
@@ -17487,7 +17487,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
       expectedStudentId: resolvedId
     });
     const temporaryPassword = String(result?.temporaryPassword || '').trim();
-    if (!temporaryPassword) throw new Error('Apps Script did not return a temporary password.');
+    if (!temporaryPassword) throw new Error('The password reset service did not return a temporary password.');
 
     const { setDoc, serverTimestamp } = firebaseSync.modules;
     const teacherEmail = getFirebaseActiveUser()?.email || '';
@@ -17542,7 +17542,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
       '',
       `Student: ${displayName}`,
       `Student ID: ${resolvedId}`,
-      selectedProfileChoice ? `Reset profile: Profile ${selectedProfileChoice.profileNumber} / UID ${targetUid}` : `Firebase UID: ${targetUid}`,
+      selectedProfileChoice ? `Reset profile: Profile ${selectedProfileChoice.profileNumber} / UID ${targetUid}` : `Account ID: ${targetUid}`,
       `Temporary password: ${temporaryPassword}`,
       '',
       copied ? 'The temporary password was copied to your clipboard.' : 'Copy the temporary password from this dialog.',
@@ -17562,7 +17562,7 @@ async function resetAdminStudentLoginAccess(studentId = '', uid = '', triggerBut
   } catch (error) {
     console.error('Secure Reset Pass failed', error);
     setStudentAdminStatus(error?.message || 'Reset Pass failed.', 'error');
-    await appAlert(error?.message || 'Reset Pass failed. Check Apps Script setup and teacher permissions.', {
+    await appAlert(error?.message || 'Reset Pass failed. Check your teacher access and try again.', {
       title: 'Reset Pass failed',
       danger: true,
       icon: '!'
@@ -17750,7 +17750,7 @@ async function confirmStudentImport() {
   const failures = [];
   try {
     const ready = await initFirebaseSync();
-    if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+    if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
     const { writeBatch, serverTimestamp } = firebaseSync.modules;
     if (!adminStudentsCache.length) await loadAdminStudents();
     const existingIds = new Set(adminStudentsCache.map(student => normalizeStudentId(student.studentId || student.studentIdNormalized || student.rosterId || '')).filter(Boolean));
@@ -18757,7 +18757,7 @@ async function saveAdminProjectRecheckAsOfficialScore() {
   } catch (error) {
     console.error('Could not save admin recheck score.', error);
     setAdminProjectResultCheckStatus('Save failed', 'error');
-    appAlert(error?.message || 'Could not save the official score. Check teacher login, internet connection, and Firestore rules.', { title: 'Save Official Score' });
+    appAlert(error?.message || 'Could not save the official score. Check your connection and teacher login.', { title: 'Save Official Score' });
   } finally {
     if (adminProjectSaveOfficialScoreBtn) adminProjectSaveOfficialScoreBtn.disabled = !adminProjectViewerState.latestResult;
   }
@@ -19355,7 +19355,7 @@ async function applyAdminAiReviewAsScore() {
   } catch (error) {
     console.error('Could not apply smart score.', error);
     setAdminAiReviewStatus('Apply failed', 'error');
-    appAlert(error?.message || 'Could not apply smart score. Check teacher login and Firestore rules.', { title: 'Apply Smart Score' });
+    appAlert(error?.message || 'Could not apply the score. Check your connection and teacher login.', { title: 'Apply Smart Score' });
   } finally {
     if (adminApplyAiScoreBtn) adminApplyAiScoreBtn.disabled = false;
   }
@@ -19392,7 +19392,7 @@ async function saveAdminAiRubricReview() {
   } catch (error) {
     console.error('Could not save Smart Review.', error);
     setAdminAiReviewStatus('Save failed', 'error');
-    appAlert(error?.message || 'Could not save smart review. Check teacher login and Firestore rules.', { title: 'Smart Review Save' });
+    appAlert(error?.message || 'Could not save the review. Check your connection and teacher login.', { title: 'Smart Review Save' });
   } finally {
     if (adminSaveAiReviewBtn) adminSaveAiReviewBtn.disabled = false;
   }
@@ -27260,7 +27260,7 @@ async function loadLessonLibrary(options = {}) {
   }
   try {
     const ready = await initFirebaseSync();
-    if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect to Firebase.');
+    if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect right now.');
     const rootDoc = await withTimeout(readCloudActivitiesDocument(options), APP_NETWORK_TIMEOUT_MS, 'Lesson list took too long to load. Check the connection and try again.');
     const data = rootDoc.exists ? rootDoc.data : {};
     lessonLibraryState.lessons = (Array.isArray(data.lessons) ? data.lessons : []).map((lesson, index) => normalizeLesson(lesson, index));
@@ -27293,7 +27293,7 @@ async function loadLessonLibrary(options = {}) {
 async function saveLessonLibraryToCloud() {
   if (!isTeacherAuthenticated()) throw new Error('Log in as teacher before publishing lessons.');
   const ready = await initFirebaseSync();
-  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
   const { setDoc, serverTimestamp } = firebaseSync.modules;
   const lessons = lessonLibraryState.lessons.map((lesson, index) => normalizeLesson(lesson, index));
   await withTimeout(setDoc(getCloudActivitiesDocRef(), {
@@ -28371,7 +28371,7 @@ async function loadGivenActivities(options = {}) {
   }
   try {
     const ready = await initFirebaseSync();
-    if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect to Firebase.');
+    if (!ready) throw new Error(firebaseSync.lastError || 'Could not connect right now.');
     const rootDoc = await readCloudActivitiesDocument(options);
     givenActivityState.items = (Array.isArray(rootDoc?.data?.givenActivities) ? rootDoc.data.givenActivities : [])
       .map((item, index) => normalizeGivenActivity(item, index));
@@ -28404,7 +28404,7 @@ async function loadGivenActivities(options = {}) {
 async function saveGivenActivitiesToCloud() {
   if (!isTeacherAuthenticated()) throw new Error('Log in as teacher before publishing Activities Given.');
   const ready = await initFirebaseSync();
-  if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+  if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
   const { setDoc, serverTimestamp } = firebaseSync.modules;
   const items = givenActivityState.items.map((item, index) => normalizeGivenActivity(item, index));
   await withTimeout(setDoc(getCloudActivitiesDocRef(), {
@@ -30036,13 +30036,13 @@ async function openAdminPanel() {
     : 'These switches can be used now on this browser. Login is only needed to publish globally.');
   const adminFirebaseReady = await initFirebaseSync();
   if (!adminFirebaseReady) {
-    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Firebase SDK did not load. Check internet connection, CDN access, and make sure all updated files were uploaded.'}`);
+    showTeacherLoginError('The service is unavailable. Check your connection and refresh the page.');
   }
   updateTeacherLoginUI(firebaseSync.auth?.currentUser || firebaseSync.currentUser);
   if (isTeacherAuthenticated()) {
     loadGradeDisplaySettingsFromCloud().catch(error => {
       console.warn('Global grade visibility could not load.', error);
-      if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = 'Could not load global setting; choose a mode and save with Firebase.';
+      if (gradeDisplaySettingsStatus) gradeDisplaySettingsStatus.textContent = 'Could not load saved settings. Choose a mode and save again.';
     });
     loadComplianceSettingsFromCloud({ silent: true }).catch(error => {
       console.warn('Could not load cloud Compliance settings.', error);
@@ -30152,7 +30152,7 @@ async function loginTeacher() {
   showTeacherLoginError('');
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
-    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Firebase SDK did not load. Check internet connection, CDN access, and make sure all updated files were uploaded.'}`);
+    showTeacherLoginError('The service is unavailable. Check your connection and refresh the page.');
     return;
   }
 
@@ -30232,14 +30232,14 @@ async function unlockAdminWithCode() {
   showTeacherLoginError('');
   const ready = await initFirebaseSync();
   if (!ready || !firebaseSync.auth || !firebaseSync.authModule) {
-    showTeacherLoginError(`Firebase is not ready. ${firebaseSync.lastError || 'Firebase SDK did not load. Check internet connection, CDN access, and make sure all updated files were uploaded.'}`);
+    showTeacherLoginError('The service is unavailable. Check your connection and refresh the page.');
     return;
   }
 
   const email = getDefaultTeacherEmail();
   const passwordCode = String(adminQuickCode?.value || '').trim();
   if (!email) {
-    showTeacherLoginError('No teacher email is set in firebase-config.js. Add your teacher email to MCS_TEACHER_EMAILS or use Password mode.');
+    showTeacherLoginError('The authorized teacher account could not be found. Please contact the administrator.');
     return;
   }
   if (!passwordCode) {
@@ -30440,16 +30440,16 @@ async function saveRubric(event) {
 
       if (!cloud.ok && hasFirebaseConfig()) {
         const message = cloud.pending
-          ? 'Activity saved on this device. Firebase has not confirmed syncing yet. Check your connection before using it on another device.'
-          : 'Activity saved on this device, but Firebase sync failed. Check teacher login and Firestore rules.';
+          ? 'Activity saved on this device. Online saving has not been confirmed; check your connection before using another device.'
+          : 'Activity saved on this device, but online saving failed. Check your connection and teacher login.';
         // The standalone page remains usable; no extra blocking alert is shown.
         if (isStandaloneAdminV2) {
           renderAdminActivitySelect();
           notify({ ok: false, local: true, kind: 'warning', message });
-          setStatus('Activity saved locally · Firebase sync not confirmed');
+          setStatus('Saved on this device · online save not confirmed');
         } else {
           notify({ ok: false, local: true, kind: 'warning', message });
-          await appAlert('Saved locally, but Firebase rejected the online save. Check if you are logged in and if Firestore Rules were published.', { title: 'Firebase save issue', danger: true });
+          await appAlert('Saved on this device, but online saving failed. Sign in again and retry.', { title: 'Online save issue', danger: true });
         }
         return;
       }
@@ -30466,7 +30466,7 @@ async function saveRubric(event) {
     notify({
       ok: true,
       local: !isTeacherAuthenticated(),
-      message: `${savedActivity.title} ${wasEditing ? 'updated' : 'created'} successfully${isTeacherAuthenticated() ? ' and synced to Firebase' : ' on this device'}.`
+      message: `${savedActivity.title} ${wasEditing ? 'updated' : 'created'} successfully${isTeacherAuthenticated() ? ' and saved online' : ' on this device'}.`
     });
     // The original page was a modal, but Admin V2 is a standalone workspace.
     // Closing the modal here made the entire standalone Admin UI disappear.
@@ -30479,7 +30479,7 @@ async function saveRubric(event) {
       local: locallySaved,
       kind: 'error',
       message: locallySaved
-        ? 'Activity saved on this device, but completing the save failed. Check Firebase sync and try again.'
+        ? 'Activity saved on this device, but online saving could not finish. Please try again.'
         : 'Could not save activity. Your editor remains open; check the rubric and try again.'
     });
   } finally {
@@ -35259,8 +35259,8 @@ academicTermControls.forEach(control => {
     const info = resolveAcademicTermInfo(academicTermSettings);
     setComplianceSyncStatus(
       academicTermSettings.mode === 'automatic'
-        ? `Automatic Term is active: ${info.label}. Changes are local until you click Save Settings to Firebase.`
-        : `Manual Override is active: ${info.label}. Changes are local until you click Save Settings to Firebase.`,
+        ? `Automatic Term is active: ${info.label}. Click Save Settings to apply your changes.`
+        : `Manual Override is active: ${info.label}. Click Save Settings to apply your changes.`,
       'success'
     );
   });
@@ -43476,7 +43476,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }
     const ready = await initFirebaseSync();
     if (!ready) {
-      setCollabStatus(`Firebase is not ready. ${firebaseSync.lastError || 'Check connection.'}`, 'error');
+      setCollabStatus('The service is unavailable. Check your connection and try again.', 'error');
       return;
     }
     let authUser;
@@ -43595,7 +43595,7 @@ document.addEventListener('webkitfullscreenchange', () => scheduleDesktopMonitor
     }
     const ready = await initFirebaseSync();
     if (!ready) {
-      setCollabStatus(`Firebase is not ready. ${firebaseSync.lastError || 'Check connection.'}`, 'error');
+      setCollabStatus('The service is unavailable. Check your connection and try again.', 'error');
       return false;
     }
     let authUser;
@@ -47719,7 +47719,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   shortcutLogo.setAttribute('role', 'button');
   shortcutLogo.setAttribute('tabindex', '0');
   shortcutLogo.setAttribute('title', 'Teacher shortcut');
-  shortcutLogo.setAttribute('aria-label', 'Teacher shortcut to Recitation Central Firebase view');
+  shortcutLogo.setAttribute('aria-label', 'Teacher shortcut to Recitation Central');
   shortcutLogo.classList.add('teacher-recitation-shortcut-logo');
 
   function normalizeShortcutCode(value) {
@@ -48128,7 +48128,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
     const ready = await initFirebaseSync();
     if (!ready) {
-      setCodeTransferStatus(codeSendStatus, firebaseSync.lastError || 'Could not connect to Firebase.', 'error');
+      setCodeTransferStatus(codeSendStatus, userFacingSystemMessage(firebaseSync.lastError || 'Could not connect right now.'), 'error');
       return;
     }
     const activeUser = getFirebaseActiveUser();
@@ -48231,7 +48231,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     } catch (error) {
       console.error('Could not send code transfer.', error);
       const message = isFirestorePermissionError(error)
-        ? 'Firestore Rules are blocking Code Transfer. Publish the updated Code Inbox rules, then try again.'
+        ? 'Code Transfer access is currently unavailable. Please contact your teacher.'
         : (error?.message || 'Could not send the selected code.');
       setCodeTransferStatus(codeSendStatus, message, 'error');
       await appAlert(message,{title:'Code Not Sent',icon:'⚠',danger:true});
@@ -48420,7 +48420,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       } catch (error) {
         console.error('Code Inbox reply failed', error);
         const reason = isFirestorePermissionError(error)
-          ? 'Firestore rejected this reply. Current rules may block message-only transfers (fileCount: 0). Nothing was sent. Ask your teacher to publish the Code Inbox reply rules update.'
+          ? 'Your reply could not be sent. Try again or contact your teacher.'
           : (error?.message || 'Could not send reply. Nothing was sent.');
         updateFeedback(reason, 'error');
         setCodeTransferStatus(codeInboxStatus, reason, 'error');
@@ -53030,7 +53030,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       writeDailyLeaderboardCache(key, { epoch, savedAt: Date.now(), rows });
       return rows;
     } catch (error) {
-      console.info('RTDB global leaderboard snapshot unavailable; using cached/root fallback.', error);
+      console.info('Leaderboard updates are temporarily unavailable. Showing saved results.', error);
       return cached?.rows || [];
     }
   }
@@ -53338,7 +53338,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     codeExplorerMusicSettingsPromise = (async () => {
       try {
         const ready = await initFirebaseSync();
-        if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+        if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
         const { getDoc, getDocFromServer } = firebaseSync.modules;
         const reader = options.force && typeof getDocFromServer === 'function' ? getDocFromServer : getDoc;
         const snapshot = await reader(getCloudActivitiesDocRef());
@@ -53363,7 +53363,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           if (isTeacherAuthenticated()) {
             persistCodeExplorerMusicAdminDraft(cloudSettings, { synced: true, savedAtMs: cloudUpdatedAtMs || Date.now() });
             setCodeExplorerAdminMusicStatus(hasCloudSetting
-              ? 'Published music settings loaded from Firestore.'
+              ? 'Music settings loaded.'
               : 'No custom cloud music is published yet. Built-in music is active.');
           }
         }
@@ -55642,7 +55642,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     return {
       ...base,
       source: 'rtdb-unavailable',
-      error: 'Weekly Arcade is temporarily unavailable. Mini-Game data stays RTDB-only.'
+      error: 'Weekly Arcade is temporarily unavailable. Please try again later.'
     };
   }
 
@@ -56419,7 +56419,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       duplicate: false,
       syncFailed: true,
       legacyFirestoreFallbackDisabled: true,
-      error: 'Secure Mini-Game reward sync is unavailable. No XP was written to Firestore.'
+      error: 'Mini-Game rewards could not be saved online. Please try again.'
     };
   }
 
@@ -62203,7 +62203,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
           : officialAuditNeeded
             ? 'The existing locked snapshot is paused for audit because it has no verified merged-roster/daily source digest. Do not issue official certificates from it yet.'
           : officialPendingAfterCutoff
-            ? 'The 12:00 AM cutoff passed, but the protected official snapshot is still pending. Keep the app online and verify that the secure Apps Script finalizer is deployed.'
+            ? 'The official leaderboard update is still pending. Keep the app online and try refreshing later.'
           : options.loadLive === false
             ? 'Award settings loaded. Press Refresh Award Rankings to load the latest Top 3 and Top 10. Official certificates lock on October 5 at 12:00 AM.'
             : 'Latest award rankings are ready. Official certificates will lock automatically on October 5 at 12:00 AM.',
@@ -62251,7 +62251,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   async function refreshLeaderboardAwardsLive(options = {}) {
     if (!isTeacherAuthenticated()) return null;
-    if (options.silent !== true) setLeaderboardAwardsBusy(true, 'Refreshing current Top 3 Sections and Top 10 Students from RTDB…');
+    if (options.silent !== true) setLeaderboardAwardsBusy(true, 'Refreshing Top 3 Sections and Top 10 Students…');
     try {
       // Award refresh stays RTDB-only. Use the mirrored award scope instead of
       // re-reading Firestore leaderboard settings just to print certificates.
@@ -64046,7 +64046,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         leaderboardState.records = ranked;
         leaderboardState.loadedAt = Date.now();
         leaderboardState.rosterLoaded = true;
-        leaderboardState.source = `trusted RTDB leaderboard (${superCacheRankingEpochKey()})`;
+        leaderboardState.source = `Official leaderboard (${superCacheRankingEpochKey()})`;
         renderGlobalLeaderboard();
         return;
       }
@@ -64374,7 +64374,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         setSelectiveFirestoreCache('admin:explorerDirectory', adminExplorerState.students, ADMIN_EXPLORER_PROFILE_TTL_MS);
       } else {
         const ready = await initFirebaseSync();
-        if (!ready) throw new Error('Firebase is not ready. Please try again.');
+        if (!ready) throw new Error('The service is not ready. Please try again.');
         await loadAdminExplorerCursorPage();
       }
     })().finally(() => { if (adminExplorerDirectoryPromise === task) adminExplorerDirectoryPromise = null; });
@@ -64404,7 +64404,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         }
       }
       const ready = await initFirebaseSync();
-      if (!ready) throw new Error('Firebase is not ready.');
+      if (!ready) throw new Error('The service is not ready.');
       const snapshot = await withTimeout(firebaseSync.modules.getDoc(getStudentDocRef(key)), APP_NETWORK_TIMEOUT_MS, 'Some page progress could not be refreshed. Press Refresh Progress to retry.');
       const value = snapshotExists(snapshot) ? { ...snapshotData(snapshot), uid: key, isRosterOnly: false, sourceType: 'studentProfile' } : null;
       adminExplorerState.profiles.set(key, { value, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS });
@@ -64583,7 +64583,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     try {
       await loadAdminStudents();
       const ready = await initFirebaseSync();
-      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+      if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
       const { setDoc, getDoc, runTransaction, serverTimestamp } = firebaseSync.modules;
       const allStudents = adminStudentsCache.slice();
       const students = allStudents.filter(student => {
@@ -64742,7 +64742,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (failed) {
         const permissionProblem = errors.some(message => /permission|insufficient/i.test(message));
         await appAlert(
-          `${permissionProblem ? 'Some student profiles could not be updated because of Firestore permissions. ' : ''}${summary.join(' · ')}\n\nNo existing Total XP was reduced. No old speed, first-try, or mistake data was invented.`,
+          `${permissionProblem ? 'Some student profiles could not be updated due to access restrictions. ' : ''}${summary.join(' · ')}\n\nNo existing Total XP was reduced. No old speed, first-try, or mistake data was invented.`,
           { title: 'Code Explorer Progress Repair', icon: '⚡', danger: permissionProblem }
         );
       } else {
@@ -64811,7 +64811,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         return;
       }
       const ready = await initFirebaseSync();
-      if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+      if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
       const { getDoc, setDoc, serverTimestamp } = firebaseSync.modules;
       let published = 0;
       let existing = 0;
@@ -64861,7 +64861,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const permissionProblem = errors.some(message => /permission|insufficient/i.test(message));
         await appAlert(
           permissionProblem
-            ? `Some certificates could not be published because the admin account does not have permission to create public certificate records. Publish the v391 Firestore rule included with this update, then run Sync Existing Certificates again.\n\n${summary.join(' · ')}`
+            ? `Some certificates could not be published because the admin account does not have permission to create public certificate records. Please check your teacher access, then try Sync Existing Certificates again.\n\n${summary.join(' · ')}`
             : `Legacy certificate sync finished with some errors.\n\n${summary.join(' · ')}`,
           { title: 'Certificate Sync', icon: '🏅', danger: permissionProblem }
         );
@@ -64877,7 +64877,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       if (status) status.textContent = `Certificate sync failed: ${message}`;
       await appAlert(
         /permission|insufficient/i.test(message)
-          ? 'Admin certificate backfill is blocked by Firestore permissions. Publish the v391 Firestore rule included with this update, then try again.'
+          ? 'Could not update certificates because access was denied. Sign in again or contact the administrator.'
           : message,
         { title: 'Certificate Sync Failed', danger: true }
       );
@@ -65066,7 +65066,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       .catch(() => undefined)
       .then(async () => {
         const ready = firebaseSync.initialized ? true : await initFirebaseSync();
-        if (!ready) throw new Error(firebaseSync.lastError || 'Firebase is not ready.');
+        if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
         const { setDoc, serverTimestamp, getDoc, getDocFromServer } = firebaseSync.modules;
         await setDoc(getCloudActivitiesDocRef(), {
           codeExplorerMusicSettings: normalizeCodeExplorerMusicSettings(settings),
@@ -65079,7 +65079,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const verifyData = snapshotExists(verifySnapshot) ? snapshotData(verifySnapshot) : {};
         const verifiedSettings = normalizeCodeExplorerMusicSettings(verifyData?.codeExplorerMusicSettings || {});
         if (!verifyData?.codeExplorerMusicSettings || !codeExplorerMusicSettingsEqual(verifiedSettings, settings)) {
-          throw new Error('Firestore did not return the same music setting after save. Please press Save again.');
+          throw new Error('The saved music setting could not be verified. Please press Save again.');
         }
 
         persistCodeExplorerMusicAdminDraft(verifiedSettings, { synced: true, savedAtMs: localSavedAtMs });
@@ -65219,7 +65219,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     if (dom.adminHeartText) dom.adminHeartText.textContent = 'Updating hearts...';
     try {
       const ready = await initFirebaseSync();
-      if (!ready) throw new Error('Firebase is not ready.');
+      if (!ready) throw new Error('The service is not ready.');
       const { getDoc, updateDoc, setDoc, serverTimestamp } = firebaseSync.modules;
       const profileRef = getStudentDocRef(targetUid);
       const snapshot = await getDoc(profileRef);
