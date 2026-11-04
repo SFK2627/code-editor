@@ -663,17 +663,46 @@ function replyToMessage(id){
  reply={id:msg.id,text:messageReferenceText(msg)};
  renderReply();closeReactionPicker();$('g8mTextInput').focus();
 }
-// V5.4: a quote points to its original RTDB push ID, not a search by text.
-// If the quoted message is older than the current page, read that ONE record.
-let quoteJumpToken=0;
-function emphasizeOriginalMessage(id){
- const feed=$('g8mMessages'),node=messageNode(id);
- if(!feed||!node)return false;
- const panel=feed.getBoundingClientRect(),bounds=node.getBoundingClientRect();
- feed.scrollTo({top:feed.scrollTop+(bounds.top+bounds.height/2)-(panel.top+panel.height/2),behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
- node.classList.remove('g8m-jump-focus');void node.offsetWidth;
- node.classList.add('g8m-jump-focus');
- setTimeout(()=>node.classList.remove('g8m-jump-focus'),1350);
+// V5.6: Start the visible focus pulse AFTER the quoted message reaches
+// the chat viewport, not while the browser is still smooth-scrolling there.
+// Keep the focus state through transient Seen/typing re-renders.
+let quoteJumpToken=0,quoteFocusId='',quoteFocusUntil=0,quoteFocusTimer=null;
+function emphasizeOriginalMessage(id,request=quoteJumpToken){
+ const feed=$('g8mMessages');
+ if(!feed||!messageNode(id))return false;
+ const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const centeredDistance=()=>{
+  const row=messageNode(id);
+  if(!row||!row.isConnected)return null;
+  const rect=row.getBoundingClientRect(),bounds=feed.getBoundingClientRect();
+  // For tall photos, position the top in view instead of zooming offscreen.
+  const top=rect.height>bounds.height*.75?rect.top-bounds.top-18:(rect.top+rect.height/2)-(bounds.top+bounds.height/2);
+  return top;
+ };
+ const initial=centeredDistance();if(initial===null)return false;
+ feed.scrollTo({top:feed.scrollTop+initial,behavior:reduced?'auto':'smooth'});
+ const started=performance.now();
+ let stableFrames=0,previous=Infinity;
+ const check=()=>{
+  if(request!==quoteJumpToken)return;
+  const distance=centeredDistance();if(distance===null)return;
+  if(Math.abs(previous-distance)<1.5)stableFrames++;else stableFrames=0;
+  previous=distance;
+  if(reduced||Math.abs(distance)<22||stableFrames>=5||performance.now()-started>1500){
+   const target=messageNode(id);if(!target)return;
+   quoteFocusId=id;quoteFocusUntil=Date.now()+1550;
+   target.classList.remove('g8m-jump-focus');void target.offsetWidth;
+   target.classList.add('g8m-jump-focus');
+   clearTimeout(quoteFocusTimer);
+   quoteFocusTimer=setTimeout(()=>{
+    if(quoteFocusId===id){quoteFocusId='';quoteFocusUntil=0;}
+    messageNode(id)?.classList.remove('g8m-jump-focus');
+   },1550);
+   return;
+  }
+  requestAnimationFrame(check);
+ };
+ requestAnimationFrame(check);
  return true;
 }
 async function jumpToQuotedMessage(id){
@@ -682,7 +711,7 @@ async function jumpToQuotedMessage(id){
   status('Original message is unavailable.',true);return;
  }
  const request=++quoteJumpToken;
- if(messageNode(target)){emphasizeOriginalMessage(target);return;}
+ if(messageNode(target)){emphasizeOriginalMessage(target,request);return;}
  status('Finding the original message…');
  try{
   const snapshot=await get(ref(rtdb,`${studentPath(uid)}/messages/${target}`));
@@ -691,11 +720,10 @@ async function jumpToQuotedMessage(id){
   const found={id:target,...(snapshot.val()||{})};
   if(!messageById(target)){
    olderMessages=[...olderMessages,found].sort(compareMessages);
-   // Keep a bounded history even after many quote jumps.
    if(olderMessages.length>160)olderMessages=[found,...olderMessages.filter(x=>x.id!==target).slice(-159)].sort(compareMessages);
   }
   renderMessages();
-  requestAnimationFrame(()=>emphasizeOriginalMessage(target));
+  requestAnimationFrame(()=>{if(request===quoteJumpToken)emphasizeOriginalMessage(target,request);});
   status('Jumped to original message.');
  }catch(error){status(`Could not open the original: ${friendlyError(error)}`,true);}
 }
@@ -779,6 +807,33 @@ window.addEventListener('resize',syncChatViewport);
 syncChatViewport();
 $('g8mTextInput').addEventListener('focus',()=>setTimeout(()=>{const feed=$('g8mMessages');if(feed)feed.scrollTop=feed.scrollHeight;},120));
 
+// V5.6: real 2nd/3rd photos peek out behind the main image (not
+// blank decorative rectangles). The actual full-sized files are requested
+// only when the group is close to the viewport, using the existing cache.
+function g8mCreateStackBacks(stack,items,uid,messageId,isLocal=false,backToLoad=null){
+ for(let index=Math.min(items.length-1,2);index>=1;index--){
+  const entry=items[index];
+  const back=textEl('span',`g8m-stack-back g8m-stack-back-${index}`,'');
+  back.setAttribute('aria-hidden','true');
+  const picture=document.createElement('img');picture.alt='';picture.draggable=false;
+  if(isLocal)picture.src=entry.url;
+  else{
+   const cached=cachedPhotoUrl(entry.path);
+   if(cached)picture.src=cached;
+   else if(backToLoad)backToLoad.push({att:{...entry,studentUid:uid,messageId},picture,back});
+  }
+  back.append(picture);stack.append(back);
+ }
+}
+async function g8mFillStackBacks(entries){
+ // Decorative layer failures must never prevent opening the main photo.
+ await Promise.all(entries.map(async({att,picture,back})=>{
+  try{
+   const url=await privatePhotoURL(att);
+   if(back.isConnected&&picture.isConnected)picture.src=url;
+  }catch(error){console.warn('Stacked photo preview unavailable:',error?.message||error);}
+ }));
+}
 function renderMessages(){
  if(!openedUid)return;
  if(photoVisibilityObserver){photoVisibilityObserver.disconnect();photoVisibilityObserver=null;}
@@ -801,6 +856,7 @@ function renderMessages(){
   .sort(compareMessages);
  const content=document.createDocumentFragment();
  const photosToLoad=[];
+ const stackedPhotosToLoad=[];
  if(!shown.length){
   log.replaceChildren(notice('Your private conversation starts here. Send a question, a message, or a picture.'));
   return;
@@ -818,6 +874,7 @@ function renderMessages(){
    const mine=msg.senderUid===user?.uid;
    const item=textEl('article','g8m-message'+(mine?' own':''),'');
    item.dataset.messageId=String(msg.id);
+   if(quoteFocusId===String(msg.id)&&Date.now()<quoteFocusUntil)item.classList.add('g8m-jump-focus');
    if(msg.__photoPending){
     const job=msg.__photoPending;
     item.classList.add('g8m-pending-photo');
@@ -832,28 +889,31 @@ function renderMessages(){
     // Use the same mobile dimensions for the local Sending bubble and its
     // confirmed Drive photo. A local object URL should never show at its raw
     // camera pixel size in the conversation.
-    if(isCompactPhotoViewport()){
-     const applySize=()=>{
-      if(!img.naturalWidth||!img.naturalHeight)return;
-      const fit=chatPhotoDisplaySize(img.naturalWidth,img.naturalHeight,job.queued.length>1);
-      front.chatDisplaySize=fit;
-      preview.style.setProperty('--g8m-pending-width',fit.width+'px');
-      preview.style.setProperty('--g8m-pending-height',fit.height+'px');
-      preview.style.setProperty('--g8m-pending-aspect',img.naturalWidth+' / '+img.naturalHeight);
-     };
-     if(front.chatDisplaySize){
-      preview.style.setProperty('--g8m-pending-width',front.chatDisplaySize.width+'px');
-      preview.style.setProperty('--g8m-pending-height',front.chatDisplaySize.height+'px');
-     }
-     img.addEventListener('load',applySize,{once:true});
-     if(img.complete&&img.naturalWidth)applySize();
+    // Use the same sizing in the immediate Sending bubble and final sent stack.
+    const stack=job.queued.length>1?textEl('div','g8m-photo-stack g8m-pending-stack',''):null;
+    const applySize=()=>{
+     if(!img.naturalWidth||!img.naturalHeight)return;
+     const fit=chatPhotoDisplaySize(img.naturalWidth,img.naturalHeight,!!stack);
+     front.chatDisplaySize=fit;
+     preview.style.setProperty('--g8m-pending-width',fit.width+'px');
+     preview.style.setProperty('--g8m-pending-height',fit.height+'px');
+     preview.style.setProperty('--g8m-pending-aspect',img.naturalWidth+' / '+img.naturalHeight);
+     stack?.style.setProperty('--g8m-stack-width',fit.width+'px');
+    };
+    if(front.chatDisplaySize){
+     preview.style.setProperty('--g8m-pending-width',front.chatDisplaySize.width+'px');
+     preview.style.setProperty('--g8m-pending-height',front.chatDisplaySize.height+'px');
+     stack?.style.setProperty('--g8m-stack-width',front.chatDisplaySize.width+'px');
     }
-    if(job.queued.length>1){
-     preview.classList.add('is-photo-stack');
-     preview.append(textEl('span','g8m-photo-count',`${job.queued.length} photos`));
+    img.addEventListener('load',applySize,{once:true});
+    if(img.complete&&img.naturalWidth)applySize();
+    if(stack){
+     g8mCreateStackBacks(stack,job.queued,job.uid,job.id,true);
+     preview.append(textEl('span','g8m-photo-count',`+${job.queued.length-1}`));
+     stack.append(preview);
     }
     preview.addEventListener('click',()=>openLocalPhotoGallery(job.queued));
-    photos.append(preview);anchor.append(photos);
+    photos.append(stack||preview);anchor.append(photos);
     const label=textEl('div','g8m-photo-job-status','');
     const copy=job.state==='failed'?`Not sent · ${job.error||'Upload failed'}`:
       job.state==='queued'?'Waiting to send securely…':
@@ -909,8 +969,9 @@ function renderMessages(){
      photos.append(button);
      const photoVisual=validPhotos.length>1?textEl('div','g8m-photo-stack',''):photos;
      if(validPhotos.length>1){
+      g8mCreateStackBacks(photoVisual,validPhotos,openedUid,msg.id,false,stackedPhotosToLoad);
       photoVisual.append(photos);
-      const badge=textEl('span','g8m-photo-count',`${validPhotos.length} photos`);
+      const badge=textEl('span','g8m-photo-count',`+${validPhotos.length-1}`);
       badge.setAttribute('aria-hidden','true');photoVisual.append(badge);
      }
      item.append(photoVisual);
@@ -985,17 +1046,30 @@ function renderMessages(){
  // This avoids dozens of Drive/RTDB reads on large or older conversations.
  if(typeof IntersectionObserver==='function'){
   const byButton=new Map(photosToLoad.map(x=>[x.button,x.att]));
+  const byStack=new Map();
+  for(const part of stackedPhotosToLoad){
+   const holder=part.back.closest('.g8m-photo-stack');
+   if(!holder)continue;
+   if(!byStack.has(holder))byStack.set(holder,[]);
+   byStack.get(holder).push(part);
+  }
   photoVisibilityObserver=new IntersectionObserver(entries=>{
    for(const entry of entries){
     if(entry.isIntersecting){
      photoVisibilityObserver?.unobserve(entry.target);
      const att=byButton.get(entry.target);
-     if(att)showPhoto(att,entry.target,version);
+     if(att)void showPhoto(att,entry.target,version);
+     const layers=byStack.get(entry.target);
+     if(layers)void g8mFillStackBacks(layers);
     }
    }
   },{root:log,rootMargin:'300px 0px'});
   for(const {button} of photosToLoad)photoVisibilityObserver.observe(button);
- }else for(const {att,button} of photosToLoad)showPhoto(att,button,version);
+  for(const stack of byStack.keys())photoVisibilityObserver.observe(stack);
+ }else{
+  for(const {att,button} of photosToLoad)void showPhoto(att,button,version);
+  void g8mFillStackBacks(stackedPhotosToLoad);
+ }
  if(nearBottom||!lastSnapshotKey)log.scrollTop=log.scrollHeight;
  else log.scrollTop+=log.scrollHeight-previousHeight;
  lastSnapshotKey=shown.map(x=>x.id).join(':');
@@ -1393,8 +1467,9 @@ async function showPhoto(att,button,version){
   const width=img.naturalWidth,height=img.naturalHeight;
   // Actual image ratio. A portrait stays portrait, a landscape stays wide.
   // Cap the displayed height without cropping or stretching long screenshots.
-  const single=!button.parentElement?.classList.contains('is-multiple');
-  const displayWidth=chatPhotoDisplaySize(width,height,!single).width;
+  const grouped=!!button.closest('.g8m-photo-stack');
+  const single=!grouped;
+  const displayWidth=chatPhotoDisplaySize(width,height,grouped).width;
   button.style.setProperty('--g8m-photo-width',displayWidth+'px');
   const stack=button.closest('.g8m-photo-stack');
   if(stack){stack.style.setProperty('--g8m-stack-width',displayWidth+'px');}
