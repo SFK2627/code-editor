@@ -8190,7 +8190,8 @@ try {
     {id:'given-activities',label:'Activities Given',sub:'Class tasks, instructions, and materials',icon:'calendar'},
     {id:'activities',label:'Rubrics & Activities',sub:'Assessment criteria and scoring controls',icon:'rubric'},
     {id:'code-explorer',label:'Code Explorer',sub:'Explorer analytics, music, certificates, and controls',icon:'code',group:'STUDIO'},
-    {id:'messages',label:'Messages',sub:'Private conversations, sections, and photo acknowledgments',icon:'message',group:'COMMUNICATION'}
+    {id:'messages',label:'Messages',sub:'Private conversations, sections, and photo acknowledgments',icon:'message',group:'COMMUNICATION'},
+    {id:'announcements',label:'Announcements',sub:'Post rich classroom updates to all sections, selected sections, or individual students',icon:'message'}
   ];
   const legacyBank=el('div','adm-legacy-bank');
   legacyBank.setAttribute('aria-hidden','true');
@@ -8348,6 +8349,7 @@ try {
   function navigate(id, internal=false){
     if(!isUnlocked() && !['overview','assistance'].includes(id)){toggleDrawer(false);return;}
     if(id==='messages'){window.location.assign('messages.html?from=admin');return;}
+    if(id==='announcements'){window.location.assign('announcements.html?from=admin');return;}
     if(!pages.some(p=>p.id===id))return;
     activePage=id;
     if(id!=='overview'){
@@ -9403,5 +9405,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </script>
 
 <script defer src="messages-bridge.js?v=51"></script>
+<script defer src="announcements-admin-attach.js?v=1"></script>
 </body>
 </html>
