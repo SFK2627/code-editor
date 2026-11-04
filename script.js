@@ -9279,7 +9279,7 @@ async function recordStudentLogin() {
   }
 }
 
-async function activateStudentSession(profile, { showDashboard = true, suppressStatusReminder = false, resumeSession = false } = {}) {
+async function activateStudentSession(profile, { showDashboard = true, suppressStatusReminder = false, resumeSession = false, fastHandoff = false } = {}) {
   if (!profile) return;
 
   // Keep the editor hidden while login is being promoted to the correct
@@ -9314,12 +9314,13 @@ async function activateStudentSession(profile, { showDashboard = true, suppressS
   try {
     if (profile.mustChangePassword !== false) {
       showPasswordChange();
+      window.G8CodeInternalNav?.finish?.();
       await loginTracker;
       return;
     }
 
     if (showDashboard) {
-      await showStudentHome({ suppressStatusReminder });
+      await showStudentHome({ suppressStatusReminder, deferRefresh: fastHandoff, skipVisitReminder: fastHandoff });
     } else {
       hideEntryGate();
       closeStudentLogin();
@@ -9812,7 +9813,7 @@ async function g8mResumeStudentReturn(user, profile) {
   g8mStudentReturnStarted = true;
   try {
     if (appSession.mode !== 'student' || appSession.student?.uid !== user.uid) {
-      await activateStudentSession(profile, { suppressStatusReminder: true, resumeSession: true });
+      await activateStudentSession(profile, { suppressStatusReminder: true, resumeSession: true, fastHandoff: true });
     } else {
       await showStudentHome({ suppressStatusReminder: true, skipVisitReminder: true, deferRefresh: true });
     }
@@ -9820,8 +9821,13 @@ async function g8mResumeStudentReturn(user, profile) {
       const url = new URL(window.location.href);
       url.searchParams.delete('g8mBack');
       history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+      // Attached resource handoffs are revealed ONLY when the exact native
+      // lesson/activity viewer opens; normal Messages/Announcements returns
+      // reveal Student Homepage immediately after session activation.
+      if (!url.searchParams.has('gaOpen')) window.G8CodeInternalNav?.finish?.();
     }
   } catch (error) {
+    window.G8CodeInternalNav?.finish?.();
     g8mStudentReturnStarted = false;
     console.warn('Could not automatically return from Messages to Student Home.', error);
     // Keep the verified Continue as Student fallback; never silently log out.
@@ -9831,6 +9837,7 @@ async function g8mResumeStudentReturn(user, profile) {
 async function handleStudentAuthObserver(user) {
   appSession.authReady = true;
   if (!user) {
+    window.G8CodeInternalNav?.finish?.();
     syncVerifiedStudentContinue(null);
     if (appSession.mode === 'student') {
       // Firebase—not the locally cached profile—is the session authority.
@@ -9845,12 +9852,14 @@ async function handleStudentAuthObserver(user) {
   }
 
   if (isAllowedTeacherEmail(user.email)) {
+    window.G8CodeInternalNav?.finish?.();
     syncVerifiedStudentContinue(null);
     return;
   }
   try {
     const profile = await loadStudentProfile(user.uid);
     if (!profile || profile.accountStatus === 'disabled') {
+      window.G8CodeInternalNav?.finish?.();
       syncVerifiedStudentContinue(null);
       return;
     }
@@ -9860,6 +9869,7 @@ async function handleStudentAuthObserver(user) {
     syncVerifiedStudentContinue(user, profile);
     if (g8mStudentReturnRequested()) await g8mResumeStudentReturn(user, profile);
   } catch (error) {
+    window.G8CodeInternalNav?.finish?.();
     syncVerifiedStudentContinue(null);
     console.warn('Could not verify the saved student session.', error);
   }
@@ -27342,7 +27352,10 @@ function closeLessonLibrary() {
   closeLessonPdfViewer();
   lessonViewerScreen?.classList.add('hidden');
   document.body.classList.remove('lesson-viewer-active');
-  if (lessonLibraryState.returnView === 'entry') {
+  if (lessonLibraryState.returnView === 'announcements' && appSession.mode === 'student') {
+    window.ICT8AppExitGuard?.allowNextUnload?.();
+    window.location.assign('announcements.html?from=student&return=attached');
+  } else if (lessonLibraryState.returnView === 'entry') {
     if (appSession.mode === 'guest' && !appSession.currentProjectId) {
       appSession.mode = 'entry';
       updateAppHeaderForSession();
@@ -28437,7 +28450,10 @@ function closeGivenActivitiesLibrary() {
   closeGivenActivityViewer();
   givenActivitiesScreen?.classList.add('hidden');
   document.body.classList.remove('given-activities-active');
-  if (givenActivityState.returnView === 'home' && appSession.mode === 'guest') {
+  if (givenActivityState.returnView === 'announcements' && appSession.mode === 'student') {
+    window.ICT8AppExitGuard?.allowNextUnload?.();
+    window.location.assign('announcements.html?from=student&return=attached');
+  } else if (givenActivityState.returnView === 'home' && appSession.mode === 'guest') {
     showGuestHome();
   } else if (givenActivityState.returnView === 'home' && appSession.student) {
     showStudentHome({ suppressStatusReminder: true, deferRefresh: true });

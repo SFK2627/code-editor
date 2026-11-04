@@ -83,7 +83,7 @@ function routeAttachedResource(){
  }
  async function attempt(){
   if(opening||finished)return;
-  if(Date.now()>expiresAt){stop();return;} // Keep URL for verified sign-in after a slow connection.
+  if(Date.now()>expiresAt){stop();window.G8CodeInternalNav?.finish?.();return;} // Keep URL for verified sign-in after a slow connection.
   if(!verifiedReady())return;
   opening=true;
   try{
@@ -91,8 +91,9 @@ function routeAttachedResource(){
    if(type==='lesson'){
     if(typeof openLessonLibrary!=='function')throw Error('Lessons is not ready.');
     await openLessonLibrary('home');
+    lessonLibraryState.returnView='announcements';
     const item=(typeof lessonLibraryState!=='undefined'?lessonLibraryState.lessons:[])?.find(row=>row.id===itemId);
-    if(!item){finished=true;clearHandoff();await displayError('This Lesson is no longer available. Please check the Lessons page.');return;}
+    if(!item){finished=true;clearHandoff();window.G8CodeInternalNav?.finish?.();await displayError('This Lesson is no longer available. Please check the Lessons page.');return;}
     // The linked item may belong to a different term than the current one.
     lessonLibraryState.activeTerm=item.term;
     if(typeof renderStudentLessonLibrary==='function')renderStudentLessonLibrary();
@@ -100,20 +101,23 @@ function routeAttachedResource(){
    }else{
     if(typeof openGivenActivitiesLibrary!=='function')throw Error('Activities is not ready.');
     await openGivenActivitiesLibrary('home');
+    givenActivityState.returnView='announcements';
     const items=typeof givenActivityState!=='undefined'?givenActivityState.items:[];
     const item=items.find(row=>row.id===itemId && row.published &&
       typeof givenActivityMatchesAudience==='function' && givenActivityMatchesAudience(row));
-    if(!item){finished=true;clearHandoff();await displayError('This Activity is not published or available to your section.');return;}
+    if(!item){finished=true;clearHandoff();window.G8CodeInternalNav?.finish?.();await displayError('This Activity is not published or available to your section.');return;}
     givenActivityState.activeTerm=item.term;
     if(typeof renderStudentGivenActivities==='function')renderStudentGivenActivities();
     if(typeof openGivenActivityEntry==='function')openGivenActivityEntry(item.id);
    }
    finished=true;clearHandoff();
+   window.G8CodeInternalNav?.finish?.();
   }catch(error){
    console.error('G8Code announcement attachment handoff:',error);
    // Do not falsely mark this link consumed on a transient failure. The student
    // remains on the native reader and can retry via Announcements.
    finished=true;
+   window.G8CodeInternalNav?.finish?.();
    await displayError('Could not open the attached '+type+'. Please open it through the normal '+(type==='lesson'?'Lessons':'Activities')+' page.');
   }finally{opening=false;stop();}
  }

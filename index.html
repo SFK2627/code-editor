@@ -17,17 +17,29 @@
           ['home', 'projects', 'activities', 'lessons', 'explorer', 'admin'].includes(pending.route) &&
           age >= -10000 && age < 180000);
       } catch (_) { /* Storage restrictions must not block the app. */ }
-      // Announcements -> exact student Lesson/Activity is an internal handoff,
-      // not a new visit to the login experience. Skip the three-second splash.
-      const announcementHandoff = (() => {
+      // Every Messages/Announcements -> Home/attached lesson/activity return
+      // is INTERNAL navigation. It must not replay the writing splash. A real
+      // browser refresh, however, may replay the original intro as requested.
+      const route = (() => {
         try {
           const params = new URLSearchParams(window.location.search);
-          return params.get('g8mBack') === 'student' &&
-            ['lesson', 'activity'].includes(params.get('gaOpen')) &&
-            /^[A-Za-z0-9_-]{1,128}$/.test(params.get('gaItem') || '');
-        } catch (_) { return false; }
+          const back = params.get('g8mBack') === 'student';
+          const kind = params.get('gaOpen');
+          const item = params.get('gaItem') || '';
+          const resource = back && ['lesson','activity'].includes(kind) && /^[A-Za-z0-9_-]{1,128}$/.test(item);
+          const navigation = performance?.getEntriesByType?.('navigation')?.[0];
+          const internal = back && navigation?.type !== 'reload';
+          return { internal, resource, kind };
+        } catch (_) { return {internal:false,resource:false,kind:''}; }
       })();
-      if (!reducedMotion && !studioReturn && !announcementHandoff) {
+      if (route.internal) {
+        document.documentElement.classList.add('g8code-internal-route-pending');
+        if (route.resource) document.documentElement.classList.add('g8code-internal-'+route.kind);
+      }
+      window.G8CodeInternalNav = {
+        finish() { document.documentElement.classList.remove('g8code-internal-route-pending'); }
+      };
+      if (!reducedMotion && !studioReturn && !route.internal) {
         document.documentElement.classList.add('g8code-opening-intro');
       }
     })();
@@ -76,6 +88,29 @@
     @keyframes g8code-opening-exit {
       from { opacity: 1; visibility: visible; }
       to { opacity: 0; visibility: hidden; }
+    }
+  </style>
+  <style id="g8code-internal-route-style">
+    /* One stable loading surface instead of login -> homepage -> reader flashes.
+       Authentication is still verified by the original G8Code session logic. */
+    html.g8code-internal-route-pending:not(.studio-return-pending) body > * {
+      visibility: hidden !important;
+    }
+    html.g8code-internal-route-pending:not(.studio-return-pending) body::after {
+      content: 'Opening Student Homepage…';
+      visibility: visible !important;
+      position: fixed; inset: 0; z-index: 2147483647;
+      display: flex; align-items: center; justify-content: center;
+      background: #f6f9ff; color: #244b82;
+      font: 600 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      letter-spacing: .015em; text-align: center; padding: 24px;
+    }
+    html.g8code-internal-lesson body::after { content: 'Opening your lesson…' !important; }
+    html.g8code-internal-activity body::after { content: 'Opening your activity…' !important; }
+    @media (prefers-color-scheme: dark) {
+      html.g8code-internal-route-pending:not(.studio-return-pending) body::after {
+        background: #101b30; color: #d1e4ff;
+      }
     }
   </style>
   <!-- Hide the entry/login gate ONLY during a verified Studio-to-page return.
@@ -5661,7 +5696,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261104-v523-student-nav-focus"></script>
+  <script src="script.js?v=20261104-v524-direct-route-count"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
@@ -6004,6 +6039,6 @@ https://example.com/song3.mp3"></textarea>
 })();
 </script>
 <script defer src="messages-bridge.js?v=2"></script>
-<script defer src="announcements-bridge.js?v=523"></script>
+<script defer src="announcements-bridge.js?v=524"></script>
 </body>
 </html>
