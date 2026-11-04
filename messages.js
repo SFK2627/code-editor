@@ -96,6 +96,14 @@ let driveBridgeCheckPromise = null;
 let imageKitBridgeCheckPromise=null, imageKitBridgeReady=false;
 // Five-minute signed links are kept ONLY in memory and scoped to the current login.
 const g8mIkSignedLinks=new Map();
+// V4C8: coalesce authorization of nearby PRIVATE ImageKit photos into one
+// existing ikSign bridge request. Each image is still verified individually
+// against its actual RTDB message before Apps Script releases a signed link.
+const G8M_IK_THUMB_SUFFIX='::g8m-thumb';
+const G8M_IK_MAX_SIGN_BATCH=6;
+const g8mIkSignPending=[];
+let g8mIkSignBatchActive=false,g8mIkSignBatchTimer=null;
+
 // ImageKit is the default for NEW Messenger photos from signed-in teachers
 // AND students. Each message records its actual provider, so existing Drive
 // attachments continue using their original authenticated read path.
@@ -1424,7 +1432,7 @@ function g8mCreateStackBacks(stack,items,uid,messageId,isLocal=false,backToLoad=
   const picture=document.createElement('img');picture.alt='';picture.draggable=false;
   if(isLocal)picture.src=entry.url;
   else{
-   const cached=cachedPhotoUrl(entry.path,entry.driveFileId||entry.imagekitFileId);
+   const cached=cachedPhotoUrl(entry.path,entry.driveFileId||entry.imagekitFileId,entry.provider==='imagekit'?'thumb':'full');
    if(cached)picture.src=cached;
    else if(backToLoad)backToLoad.push({att:{...entry,studentUid:uid,messageId},picture,back});
   }
@@ -1435,7 +1443,7 @@ async function g8mFillStackBacks(entries){
  // Decorative layer failures must never prevent opening the main photo.
  await Promise.all(entries.map(async({att,picture,back})=>{
   try{
-   const url=await privatePhotoURL(att,1); // Decorative layers are lower priority.
+   const url=await privatePhotoURL(att,1,att.provider==='imagekit'?'thumb':'full'); // Decorative layers are lower priority.
    if(back.isConnected&&picture.isConnected)picture.src=url;
   }catch(error){console.warn('Stacked photo preview unavailable:',error?.message||error);}
  }));
@@ -1832,7 +1840,7 @@ function photoTransient(error){
  return /timeout|no confirmation|network|temporar|unavailable|service|quota|too many|rate limit|connection|fetch|busy|retry|exceeded/i.test(reason)
   && !/permission|denied|not authorized|invalid|not found|missing|different student|access another|sign in|origin|unauthorized/i.test(reason);
 }
-function cachedPhotoUrl(path,driveFileId=''){
+function g8mCachedUrlExact(path,driveFileId=''){
  if(!imageCache.has(path)){
   const signed=g8mIkSignedLinks.get(path);
   if(signed && signed.expiresAt>Date.now()+20000)return signed.url;
@@ -1842,6 +1850,14 @@ function cachedPhotoUrl(path,driveFileId=''){
  if(driveFileId && imageCacheFileIds.get(path)!==String(driveFileId))return '';
  const url=imageCache.get(path);imageCache.delete(path);imageCache.set(path,url);
  return url;
+}
+function cachedPhotoUrl(path,driveFileId='',variant='full'){
+ if(variant!=='thumb')return g8mCachedUrlExact(path,driveFileId);
+ // An already-local FULL sender copy is best. A merely signed FULL CDN URL
+ // must NOT outrank a smaller ImageKit thumbnail (even if gallery pre-signs it).
+ const hasLocalFull=imageCache.has(path) && (!driveFileId||imageCacheFileIds.get(path)===String(driveFileId));
+ if(hasLocalFull)return g8mCachedUrlExact(path,driveFileId);
+ return g8mCachedUrlExact(path+G8M_IK_THUMB_SUFFIX,driveFileId)||g8mCachedUrlExact(path,driveFileId);
 }
 function cachePhotoUrl(path,url,driveFileId=''){
  if(imageCache.has(path)){
@@ -1856,7 +1872,8 @@ function cachePhotoUrl(path,url,driveFileId=''){
   const displayed=$('g8mImageLarge')?.src||'';
   for(const [key,old] of imageCache){
    if(imageCache.size<=PHOTO_CACHE_MAX_ITEMS)break;
-   if(key===path||live.has(key)||old===displayed)continue;
+   if(key===path||live.has(key)||
+      (key.endsWith(G8M_IK_THUMB_SUFFIX)&&live.has(key.slice(0,-G8M_IK_THUMB_SUFFIX.length)))||old===displayed)continue;
    imageCache.delete(key);imageCacheFileIds.delete(key);URL.revokeObjectURL(old);
   }
  }
@@ -1865,12 +1882,16 @@ function clearMemoryPhotoCache(){
  // Called on Auth identity change, including sign-out and teacher/student swap.
  for(const url of imageCache.values())URL.revokeObjectURL(url);
  imageCache.clear();imageCacheFileIds.clear();photoQueue.clear();g8mIkSignedLinks.clear();
+ if(g8mIkSignBatchTimer!==null){clearTimeout(g8mIkSignBatchTimer);g8mIkSignBatchTimer=null;}
+ for(const pending of g8mIkSignPending.splice(0))pending.reject(new Error('Photo access changed. Sign in again.'));
 }
 function deleteCachedPhoto(path,driveFileId=''){
- g8mIkSignedLinks.delete(path);
- const old=imageCache.get(path);
- if(old){imageCache.delete(path);imageCacheFileIds.delete(path);URL.revokeObjectURL(old);}
- if(driveFileId && photoCacheOwnerUid)void deletePhotoFromDisk({path,driveFileId},photoCacheOwnerUid);
+ for(const cachePath of [path,path+G8M_IK_THUMB_SUFFIX]){
+  g8mIkSignedLinks.delete(cachePath);
+  const old=imageCache.get(cachePath);
+  if(old){imageCache.delete(cachePath);imageCacheFileIds.delete(cachePath);if(old.startsWith('blob:'))URL.revokeObjectURL(old);}
+  if(driveFileId && photoCacheOwnerUid)void deletePhotoFromDisk({path:cachePath,driveFileId},photoCacheOwnerUid);
+ }
 }
 function photoDiskKey(att,owner){
  // Keep the existing Drive cache keys unchanged; also allow ImageKit IDs.
@@ -1991,8 +2012,8 @@ async function prunePhotoDiskCache(owner){
  }catch(_){}
 }
 function pausePhotoRetry(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
-function privatePhotoURL(att,priority=10){
- if(att?.provider==='imagekit')return imageKitPrivatePhotoURL(att,priority);
+function privatePhotoURL(att,priority=10,variant='full'){
+ if(att?.provider==='imagekit')return imageKitPrivatePhotoURL(att,priority,variant);
  const path=String(att?.path||'');
  const owner=photoCacheOwnerUid,epoch=photoAuthEpoch;
  if(!photoOwnerStillValid(owner,epoch))return Promise.reject(new Error('Sign in again before opening private photos.'));
@@ -2042,45 +2063,137 @@ function privatePhotoURL(att,priority=10){
  photoQueue.set(key,job);
  return job;
 }
-// ImageKit reads go through an authenticated Apps Script signature request.
-// Actual pixels are delivered by ImageKit CDN directly, not via RTDB/Apps Script.
-function imageKitPrivatePhotoURL(att,priority=10){
+// ImageKit V4C8: one authenticated Apps Script receipt can sign several
+// near-viewport thumbnails. The backend checks EACH message against RTDB and
+// verifies its PRIVATE ImageKit path. No unsigned or public photo URL is used.
+function g8mQueueImageKitSignature(uid,messageId,fileId,variant,owner,epoch,priority){
+ return new Promise((resolve,reject)=>{
+  if(!photoOwnerStillValid(owner,epoch)){reject(new Error('Photo access changed. Sign in again.'));return;}
+  g8mIkSignPending.push({uid,messageId,fileId,variant,owner,epoch,priority,resolve,reject});
+  g8mIkSignPending.sort((a,b)=>b.priority-a.priority);
+  if(g8mIkSignBatchTimer===null && !g8mIkSignBatchActive){
+   g8mIkSignBatchTimer=setTimeout(()=>{
+    g8mIkSignBatchTimer=null;void g8mFlushImageKitSignatures();
+   },priority>=20?0:24);
+  }
+ });
+}
+function g8mCheckImageKitSignedResult(item){
+ const valid=(url,expiry)=>{
+  const link=String(url||''),expiresAt=Number(expiry||0);
+  const expected='https://ik.imagekit.io/86vf9fevzo/';
+  if(!link.startsWith(expected) || !/[?&]ik-s=[0-9a-f]{40}(?:&|$)/.test(link) ||
+     !/[?&]ik-t=\d+(?:&|$)/.test(link) || expiresAt<Date.now()+20000 ||
+     expiresAt>Date.now()+10*60*1000)
+   throw new Error('The private photo link could not be verified.');
+  return {url:link,expiresAt};
+ };
+ const primary=valid(item?.url,item?.expiresAt);
+ if(item?.fullUrl)primary.full=valid(item.fullUrl,item.fullExpiresAt);
+ return primary;
+}
+async function g8mFlushImageKitSignatures(){
+ if(g8mIkSignBatchActive)return;
+ g8mIkSignBatchActive=true;
+ try{
+  while(g8mIkSignPending.length){
+   const first=g8mIkSignPending.shift();
+   if(!photoOwnerStillValid(first.owner,first.epoch)){
+    first.reject(new Error('Photo access changed. Sign in again.'));continue;
+   }
+   const batch=[first];
+   // Visible images get a SMALL batch for better time-to-first-photo;
+   // near-viewport prefetch may coalesce up to six to save bridge overhead.
+   const limit=first.priority>=20?2:G8M_IK_MAX_SIGN_BATCH;
+   for(let i=0;i<g8mIkSignPending.length && batch.length<limit;){
+    const candidate=g8mIkSignPending[i];
+    if(candidate.uid===first.uid && candidate.owner===first.owner && candidate.epoch===first.epoch &&
+       (first.priority<20 || candidate.priority>=20)){
+     batch.push(g8mIkSignPending.splice(i,1)[0]);
+    }else i++;
+   }
+   try{
+    const items=batch.map(entry=>({messageId:entry.messageId,imagekitFileId:entry.fileId,variant:entry.variant}));
+    // Keep using the EXISTING ikSign route, so G8CodeMessagesDrive.gs,
+    // Firebase Rules, and the already-deployed bridge require no edits.
+    const data=await driveRequest('ikSign',{
+     studentUid:first.uid,messageId:first.messageId,items:JSON.stringify(items)
+    },45000);
+    if(!Array.isArray(data?.results) || data.results.length!==batch.length)
+     throw new Error('The photo service needs the updated ImageKit script deployment.');
+    batch.forEach((entry,i)=>{
+     if(!photoOwnerStillValid(entry.owner,entry.epoch)){
+      entry.reject(new Error('Photo access changed. Sign in again.'));return;
+     }
+     const result=data.results[i];
+     if(result?.error){entry.reject(new Error(String(result.error)));return;}
+     try{entry.resolve(g8mCheckImageKitSignedResult(result));}
+     catch(error){entry.reject(error);}
+    });
+   }catch(error){batch.forEach(entry=>entry.reject(error));}
+  }
+ }finally{
+  g8mIkSignBatchActive=false;
+  if(g8mIkSignPending.length && g8mIkSignBatchTimer===null){
+   g8mIkSignBatchTimer=setTimeout(()=>{g8mIkSignBatchTimer=null;void g8mFlushImageKitSignatures();},0);
+  }
+ }
+}
+async function g8mFetchSmallPrivateThumbnail(url,att,cachePath,owner,epoch){
+ // A browser-local, account-scoped cache removes repeated Apps Script and CDN
+ // requests after refresh. If ImageKit CORS is disabled, use the normal <img>
+ // signed URL; photos never become public and loading still works.
+ try{
+  const response=await fetch(url,{method:'GET',mode:'cors',credentials:'omit',cache:'default'});
+  if(!response.ok)throw new Error('Private thumbnail could not be loaded ('+response.status+').');
+  const blob=await response.blob();
+  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  if(!allowedTypes.has(blob.type) || blob.size<1 || blob.size>PHOTO_DISK_SINGLE_MAX)return url;
+  const existing=g8mCachedUrlExact(cachePath,att.imagekitFileId);
+  if(existing && existing.startsWith('blob:'))return existing;
+  const local=URL.createObjectURL(blob);
+  cachePhotoUrl(cachePath,local,att.imagekitFileId);
+  void savePhotoToDisk({...att,path:cachePath},owner,epoch,blob);
+  return local;
+ }catch(error){
+  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  // CORS/network hiccups should not break a valid private signed <img> URL.
+  return url;
+ }
+}
+function imageKitPrivatePhotoURL(att,priority=10,variant='full'){
  const path=String(att?.path||''),fid=String(att?.imagekitFileId||'');
  const owner=photoCacheOwnerUid,epoch=photoAuthEpoch;
  if(!photoOwnerStillValid(owner,epoch))return Promise.reject(new Error('Sign in again to view this photo.'));
  if(!/^g8Messages\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/.test(path) || !/^[A-Za-z0-9_-]{12,128}$/.test(fid))
   return Promise.reject(new Error('Private photo information is incomplete.'));
- const cached=cachedPhotoUrl(path,fid);
+ const isThumb=variant==='thumb',cachePath=isThumb?path+G8M_IK_THUMB_SUFFIX:path;
+ const cached=cachedPhotoUrl(path,fid,variant);
  if(cached)return Promise.resolve(cached);
- const key=photoDiskKey(att,owner);
+ const item={...att,path:cachePath};
+ const key=photoDiskKey(item,owner);
  if(photoQueue.has(key))return photoQueue.get(key);
- // A VERIFIED sender-side copy can be displayed after refresh without
- // another Apps Script + ImageKit round-trip. Same UID/epoch checks as Drive.
  const job=(async()=>{
-  const diskBlob=await readPhotoFromDisk(att,owner,epoch);
+  // Local sender copies (full) and downloaded receiver thumbnails (thumb)
+  // are reused only for the SAME signed-in Firebase account.
+  const savedBlob=await readPhotoFromDisk(item,owner,epoch);
   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
-  if(diskBlob){
-   const latest=cachedPhotoUrl(path,fid);
-   if(latest)return latest;
-   const local=URL.createObjectURL(diskBlob);
-   cachePhotoUrl(path,local,fid);
+  if(savedBlob){
+   const nowCached=cachedPhotoUrl(path,fid,variant);
+   if(nowCached)return nowCached;
+   const local=URL.createObjectURL(savedBlob);
+   cachePhotoUrl(cachePath,local,fid);
    return local;
   }
-  return withPhotoReadSlot(async()=>{
-   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
-   const cachedNow=cachedPhotoUrl(path,fid);
-   if(cachedNow)return cachedNow;
-   const uid=att.studentUid||path.split('/')[1],messageId=att.messageId||path.split('/')[2];
-   const result=await driveRequest('ikSign',{studentUid:uid,messageId,imagekitFileId:fid},30000);
-   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
-   const link=String(result?.url||''),expiresAt=Number(result?.expiresAt||0);
-   const expected='https://ik.imagekit.io/86vf9fevzo/';
-   if(!link.startsWith(expected) || !/[?&]ik-s=[0-9a-f]{40}(?:&|$)/.test(link) ||
-      !/[?&]ik-t=\d+(?:&|$)/.test(link) || expiresAt<Date.now()+20000 || expiresAt>Date.now()+10*60*1000)
-    throw new Error('The private photo link could not be verified.');
-   g8mIkSignedLinks.set(path,{url:link,expiresAt});
-   return link;
-  },priority);
+  const nowCached=cachedPhotoUrl(path,fid,variant);
+  if(nowCached)return nowCached;
+  const uid=att.studentUid||path.split('/')[1],messageId=att.messageId||path.split('/')[2];
+  const signed=await g8mQueueImageKitSignature(uid,messageId,fid,isThumb?'thumb':'full',owner,epoch,priority);
+  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  g8mIkSignedLinks.set(cachePath,{url:signed.url,expiresAt:signed.expiresAt});
+  if(isThumb && signed.full)g8mIkSignedLinks.set(path,signed.full);
+  if(!isThumb)return signed.url; // Full viewer: direct CDN, no extra client fetch.
+  return g8mFetchSmallPrivateThumbnail(signed.url,att,cachePath,owner,epoch);
  })().finally(()=>photoQueue.delete(key));
  photoQueue.set(key,job);
  return job;
@@ -2372,7 +2485,9 @@ async function showPhoto(att,button,version){
  };
  if(!((att.provider==='drive'&&att.driveFileId)||(att.provider==='imagekit'&&att.imagekitFileId))){fail(new Error('Photo attachment is unavailable'));return;}
  try{
-  const url=await privatePhotoURL(att);
+  const feed=$('g8mMessages'),rectangle=button.getBoundingClientRect(),frame=feed.getBoundingClientRect();
+  const priority=rectangle.bottom>=frame.top && rectangle.top<=frame.bottom ? 20 : 10;
+  const url=await privatePhotoURL(att,priority,att.provider==='imagekit'?'thumb':'full');
   if(!button.isConnected||button.dataset.photoPath!==path)return;
   const img=document.createElement('img');img.alt=att.name||'Private photo attachment';img.loading='eager';
   img.src=url;
@@ -2380,7 +2495,17 @@ async function showPhoto(att,button,version){
    if(typeof img.decode==='function')await img.decode();
    else if(!img.complete)await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
    if(!img.naturalWidth||!img.naturalHeight)throw new Error('Photo image could not be decoded');
-  }catch(error){deleteCachedPhoto(path,att.driveFileId||att.imagekitFileId);throw error;}
+  }catch(error){
+   // If this ImageKit account restricts unnamed transformations, show the
+   // original signed private photo instead of leaving the chat bubble blank.
+   const full=att.provider==='imagekit'?g8mCachedUrlExact(path,att.imagekitFileId):'';
+   if(!full || full===url){deleteCachedPhoto(path,att.driveFileId||att.imagekitFileId);throw error;}
+   img.src=full;
+   try{if(typeof img.decode==='function')await img.decode();
+    else if(!img.complete)await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
+    if(!img.naturalWidth)throw new Error('Original photo did not decode');
+   }catch(fallbackError){deleteCachedPhoto(path,att.imagekitFileId);throw fallbackError;}
+  }
   if(!button.isConnected||button.dataset.photoPath!==path)return;
   const width=img.naturalWidth,height=img.naturalHeight;
   // Actual image ratio. A portrait stays portrait, a landscape stays wide.
