@@ -14,7 +14,9 @@ async function ensureProjectFirestore(){
   projectFirestorePromise = (async()=>{
    const v = window.MCS_FIREBASE_SDK_VERSION || '10.12.5';
    const f = await import(`https://www.gstatic.com/firebasejs/${v}/firebase-firestore.js`);
-  
+   // Firestore exports are initialized ONLY when a saved project is requested.
+   // Normal Messages startup deliberately never loads the Firestore SDK.
+   ({getFirestore, collection, doc, getDoc, getDocFromServer, getDocs} = f);
    firestore=getFirestore(app);
    return firestore;
   })().catch(err=>{projectFirestorePromise=null;throw err;});
@@ -35,7 +37,6 @@ async function loadMessagesFirebaseSDK(){
  ({initializeApp, getApps, getApp} = a);
  ({getAuth, onAuthStateChanged, signInWithEmailAndPassword} = au);
  ({getDatabase, ref, onValue, query, limitToLast, orderByKey, endAt, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect} = d);
- ({getFirestore, collection, doc, getDoc, getDocFromServer, getDocs} = f);
 
 }
 
@@ -211,9 +212,8 @@ function syncThemeForRole(){
  else if(teacher){const a=safeGet('g8code.adminWorkspaceAppearance.v1');if(a==='dark'||a==='light')applyTheme(a);}
 }
 $('g8mTheme').addEventListener('click',()=>{if(!$('g8mTheme').hidden)applyTheme(root.dataset.theme==='dark'?'light':'dark');});
-$('g8mImageClose').addEventListener('click',()=>$('g8mImageViewer').hidden=true);
-$('g8mImageViewer').addEventListener('click',e=>{if(e.target===$('g8mImageViewer'))$('g8mImageViewer').hidden=true;});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('g8mImageViewer').hidden)$('g8mImageViewer').hidden=true;});
+// G8Code V5.0 photo viewer handlers are installed below.
+
 const studentPath = uid => `${BASE}/chats/${uid}`;
 const summaryPath = uid => `${BASE}/summary/${uid}`;
 function role(){return teacher?'teacher':'student';}
@@ -959,10 +959,203 @@ function privatePhotoURL(att){
  photoQueue.set(path,job);
  return job;
 }
-function openFullPhoto(url){
- $('g8mImageLarge').src=url;
- $('g8mImageViewer').hidden=false;
+// G8Code Messages V5.0: isolated Fit-to-Screen photo viewer.
+// Zoom is relative to the fitted image (100% means the whole photo fits),
+// not the original image pixel count. Images are already cached in memory:
+// panning/zooming never contacts Drive or Firestore.
+const imageViewer = $('g8mImageViewer');
+const imageStage = $('g8mImageStage');
+const imageLarge = $('g8mImageLarge');
+const imageZoomLabel = $('g8mImageZoomLevel');
+const imageViewerPointers = new Map();
+let imageViewerScale=1,imageViewerPanX=0,imageViewerPanY=0;
+let imageViewerFitW=0,imageViewerFitH=0;
+let imageViewerLoadToken=0,imageViewerPreviousFocus=null;
+let imageViewerGesture=null,imageViewerTap=null,imageViewerMoved=false;
+const IMAGE_VIEWER_MIN=1,IMAGE_VIEWER_MAX=6;
+function imageViewerClamp(v,min,max){return Math.max(min,Math.min(max,v));}
+function imageViewerLimits(){
+ return {
+  x:Math.max(0,(imageViewerFitW*imageViewerScale-imageStage.clientWidth)/2),
+  y:Math.max(0,(imageViewerFitH*imageViewerScale-imageStage.clientHeight)/2)
+ };
 }
+function imageViewerRender(){
+ const bounds=imageViewerLimits();
+ imageViewerPanX=imageViewerClamp(imageViewerPanX,-bounds.x,bounds.x);
+ imageViewerPanY=imageViewerClamp(imageViewerPanY,-bounds.y,bounds.y);
+ imageLarge.style.setProperty('--g8m-fit-width',imageViewerFitW+'px');
+ imageLarge.style.setProperty('--g8m-fit-height',imageViewerFitH+'px');
+ imageLarge.style.setProperty('--g8m-zoom',imageViewerScale);
+ imageLarge.style.setProperty('--g8m-pan-x',imageViewerPanX+'px');
+ imageLarge.style.setProperty('--g8m-pan-y',imageViewerPanY+'px');
+ imageZoomLabel.textContent=(imageViewerScale===1?'Fit · ':'')+Math.round(imageViewerScale*100)+'%';
+ $('g8mImageZoomOut').disabled=imageViewerScale<=IMAGE_VIEWER_MIN;
+ $('g8mImageZoomIn').disabled=imageViewerScale>=IMAGE_VIEWER_MAX;
+ imageStage.classList.toggle('is-zoomed',imageViewerScale>1.001);
+}
+function imageViewerMeasure(keepView=false){
+ if(!imageLarge.naturalWidth||!imageLarge.naturalHeight||imageViewer.hidden)return;
+ const safeW=Math.max(1,imageStage.clientWidth-8), safeH=Math.max(1,imageStage.clientHeight-8);
+ const factor=Math.min(1,safeW/imageLarge.naturalWidth,safeH/imageLarge.naturalHeight);
+ imageViewerFitW=Math.max(1,imageLarge.naturalWidth*factor);
+ imageViewerFitH=Math.max(1,imageLarge.naturalHeight*factor);
+ if(!keepView){imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;}
+ imageViewerRender();
+}
+function imageViewerZoomTo(target,clientX,clientY){
+ if(!imageViewerFitW)return;
+ const next=imageViewerClamp(target,IMAGE_VIEWER_MIN,IMAGE_VIEWER_MAX);
+ if(next===imageViewerScale)return;
+ const rect=imageStage.getBoundingClientRect();
+ const x=(Number.isFinite(clientX)?clientX:rect.left+rect.width/2)-(rect.left+rect.width/2);
+ const y=(Number.isFinite(clientY)?clientY:rect.top+rect.height/2)-(rect.top+rect.height/2);
+ const ratio=next/imageViewerScale;
+ // Keep the same image pixel under the pointer, rather than jumping to center.
+ imageViewerPanX=x-(x-imageViewerPanX)*ratio;
+ imageViewerPanY=y-(y-imageViewerPanY)*ratio;
+ imageViewerScale=next;
+ imageViewerRender();
+}
+function imageViewerFit(){imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;imageViewerRender();}
+function closeFullPhoto(){
+ if(imageViewer.hidden)return;
+ imageViewer.hidden=true;
+ imageViewerPointers.clear();imageViewerGesture=null;imageViewerTap=null;
+ imageViewerLoadToken++;
+ if(imageViewerPreviousFocus&&imageViewerPreviousFocus.isConnected){
+  try{imageViewerPreviousFocus.focus({preventScroll:true});}catch(_){}}
+ imageViewerPreviousFocus=null;
+}
+function openFullPhoto(url){
+ const photoUrl=String(url||'');if(!photoUrl)return;
+ imageViewerPreviousFocus=document.activeElement;
+ imageViewerPointers.clear();imageViewerGesture=null;imageViewerTap=null;
+ imageViewerMoved=false;
+ imageViewer.hidden=false;
+ imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;
+ imageViewerFitW=0;imageViewerFitH=0;
+ imageLarge.style.removeProperty('--g8m-zoom');
+ imageLarge.style.removeProperty('--g8m-pan-x');
+ imageLarge.style.removeProperty('--g8m-pan-y');
+ $('g8mImageStageStatus').hidden=true;
+ const loadToken=++imageViewerLoadToken;
+ imageLarge.src=photoUrl;
+ const ready=()=>{
+  if(imageViewer.hidden||loadToken!==imageViewerLoadToken)return;
+  if(!imageLarge.naturalWidth){
+   const el=$('g8mImageStageStatus');el.textContent='This photo could not be displayed.';el.hidden=false;
+   return;
+  }
+  requestAnimationFrame(()=>{if(loadToken===imageViewerLoadToken)imageViewerMeasure(false);});
+ };
+ if(imageLarge.complete)ready();
+ else{imageLarge.addEventListener('load',ready,{once:true});imageLarge.addEventListener('error',ready,{once:true});}
+ $('g8mImageClose').focus({preventScroll:true});
+}
+$('g8mImageClose').addEventListener('click',closeFullPhoto);
+$('g8mImageFit').addEventListener('click',imageViewerFit);
+$('g8mImageZoomIn').addEventListener('click',()=>imageViewerZoomTo(imageViewerScale+.25));
+$('g8mImageZoomOut').addEventListener('click',()=>imageViewerZoomTo(imageViewerScale-.25));
+// The viewer consumes wheel gestures. Chat remains at its existing scroll position.
+imageStage.addEventListener('wheel',event=>{
+ if(imageViewer.hidden)return;
+ event.preventDefault();
+ const factor=event.deltaY<0?1.12:1/1.12;
+ imageViewerZoomTo(imageViewerScale*factor,event.clientX,event.clientY);
+},{passive:false});
+function imageViewerPair(){
+ const points=[...imageViewerPointers.values()];
+ if(points.length<2)return null;
+ const a=points[0],b=points[1];
+ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,distance:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y))};
+}
+imageStage.addEventListener('pointerdown',event=>{
+ if(imageViewer.hidden||!imageViewerFitW)return;
+ if(event.pointerType==='mouse'&&event.button!==0)return;
+ event.preventDefault();
+ imageStage.setPointerCapture?.(event.pointerId);
+ imageViewerPointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+ imageViewerMoved=false;
+ if(imageViewerPointers.size>=2){
+  const pair=imageViewerPair();
+  imageViewerGesture={pinch:true,distance:pair.distance,zoom:imageViewerScale,
+   x:pair.x,y:pair.y,panX:imageViewerPanX,panY:imageViewerPanY};
+ }else{
+  imageViewerGesture={pinch:false,x:event.clientX,y:event.clientY,
+   panX:imageViewerPanX,panY:imageViewerPanY};
+ }
+});
+imageStage.addEventListener('pointermove',event=>{
+ if(!imageViewerPointers.has(event.pointerId)||!imageViewerGesture)return;
+ event.preventDefault();
+ imageViewerPointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+ const g=imageViewerGesture;
+ if(imageViewerPointers.size>=2){
+  if(!g.pinch){
+   const start=imageViewerPair();
+   imageViewerGesture={pinch:true,distance:start.distance,zoom:imageViewerScale,
+     x:start.x,y:start.y,panX:imageViewerPanX,panY:imageViewerPanY};
+   return;
+  }
+  const pair=imageViewerPair();const rect=imageStage.getBoundingClientRect();
+  const cX=rect.left+rect.width/2,cY=rect.top+rect.height/2;
+  const next=imageViewerClamp(g.zoom*(pair.distance/g.distance),IMAGE_VIEWER_MIN,IMAGE_VIEWER_MAX);
+  const factor=next/g.zoom;
+  imageViewerScale=next;
+  imageViewerPanX=(pair.x-cX)-((g.x-cX)-g.panX)*factor;
+  imageViewerPanY=(pair.y-cY)-((g.y-cY)-g.panY)*factor;
+  imageViewerMoved=true;imageViewerRender();
+ }else if(!g.pinch){
+  const dx=event.clientX-g.x,dy=event.clientY-g.y;
+  if(Math.hypot(dx,dy)>5)imageViewerMoved=true;
+  if(imageViewerScale>1.001){
+   imageViewerPanX=g.panX+dx;imageViewerPanY=g.panY+dy;imageViewerRender();
+  }
+ }
+});
+function imageViewerEndPointer(event){
+ if(!imageViewerPointers.has(event.pointerId))return;
+ const wasMulti=imageViewerGesture?.pinch;
+ imageViewerPointers.delete(event.pointerId);
+ if(!wasMulti&&!imageViewerMoved&&event.type==='pointerup'&&event.pointerType!=='mouse'){
+  const when=performance.now();
+  const prev=imageViewerTap;
+  if(prev&&when-prev.time<310&&Math.hypot(event.clientX-prev.x,event.clientY-prev.y)<35){
+   imageViewerZoomTo(imageViewerScale>1.01?1:2.5,event.clientX,event.clientY);
+   imageViewerTap=null;
+  }else imageViewerTap={x:event.clientX,y:event.clientY,time:when};
+ }else if(wasMulti) imageViewerTap=null;
+ if(imageViewerPointers.size===1){
+  const p=[...imageViewerPointers.values()][0];
+  imageViewerGesture={pinch:false,x:p.x,y:p.y,panX:imageViewerPanX,panY:imageViewerPanY};
+ }else imageViewerGesture=null;
+}
+imageStage.addEventListener('pointerup',imageViewerEndPointer);
+imageStage.addEventListener('pointercancel',imageViewerEndPointer);
+imageStage.addEventListener('dblclick',event=>{
+ if(imageViewer.hidden||!imageViewerFitW)return;
+ event.preventDefault();
+ imageViewerZoomTo(imageViewerScale>1.01?1:2.5,event.clientX,event.clientY);
+});
+document.addEventListener('keydown',event=>{
+ if(imageViewer.hidden)return;
+ if(event.key==='Escape'){event.preventDefault();closeFullPhoto();return;}
+ if(['+','=','-','0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
+  event.preventDefault();
+  if(event.key==='+'||event.key==='=')imageViewerZoomTo(imageViewerScale+.25);
+  else if(event.key==='-')imageViewerZoomTo(imageViewerScale-.25);
+  else if(event.key==='0')imageViewerFit();
+  else if(imageViewerScale>1){
+   imageViewerPanX+=(event.key==='ArrowLeft'?40:event.key==='ArrowRight'?-40:0);
+   imageViewerPanY+=(event.key==='ArrowUp'?40:event.key==='ArrowDown'?-40:0);
+   imageViewerRender();
+  }
+ }
+});
+if('ResizeObserver' in window){
+ new ResizeObserver(()=>{if(!imageViewer.hidden&&imageViewerFitW)imageViewerMeasure(true);}).observe(imageStage);
+}else window.addEventListener('resize',()=>imageViewerMeasure(true));
 async function showPhoto(att,button,version){
  if(!button.isConnected)return;
  const path=att.path;

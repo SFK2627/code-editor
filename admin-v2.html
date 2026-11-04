@@ -2574,6 +2574,7 @@ html.g8-admin-next #adminOverlay :is(#givenActivityUploadPanel,#givenActivityLin
 }
 </style>
 
+<link rel="stylesheet" href="messages-bridge.css?v=51" />
 </head>
 <body class="entry-gate-active admin-v2-standalone">
 <div id="admV2StartupShield" role="status" aria-live="polite">
@@ -8171,7 +8172,8 @@ try {
     help:'<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 5m0 3h.01"/>',
     settings:'<path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2 2m8.8 8.8 2 2m0-12.8-2 2m-8.8 8.8-2 2"/><circle cx="12" cy="12" r="4"/>',
     external:'<path d="M14 4h6v6M20 4l-9 9"/><path d="M20 13v7H4V4h7"/>',
-    layers:'<path d="m12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5"/>'
+    layers:'<path d="m12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5"/>',
+    message:'<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9.3 9.3 0 0 1-4-.9L3 21l1.9-5.2a8.7 8.7 0 0 1-.9-4.3A8.5 8.5 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8.5z"/>'
   };
   function ico(name, size=20) {return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icons[name]||icons.grid}</svg>`;}
   function el(tag, cls='', txt) {const n=document.createElement(tag);if(cls)n.className=cls;if(txt!=null)n.textContent=txt;return n;}
@@ -8187,7 +8189,8 @@ try {
     {id:'lessons',label:'Lesson Library',sub:'Create, publish, and organize PDF lessons',icon:'book'},
     {id:'given-activities',label:'Activities Given',sub:'Class tasks, instructions, and materials',icon:'calendar'},
     {id:'activities',label:'Rubrics & Activities',sub:'Assessment criteria and scoring controls',icon:'rubric'},
-    {id:'code-explorer',label:'Code Explorer',sub:'Explorer analytics, music, certificates, and controls',icon:'code',group:'STUDIO'}
+    {id:'code-explorer',label:'Code Explorer',sub:'Explorer analytics, music, certificates, and controls',icon:'code',group:'STUDIO'},
+    {id:'messages',label:'Messages',sub:'Private conversations, sections, and photo acknowledgments',icon:'message',group:'COMMUNICATION'}
   ];
   const legacyBank=el('div','adm-legacy-bank');
   legacyBank.setAttribute('aria-hidden','true');
@@ -8207,6 +8210,7 @@ try {
     if(p.group)nav.append(el('span','adm-nav-group',p.group));
     const b=btn(p.label,'adm-nav-btn',()=>navigate(p.id),p.icon);
     b.dataset.page=p.id; b.setAttribute('aria-current','false');
+    if(p.id==='messages'){const badge=el('b','g8-admin-msg-badge');badge.dataset.msgInboxBadge='';badge.hidden=true;b.append(badge);}
     navMap.set(p.id,b);nav.append(b);
   });
   sidebarScroll.append(nav);
@@ -8255,7 +8259,8 @@ try {
     const b=el('button','adm-bottom-btn');b.type='button';b.dataset.page=p.id;b.innerHTML=ico(p.icon,19)+'<span>'+({overview:'Home',students:'Students','needs-attention':'Attention','given-activities':'Activities'})[p.id]+'</span>';
     b.addEventListener('click',()=>navigate(p.id));bottom.append(b);
   }
-  const more=el('button','adm-bottom-btn');more.type='button';more.innerHTML=ico('menu',19)+'<span>More</span>';more.addEventListener('click',()=>toggleDrawer(true));bottom.append(more);
+  const more=el('button','adm-bottom-btn');more.type='button';more.innerHTML=ico('menu',19)+'<span>More</span>';more.addEventListener('click',()=>toggleDrawer(true));
+  more.classList.add('g8-messages-more');{const unread=el('b','g8-admin-msg-badge');unread.dataset.msgInboxBadge='';unread.hidden=true;more.append(unread);}bottom.append(more);
   shell.append(sidebar,frame,drawerScrim,bottom);
   modal.replaceChildren(legacyBank,shell);
   root.classList.add('adm-mounted');
@@ -8277,7 +8282,7 @@ try {
     b.addEventListener('click',()=>navigate(m.dest));metricsEl.append(b);
   });
   const toolsEl=$('#admV2Tools',dashboard);
-  for(const p of [pages[1],pages[5],pages[6],pages[7],pages[8],pages[9],pages[10],pages[4]]){
+  for(const p of [pages[1],pages[5],pages[6],pages[7],pages[8],pages[9],pages[10],pages[11],pages[4]]){
     const b=el('button','adm-tool-card');b.type='button';b.innerHTML=`<span class="adm-tool-icon">${ico(p.icon,23)}</span><span class="adm-tool-main"><b>${p.label}</b><small>${p.sub}</small></span><span class="adm-tool-arrow">${ico('arrow',18)}</span>`;
     b.addEventListener('click',()=>navigate(p.id));toolsEl.append(b);
   }
@@ -8342,6 +8347,7 @@ try {
   }
   function navigate(id, internal=false){
     if(!isUnlocked() && !['overview','assistance'].includes(id)){toggleDrawer(false);return;}
+    if(id==='messages'){window.location.assign('messages.html?from=admin');return;}
     if(!pages.some(p=>p.id===id))return;
     activePage=id;
     if(id!=='overview'){
@@ -9396,5 +9402,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
+<script defer src="messages-bridge.js?v=51"></script>
 </body>
 </html>

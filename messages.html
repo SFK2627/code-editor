@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=47" />
+<link rel="stylesheet" href="messages.css?v=50" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js"></script>
 </head>
@@ -110,7 +110,20 @@
  </section>
 </div>
 </div>
-<div id="g8mImageViewer" class="g8m-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Image preview"><button id="g8mImageClose" type="button" aria-label="Close image">×</button><img id="g8mImageLarge" alt="Full-size student attachment" /></div>
-<script defer src="messages.js?v=49"></script>
+<div id="g8mImageViewer" class="g8m-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Image preview" tabindex="-1">
+  <div class="g8m-image-toolbar" role="toolbar" aria-label="Photo zoom controls">
+    <span class="g8m-image-hint" id="g8mImageHint">Scroll to zoom · Drag to move</span>
+    <button id="g8mImageZoomOut" type="button" class="g8m-image-control" aria-label="Zoom out" title="Zoom out">−</button>
+    <output id="g8mImageZoomLevel" class="g8m-image-zoom-label" aria-label="Zoom level">Fit · 100%</output>
+    <button id="g8mImageZoomIn" type="button" class="g8m-image-control" aria-label="Zoom in" title="Zoom in">+</button>
+    <button id="g8mImageFit" type="button" class="g8m-image-control g8m-image-fit" title="Fit entire image to screen">Fit</button>
+    <button id="g8mImageClose" type="button" class="g8m-image-control g8m-image-close" aria-label="Close image" title="Close image">×</button>
+  </div>
+  <div id="g8mImageStage" class="g8m-image-stage" aria-label="Zoomable photo. Use pinch gestures or zoom controls.">
+    <img id="g8mImageLarge" alt="Full-size student attachment" draggable="false" />
+    <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
+  </div>
+</div>
+<script defer src="messages.js?v=51-boot-admin-restore"></script>
 </body>
 </html>
