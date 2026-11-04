@@ -47,37 +47,84 @@ async function startBadge(){
 }
 // Deep links are handoffs to the actual G8Code lesson/activity viewers. Never clone
 // or fetch the existing academic records here; honor their published/audience gates.
-async function routeAttachedResource(){
- const query=new URLSearchParams(location.search),type=query.get('gaOpen'),itemId=query.get('gaItem');
- if(!['lesson','activity'].includes(type)||!itemId||!/^[A-Za-z0-9_-]{1,128}$/.test(itemId))return;
- let working=false,done=false;
- const route=async()=>{
-  if(done||working)return;
-  if(typeof appSession==='undefined'||!appSession?.student||typeof openLessonLibrary!=='function'||typeof openGivenActivitiesLibrary!=='function')return;
-  working=true;
+// Announcements -> native G8Code reader handoff.
+// Wait for the verified resume route to finish. The Firebase auth observer may
+// populate appSession.student BEFORE appSession.mode becomes "student"; opening
+// viewers at that intermediate point previously produced a broken guest/pending
+// layout, hidden menu, and incorrect theme on both desktop and mobile.
+function routeAttachedResource(){
+ const params=new URLSearchParams(location.search);
+ const type=params.get('gaOpen'),itemId=params.get('gaItem');
+ if(!['lesson','activity'].includes(type)||!/^[A-Za-z0-9_-]{1,128}$/.test(itemId||''))return;
+ let opening=false,finished=false;
+ const expiresAt=Date.now()+180000;
+ let timer=null,observer=null;
+ function stop(){if(timer)clearInterval(timer);timer=null;observer?.disconnect();observer=null;}
+ function clearHandoff(){
+  const url=new URL(location.href);
+  url.searchParams.delete('gaOpen');url.searchParams.delete('gaItem');
+  url.searchParams.delete('g8mBack');
+  try{history.replaceState(history.state,'',url.pathname+url.search+url.hash);}catch(_){}
+ }
+ function verifiedReady(){
+  if(typeof appSession==='undefined' || appSession.mode!=='student' || !appSession.student?.uid)return false;
+  if(typeof getFirebaseActiveUser!=='function' || getFirebaseActiveUser()?.uid!==appSession.student.uid)return false;
+  // activateStudentSession sets route-lock before awaiting the Student Home.
+  // Requiring the unlocked, visible native Home avoids competing with setup.
+  if(document.body.classList.contains('student-route-lock'))return false;
+  const home=document.getElementById('studentHomeScreen');
+  return document.body.classList.contains('student-home-active') && home && !home.classList.contains('hidden');
+ }
+ async function displayError(message){
+  if(typeof appAlert==='function'){
+   try{await appAlert(message,{title:'Attachment unavailable',icon:'📎'});return;}catch(_){}
+  }
+  window.alert(message);
+ }
+ async function attempt(){
+  if(opening||finished)return;
+  if(Date.now()>expiresAt){stop();return;} // Keep URL for verified sign-in after a slow connection.
+  if(!verifiedReady())return;
+  opening=true;
   try{
    if(typeof closeLoginLackingReminder==='function')closeLoginLackingReminder({stopMusicOnClose:true});
    if(type==='lesson'){
+    if(typeof openLessonLibrary!=='function')throw Error('Lessons is not ready.');
     await openLessonLibrary('home');
-    const lesson=typeof lessonLibraryState==='undefined'?null:lessonLibraryState.lessons?.find(x=>x.id===itemId);
-    if(!lesson){window.alert('The requested lesson is no longer available.');done=true;return;}
-    if(lessonLibrarySearch)lessonLibrarySearch.value='';
-    if(typeof openLessonPdfViewer==='function')openLessonPdfViewer(itemId);
+    const item=(typeof lessonLibraryState!=='undefined'?lessonLibraryState.lessons:[])?.find(row=>row.id===itemId);
+    if(!item){finished=true;clearHandoff();await displayError('This Lesson is no longer available. Please check the Lessons page.');return;}
+    // The linked item may belong to a different term than the current one.
+    lessonLibraryState.activeTerm=item.term;
+    if(typeof renderStudentLessonLibrary==='function')renderStudentLessonLibrary();
+    if(typeof openLessonPdfViewer==='function')openLessonPdfViewer(item.id);
    }else{
+    if(typeof openGivenActivitiesLibrary!=='function')throw Error('Activities is not ready.');
     await openGivenActivitiesLibrary('home');
-    const activity=typeof givenActivityState==='undefined'?null:givenActivityState.items?.find(x=>x.id===itemId&&x.published&&givenActivityMatchesAudience(x));
-    if(!activity){window.alert('This activity is not published or available to your section.');done=true;return;}
-    if(typeof openGivenActivityEntry==='function')openGivenActivityEntry(itemId);
+    const items=typeof givenActivityState!=='undefined'?givenActivityState.items:[];
+    const item=items.find(row=>row.id===itemId && row.published &&
+      typeof givenActivityMatchesAudience==='function' && givenActivityMatchesAudience(row));
+    if(!item){finished=true;clearHandoff();await displayError('This Activity is not published or available to your section.');return;}
+    givenActivityState.activeTerm=item.term;
+    if(typeof renderStudentGivenActivities==='function')renderStudentGivenActivities();
+    if(typeof openGivenActivityEntry==='function')openGivenActivityEntry(item.id);
    }
-   done=true;
-  }catch(error){console.error('Announcement attachment navigation failed:',error);window.alert('Could not open this lesson or activity. Please try the normal Lessons or Activities page.');done=true;}
-  finally{working=false;if(done){clearInterval(interval);query.delete('gaOpen');query.delete('gaItem');try{history.replaceState(history.state,'',location.pathname+(query.size?'?'+query:'')+location.hash);}catch{}}}
- };
- const interval=setInterval(route,550);
- void route();
- // Retain links for a normal sign-in flow; no background Firebase operations.
- setTimeout(()=>{if(!done)clearInterval(interval);},180000);
+   finished=true;clearHandoff();
+  }catch(error){
+   console.error('G8Code announcement attachment handoff:',error);
+   // Do not falsely mark this link consumed on a transient failure. The student
+   // remains on the native reader and can retry via Announcements.
+   finished=true;
+   await displayError('Could not open the attached '+type+'. Please open it through the normal '+(type==='lesson'?'Lessons':'Activities')+' page.');
+  }finally{opening=false;stop();}
+ }
+ // Detect when the existing authenticated student resume finishes. Poll only
+ // while a valid deep link is pending, as a fallback for older browsers.
+ observer=new MutationObserver(()=>{void attempt();});
+ observer.observe(document.body,{attributes:true,attributeFilter:['class']});
+ timer=setInterval(()=>{void attempt();},400);
+ void attempt();
 }
+
 function init(){mountStudentShortcut();void startBadge();void routeAttachedResource();}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();

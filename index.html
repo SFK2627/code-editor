@@ -17,7 +17,17 @@
           ['home', 'projects', 'activities', 'lessons', 'explorer', 'admin'].includes(pending.route) &&
           age >= -10000 && age < 180000);
       } catch (_) { /* Storage restrictions must not block the app. */ }
-      if (!reducedMotion && !studioReturn) {
+      // Announcements -> exact student Lesson/Activity is an internal handoff,
+      // not a new visit to the login experience. Skip the three-second splash.
+      const announcementHandoff = (() => {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          return params.get('g8mBack') === 'student' &&
+            ['lesson', 'activity'].includes(params.get('gaOpen')) &&
+            /^[A-Za-z0-9_-]{1,128}$/.test(params.get('gaItem') || '');
+        } catch (_) { return false; }
+      })();
+      if (!reducedMotion && !studioReturn && !announcementHandoff) {
         document.documentElement.classList.add('g8code-opening-intro');
       }
     })();
@@ -5651,7 +5661,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261104-v59-directory-dedupe"></script>
+  <script src="script.js?v=20261104-v523-student-nav-focus"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
@@ -5994,6 +6004,6 @@ https://example.com/song3.mp3"></textarea>
 })();
 </script>
 <script defer src="messages-bridge.js?v=2"></script>
-<script defer src="announcements-bridge.js?v=522"></script>
+<script defer src="announcements-bridge.js?v=523"></script>
 </body>
 </html>

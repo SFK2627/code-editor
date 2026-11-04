@@ -10454,6 +10454,11 @@ document.getElementById('dashboardGoHomeBtn')?.addEventListener('click', () => s
 window.renderStudentHome = renderStudentHome;
 
 async function showStudentDashboard(options = {}) {
+  // V5.23: My Projects is a navigation destination, not a search dialog.
+  // A previously focused search field must not make the phone keyboard appear.
+  if ([projectSearchInput, lessonLibrarySearch, givenActivitiesSearch].includes(document.activeElement)) {
+    document.activeElement.blur();
+  }
   hideGuestHome();
   if (!appSession.student) {
     openStudentLogin();
@@ -27295,6 +27300,9 @@ async function saveLessonLibraryToCloud() {
 }
 
 async function openLessonLibrary(origin = 'dashboard') {
+  if ([projectSearchInput, lessonLibrarySearch, givenActivitiesSearch].includes(document.activeElement)) {
+    document.activeElement.blur();
+  }
   const openedFromEntry = origin === 'entry';
   if (!appSession.student && appSession.mode !== 'guest') {
     if (!openedFromEntry) {
@@ -27327,7 +27335,7 @@ async function openLessonLibrary(origin = 'dashboard') {
   await loadLessonLibrary({ force: !lessonLibraryState.loaded });
   // Reassert after asynchronous published data has loaded.
   syncLessonViewerAppearance();
-  window.setTimeout(() => lessonLibrarySearch?.focus({ preventScroll: true }), 60);
+  // V5.23: Opening Lessons should not autofocus Search or open mobile keyboards.
 }
 
 function closeLessonLibrary() {
@@ -28400,6 +28408,9 @@ async function saveGivenActivitiesToCloud() {
 }
 
 async function openGivenActivitiesLibrary(origin = 'dashboard') {
+  if ([projectSearchInput, lessonLibrarySearch, givenActivitiesSearch].includes(document.activeElement)) {
+    document.activeElement.blur();
+  }
   if (!appSession.student && appSession.mode !== 'guest') {
     openStudentLogin();
     return;
@@ -28419,7 +28430,7 @@ async function openGivenActivitiesLibrary(origin = 'dashboard') {
   givenActivitiesScreen?.classList.remove('hidden');
   queueStudentPresenceUpdate({ currentView: 'given_activities', activityGroup: 'Activities Given', activityLabel: 'Browsing teacher activities' }, { force: true });
   await loadGivenActivities({ force: !givenActivityState.loaded });
-  window.setTimeout(() => givenActivitiesSearch?.focus({ preventScroll: true }), 60);
+  // V5.23: Opening Activities should not autofocus Search or open mobile keyboards.
 }
 
 function closeGivenActivitiesLibrary() {
