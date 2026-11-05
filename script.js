@@ -23573,7 +23573,11 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=677-learning-notifications', {
+    // Same script URL as the Phone Notifications registration. Different URLs
+    // for one scope can continuously replace each other and reload the app.
+    const hadControllerBeforeRegistration = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.register('./service-worker.js?v=678-unified-push', {
+      scope: './',
       updateViaCache: 'none'
     }).then(registration => {
       let lastCheckedAt = 0;
@@ -23588,11 +23592,12 @@ function registerPWAServiceWorker() {
       window.addEventListener('online', checkForUpdates, { passive: true });
       document.addEventListener('visibilitychange', checkForUpdates, { passive: true });
 
-      // Do not reload students out of an unfinished coding/project session.
-      // On an idle dashboard the new version can safely reload automatically.
+      // A controller change is NOT a reason to force navigation/reload.
+      // Push setup and an app update may change the controller while the
+      // student is signed in. Only the user may request a manual refresh.
       if (!window.__ict8SwControllerChangeBound) {
         window.__ict8SwControllerChangeBound = true;
-        let refreshingForNewBuild = false;
+        let updateNoticeShown = false;
         const showDeferredUpdateNotice = () => {
           let notice = document.getElementById('g8codePendingBuildNotice');
           if (notice) return;
@@ -23617,18 +23622,12 @@ function registerPWAServiceWorker() {
           document.body.appendChild(notice);
         };
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (refreshingForNewBuild) return;
-          refreshingForNewBuild = true;
-          const projectUnsafe = studentProjectDirty || studentProjectSaveInFlight
-            || (typeof wireframeMakerState !== 'undefined' && wireframeMakerState?.dirty);
-          const hasActiveEditor = appSession.mode === 'student'
-            && (!studentDashboard || studentDashboard.classList.contains('hidden'));
-          const adminIsWorking = appSession.mode === 'teacher' || appSession.mode === 'admin';
-          if (projectUnsafe || hasActiveEditor || adminIsWorking) {
-            showDeferredUpdateNotice();
-          } else {
-            window.location.reload();
-          }
+          // Ignore the first worker taking control on a fresh installation.
+          if (!hadControllerBeforeRegistration || updateNoticeShown) return;
+          updateNoticeShown = true;
+          showDeferredUpdateNotice();
+          // Never reload automatically: doing so during push registration may
+          // replay the writing splash repeatedly and interrupt the session.
         });
       }
     }).catch(error => {

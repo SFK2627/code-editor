@@ -1,4 +1,4 @@
-/* G8Code Push V2 — opt-in, student-only Firebase Installation ID push registration.
+/* G8Code Push V2.1 — shared Service Worker, no registration race; opt-in, student-only Firebase Installation ID push registration.
  * Zero credentials are embedded: PUBLIC VAPID key is loaded from g8code-push-config.js.
  * The private server credential belongs exclusively in Google Apps Script Properties.
  */
@@ -93,7 +93,10 @@ async function registerDevice(uid){
   const pushApp=pushAppSdk.getApps().find(app=>app.name==='g8code-push-fcm')||pushAppSdk.initializeApp(window.MCS_FIREBASE_CONFIG,'g8code-push-fcm');
   state.module=m;
   if(!await m.isSupported())throw Error('Web Push is unavailable on this browser.');
-  const reg=await navigator.serviceWorker.register('./service-worker.js',{scope:'./',updateViaCache:'none'});
+  // Reuse the SINGLE app Service Worker registration. Registering a different
+  // script URL for the same scope can trigger a controllerchange/reload loop.
+  let reg=await navigator.serviceWorker.getRegistration('./');
+  if(!reg)reg=await navigator.serviceWorker.register('./service-worker.js?v=678-unified-push',{scope:'./',updateViaCache:'none'});
   state.reg=reg;await navigator.serviceWorker.ready;await identityToWorker(uid);
   state.deviceId=getDeviceId();if(!state.deviceId)throw Error('Secure device registration is unavailable.');
   const messaging=m.getMessaging(pushApp);state.messaging=messaging;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v678-phone-push-v2';
+const CACHE_NAME = 'ict8-connect-v679-unified-push-worker';
 const APP_SHELL = [
   './',
   './index.html',
@@ -78,7 +78,10 @@ self.addEventListener('fetch', event => {
   // v652: the app UI code MUST NOT remain cache-first after a deployment.
   // Always try network for the main JS/CSS/config, retain offline fallback.
   // Heavy game content and media stay cache-first to control bandwidth.
-  const criticalShellPaths = ['script.js', 'style.css', 'firebase-config.js', 'manifest.webmanifest']
+  const criticalShellPaths = [
+    'script.js', 'style.css', 'firebase-config.js', 'manifest.webmanifest',
+    'g8code-push.js', 'g8code-push-config.js', 'g8code-learning-badges.js'
+  ]
     .map(file => new URL(file, self.registration.scope).pathname);
   if (criticalShellPaths.includes(url.pathname)) {
     event.respondWith(networkFirstStatic(request));
