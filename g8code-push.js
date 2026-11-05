@@ -1,4 +1,4 @@
-/* G8Code Push V2.3 — shared Service Worker, no registration race; opt-in, student-only Firebase Installation ID push registration.
+/* G8Code Push V3 — shared Service Worker, no registration race; opt-in, student-only Firebase Installation ID push registration.
  * Zero credentials are embedded: PUBLIC VAPID key is loaded from g8code-push-config.js.
  * The private server credential belongs exclusively in Google Apps Script Properties.
  */
@@ -9,6 +9,33 @@ const $=id=>document.getElementById(id);
 const teacherEmails=()=>new Set((window.MCS_TEACHER_EMAILS||[]).map(v=>String(v).toLowerCase()));
 const state={uid:'',user:null,teacher:false,auth:null,db:null,database:null,messaging:null,reg:null,ready:null,registering:false,registered:false,section:'',deviceId:'',lastError:'',module:null,authModule:null,sdkLoaded:false};
 const publicKey=()=>String(window.G8CODE_PUSH_VAPID_PUBLIC_KEY||'').trim();
+// The PUBLIC Apps Script /exec URL contains NO credentials. Keep the actual
+// service-account credential only in Apps Script Script Properties.
+const immediateUrl=()=>{
+ const v=String(window.G8CODE_PUSH_IMMEDIATE_URL||'').trim();
+ return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(?:\?[^#]*)?$/.test(v)?v:'';
+};
+// Best-effort immediate wake-up of the trusted sender, AFTER the event is saved.
+// Apps Script ContentService responses redirect cross-origin. In no-cors mode
+// the response is opaque, so never treat fetch resolving as confirmed delivery.
+// The scheduled worker safely retries any event still marked pending.
+async function nudgeImmediateSender(account,eventId){
+ const endpoint=immediateUrl();
+ if(!endpoint||!validId(eventId)||!account)return;
+ try{
+  const idToken=await account.getIdToken();
+  if(!idToken||account.uid!==state.auth?.currentUser?.uid)return;
+  const body=new URLSearchParams({eventId,idToken});
+  await fetch(endpoint,{
+   method:'POST',mode:'no-cors',credentials:'omit',redirect:'follow',
+   body,cache:'no-store',keepalive:true
+  });
+ }catch(error){
+  // No untrusted error status is a success signal. Let the timer retry.
+  console.info('Immediate phone push could not be confirmed; scheduled fallback remains active.');
+ }
+}
+
 const validId=v=>/^[A-Za-z0-9_-]{1,128}$/.test(String(v||''));
 const safeSection=v=>String(v||'').trim().slice(0,100);
 const safeGet=k=>{try{return localStorage.getItem(k);}catch(_){return null;}};
@@ -202,7 +229,12 @@ async function queueTeacherEvent(event){
   if(audienceSection)record.audienceSection=audienceSection;
   if(recipientUids)record.recipientUids=recipientUids;
   const newRef=state.database.push(state.database.ref(state.db,`${ROOT}/outbox`));
-  await state.database.set(newRef,record);return true;
+  await state.database.set(newRef,record);
+  // Do not hold the chat/lesson publish flow open for a cross-origin GAS call.
+  // If the endpoint is unavailable or still being configured, the existing
+  // 1-minute worker processes this same pending event without duplication.
+  void nudgeImmediateSender(account,newRef.key);
+  return true;
  }catch(err){console.warn('Phone alert could not be queued (main content was saved):',err?.message||err);return false;}
 }
 async function init(){
