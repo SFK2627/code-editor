@@ -67,6 +67,31 @@ let sections = [], students = new Map(), summaries = {}, openedUid = '', current
 let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], activeAcks = {}, seenAt = 0;
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
 let olderMessages=[], hasOlder=false, olderLoading=false, historyExhausted=false;
+// V4C-11: Admin-only unified timeline for prior account UIDs verified by the
+// existing student-ID inbox grouping. Original messages stay at their RTDB
+// paths; their snapshots are merged only for display and chronological paging.
+const g8mLinkedHistories=new Map();
+function g8mClearLinkedHistories(){
+ for(const entry of g8mLinkedHistories.values())clearUnsubs(entry.unsubs||[]);
+ g8mLinkedHistories.clear();
+}
+function g8mHistoricMessages(){
+ const items=[];
+ for(const entry of g8mLinkedHistories.values())items.push(...entry.older,...entry.recent);
+ return items;
+}
+function g8mHasMoreHistory(){return hasOlder||[...g8mLinkedHistories.values()].some(entry=>entry.hasOlder);}
+function g8mHistoryMessageCount(){
+ const keys=new Set([...activeMessages,...olderMessages,...g8mHistoricMessages()].map(msg=>`${msg.__threadUid||openedUid}/${msg.id}`));
+ return keys.size;
+}
+function g8mUpdateLoadedStatus(){
+ if(!openedUid)return;
+ const pending=[...g8mLinkedHistories.values()].some(entry=>!entry.ready && !entry.error);
+ const failed=[...g8mLinkedHistories.values()].some(entry=>entry.error);
+ updateChatFeedState(failed?'Some earlier account messages could not load · Tap ↻ to retry':
+  `${g8mHistoryMessageCount()} messages loaded${pending?' · Loading prior messages…':' · Live chat'}`,failed);
+}
 let imageCache = new Map(), imageCacheFileIds = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
 // V5.12: Keep authenticated private Drive photos in bounded IndexedDB storage
 // across reloads. Never expose an old account's images after an account change.
@@ -287,11 +312,19 @@ function displayMessagesFromSnapshot(snapshot,uid){
   g8mAwaitingFirstSnapshotUid='';
   if(g8mFollowLatest)g8mJumpLatest({settle:true});
  }
- updateChatFeedState(`${activeMessages.length+olderMessages.length} messages loaded · Live chat`);
+ g8mUpdateLoadedStatus();
 }
 async function refreshConversation(manual=false){
  const uid=openedUid;if(!uid)return;
- if(manual)updateChatFeedState('Refreshing conversation…');
+ if(manual){
+  updateChatFeedState('Refreshing conversation…');
+  if(teacher){
+   for(const [id,entry] of [...g8mLinkedHistories])if(entry.error){
+    clearUnsubs(entry.unsubs);g8mLinkedHistories.delete(id);
+   }
+   showRelatedAccountThreads(uid);
+  }
+ }
  try{
   const snapshot=await get(recentMessageQuery(uid));
   if(uid!==openedUid)return;
@@ -393,7 +426,7 @@ async function boot(){
   app=getApps().length?getApp():initializeApp(window.MCS_FIREBASE_CONFIG);
   auth=getAuth(app);rtdb=getDatabase(app,window.MCS_FIREBASE_DATABASE_URL);
   onAuthStateChanged(auth,async account=>{
-   stopTyping();closeReactionPicker();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);
+   stopTyping();closeReactionPicker();clearUnsubs(rootUnsubs);clearUnsubs(activeUnsubs);g8mClearLinkedHistories();
    if(presenceHeartbeat){clearInterval(presenceHeartbeat);presenceHeartbeat=null;}
    ownPresencePath='';ownPresenceConnected=false;
    // Clear previous account's in-memory object URLs immediately. Purge stale
@@ -619,12 +652,13 @@ function allPeople(){
 }
 function groupForUid(uid){return allPeople().find(p=>p.uids.includes(uid))||null;}
 function selectGroupThread(group){
- // One clean row with no legacy-account selector. Open unread conversation first;
- // otherwise choose the most recently active thread, falling back to the
- // preferred/official UID. Underlying UID histories remain untouched in RTDB.
- const unreadThreads=group.uids.filter(uid=>unread(summaries[uid])>0);
- const candidates=unreadThreads.length?unreadThreads:group.uids.filter(uid=>Number(summaries[uid]?.lastAtMs||0)>0);
- return candidates.slice().sort((a,b)=>Number(summaries[b]?.lastAtMs||0)-Number(summaries[a]?.lastAtMs||0))[0]||group.uid;
+ // Always send to the best available CURRENT student account. Unread messages
+ // from a retired UID remain visible in the combined teacher timeline; they
+ // must never redirect a new message into an obsolete account.
+ const active=group.uids.filter(uid=>students.has(uid)&&students.get(uid)?.accountStatus!=='disabled');
+ if(active.includes(group.uid))return group.uid;
+ if(active.length)return active.sort((a,b)=>Number(summaries[b]?.lastAtMs||0)-Number(summaries[a]?.lastAtMs||0))[0];
+ return group.uid;
 }
 function matchesFilter(p){
  if(filter==='unread' && !p.unreadCount)return false;
@@ -696,41 +730,61 @@ function renderStudents(){if(!teacher)return;
   if(p.unreadCount)row.append(textEl('span','g8m-bubble-count',p.unreadCount>99?'99+':p.unreadCount));
   row.addEventListener('click',()=>{
    const currentIsGroup=p.uids.includes(openedUid);
-   const otherUnread=p.uids.some(uid=>uid!==openedUid&&unread(summaries[uid])>0);
-   const keepCurrent=currentIsGroup&&(!otherUnread||unread(summaries[openedUid])>0);
-   openChat(keepCurrent?openedUid:selectGroupThread(p));
+   openChat(currentIsGroup?openedUid:selectGroupThread(p));
   });list.append(row);
  });
  if(!people.length)list.append(notice('No students match this filter. Try All or another section.'));
 }
-// Some students have separate old and current Auth UIDs. The inbox merges the
-// ROW by student ID, not private message data. Offer teacher-only read access to
-// their other existing threads instead of making those messages appear missing.
+// A teacher sees ONE continuous timeline even when a student has had separate
+// Firebase Auth accounts. Never copy/migrate a historic message to the new UID:
+// this is view-only aggregation using each thread's existing teacher read access.
+// Students themselves still see ONLY their own UID's private messages.
 function showRelatedAccountThreads(uid){
- let holder=$('g8mAccountThreads');
- if(!teacher){if(holder){holder.hidden=true;holder.style.display='none';}return;}
+ const oldPicker=$('g8mAccountThreads');if(oldPicker)oldPicker.remove();
+ if(!teacher||uid!==openedUid)return;
  const group=groupForUid(uid);
- const linked=(group?.uids||[]).filter(id=>students.has(id)||summaries[id]);
- if(linked.length<2){if(holder){holder.hidden=true;holder.style.display='none';}return;}
- if(!holder){
-  holder=document.createElement('div');holder.id='g8mAccountThreads';
-  holder.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 12px;background:var(--paper);border-bottom:1px solid var(--line);color:var(--muted);font-size:11px;flex:none;';
-  const label=document.createElement('label');label.htmlFor='g8mAccountThreadSelect';label.textContent='Conversation history:';label.style.flex='none';
-  const select=document.createElement('select');select.id='g8mAccountThreadSelect';
-  select.setAttribute('aria-label','Choose an existing conversation for this student');
-  select.style.cssText='min-width:0;max-width:100%;flex:1;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--ink);font:inherit;';
-  select.addEventListener('change',()=>{if(select.value&&select.value!==openedUid)openChat(select.value);});
-  holder.append(label,select);$('g8mConversation').querySelector('.g8m-chat-head')?.insertAdjacentElement('afterend',holder);
+ const linked=new Set((group?.uids||[]).filter(id=>id!==uid && (students.has(id)||summaries[id])));
+ let changed=false;
+ for(const [id,entry] of [...g8mLinkedHistories]){
+  if(linked.has(id))continue;
+  clearUnsubs(entry.unsubs);g8mLinkedHistories.delete(id);changed=true;
  }
- const select=$('g8mAccountThreadSelect');select.replaceChildren();
- linked.sort((a,b)=>Number(summaries[b]?.lastAtMs||0)-Number(summaries[a]?.lastAtMs||0));
- linked.forEach((id,index)=>{
-  const option=document.createElement('option');option.value=id;
-  const date=Number(summaries[id]?.lastAtMs||0);
-  option.textContent=(index===0?'Latest thread':`Previous thread ${index}`)+(date>0?' · '+dayLabel(date):' · No recent activity');
-  select.append(option);
- });
- select.value=uid;holder.hidden=false;holder.style.display='flex';
+ for(const id of linked){
+  if(g8mLinkedHistories.has(id))continue;
+  const entry={uid:id,recent:[],older:[],hasOlder:false,loading:false,
+   exhausted:false,ready:false,error:false,hidden:{},unsubs:[]};
+  g8mLinkedHistories.set(id,entry);changed=true;
+  const stillHere=()=>teacher&&uid===openedUid&&g8mLinkedHistories.get(id)===entry;
+  // The existing indexed recent query is real-time; older pages load only as
+  // the user backreads. This avoids fetching an entire long chat at startup.
+  entry.unsubs.push(onValue(recentMessageQuery(id),snap=>{
+   if(!stillHere())return;
+   entry.recent=normalizeMessageSnapshot(snap).map(msg=>({...msg,__threadUid:id,__historical:true}));
+   entry.ready=true;entry.error=false;
+   if(!entry.exhausted && entry.recent.length>=G8M_RECENT_MESSAGES)entry.hasOlder=true;
+   renderMessages();g8mUpdateLoadedStatus();
+   if(g8mFollowLatest)g8mScheduleBottomIfFollowing();
+   // Mark a previously unread old-account chat as seen once it is displayed,
+   // without altering any message or accidentally creating a new chat.
+   if(unread(summaries[id])>0&&document.visibilityState==='visible'){
+    void Promise.all([
+     set(ref(rtdb,`${studentPath(id)}/seen/teacher`),serverTimestamp()),
+     set(ref(rtdb,`${summaryPath(id)}/unreadTeacher`),0)
+    ]).catch(error=>console.warn('Prior conversation seen status:',error));
+   }
+  },error=>{
+   if(!stillHere())return;
+   entry.error=true;entry.ready=true;
+   console.error('Prior account messages unavailable:',id,error);
+   g8mUpdateLoadedStatus();
+  }));
+  // Honor teacher's per-thread "Delete for Me" preferences in historic chats.
+  entry.unsubs.push(onValue(ref(rtdb,`${BASE}/hiddenFor/${user.uid}/${id}`),snap=>{
+   if(!stillHere())return;
+   entry.hidden=snap.val()||{};renderMessages();
+  },error=>console.warn('Prior account hidden messages:',error)));
+ }
+ if(changed){renderMessages();g8mUpdateLoadedStatus();}
 }
 function switchMobile(view){stopLongPressTimer();mobileView=view;workspace.dataset.mobileView=view;root.dataset.mobileChat=(view==='chat'?'true':'false');closeReactionPicker();}
 $('g8mSectionBack').addEventListener('click',()=>{if(!sending)switchMobile('sections');});
@@ -741,6 +795,9 @@ $('g8mGlobalFilters').addEventListener('click',e=>{const b=e.target.closest('[da
 function openChat(uid){
  if(sending){status('Your message is still sending. Finish the upload before switching conversations.',true);return;}
  if(teacher && !students.has(uid) && !summaries[uid])return;
+ // Deep links, inbox clicks and reopens must all route new outgoing messages
+ // to the active student account even if they referenced a prior Auth UID.
+ if(teacher){const group=groupForUid(uid);if(group)uid=selectGroupThread(group);}
  if(uid===openedUid && activeUnsubs.length){switchMobile('chat');g8mJumpLatest({settle:true});return;}
  stopTyping();closeReactionPicker();
  if(openedUid && activeMessages.length){
@@ -750,7 +807,7 @@ function openChat(uid){
  g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;
  g8mAwaitingFirstSnapshotUid=uid;
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
- clearUnsubs(activeUnsubs);openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
+ clearUnsubs(activeUnsubs);g8mClearLinkedHistories();openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
  hasOlder=warm?.hasOlder||false;historyExhausted=warm?.historyExhausted===true;olderLoading=false;activeAcks=warm?.acks||{};seenAt=warm?.seenAt||0;reply=null;renderReply();
@@ -833,7 +890,7 @@ async function markSeen(uid){
 }
 // ——— V4.5 — per-message reactions, first-view receipts, live typing and presence ———
 function peerRole(){return teacher?'student':'teacher';}
-function messageById(id){return [...activeMessages,...olderMessages].find(msg=>msg.id===String(id));}
+function messageById(id){return [...activeMessages,...olderMessages,...g8mHistoricMessages()].find(msg=>msg.id===String(id));}
 const isDeletedMessage=msg=>!!(msg&&Number(msg.deletedAtMs)>0);
 // One message-level acknowledgment for each genuine student submission.
 // Shared projects are references, not photo attachments; both use /acks/{messageId}.
@@ -939,7 +996,7 @@ function refreshSeenLabels(){
  }
 }
 function reactionSummary(id){
- const raw=activeReactions[id]||{};
+ const raw=messageById(id)?.__historical?{}:(activeReactions[id]||{});
  const entries=Object.entries(raw).filter(([uid,emoji])=>uid && REACTION_EMOJIS.includes(emoji));
  const emojis=[...new Set(entries.map(([uid,emoji])=>emoji))];
  return {entries,emojis,count:entries.length,own:raw[user?.uid]||''};
@@ -972,6 +1029,7 @@ function messageReferenceText(msg){
 }
 function replyToMessage(id){
  const msg=messageById(id);if(!msg||isDeletedMessage(msg))return;
+ if(msg.__historical){status('Previous-account messages are shown as history. New replies go to the current student account.');return;}
  reply={id:msg.id,text:messageReferenceText(msg)};
  renderReply();closeReactionPicker();$('g8mTextInput').focus();
 }
@@ -1107,9 +1165,9 @@ g8mScrollFeed.addEventListener('scroll',()=>{
  }
  // Only load older pages in response to a real upward history gesture.
  // Never auto-paginate an initially empty/hidden chat pane at scrollTop=0.
- if(g8mHistoryGesture&&g8mHadLiveSnapshot&&!g8mFollowLatest&&hasOlder&&!olderLoading&&g8mScrollFeed.scrollTop<160){
+ if(g8mHistoryGesture&&g8mHadLiveSnapshot&&!g8mFollowLatest&&g8mHasMoreHistory()&&!olderLoading&&g8mScrollFeed.scrollTop<160){
   const uid=openedUid;g8mHistoryGesture=false;
-  queueMicrotask(()=>{if(uid===openedUid&&hasOlder&&!olderLoading&&!g8mFollowLatest)void loadOlder();});
+  queueMicrotask(()=>{if(uid===openedUid&&g8mHasMoreHistory()&&!olderLoading&&!g8mFollowLatest)void loadOlder();});
  }
  g8mUpdateScrollLatest();
 },{passive:true});
@@ -1282,7 +1340,7 @@ function focusOnMessage(id){
  return {left:x,top:y,right:x+w,bottom:y+h,width:w,height:h};
 }
 function openReactionPicker(id,anchor,options={}){
- if(!messageById(id))return;
+ if(!messageById(id)||messageById(id).__historical)return;
  // Opening a second picker dismisses the previous focus clone cleanly.
  clearFocusMode();
  menuMessageId=id;
@@ -1319,7 +1377,7 @@ $('g8mFocusBackdrop').addEventListener('pointerdown',event=>{
  event.preventDefault();event.stopPropagation();closeReactionPicker();
 });
 async function reactToMessage(id,emoji){
- if(!openedUid||!user||!REACTION_EMOJIS.includes(emoji)||isDeletedMessage(messageById(id)))return;
+ if(!openedUid||!user||!REACTION_EMOJIS.includes(emoji)||messageById(id)?.__historical||isDeletedMessage(messageById(id)))return;
  const uid=openedUid, refPath=ref(rtdb,`${studentPath(uid)}/reactions/${id}/${user.uid}`);
  const old=activeReactions[id]?.[user.uid]||'';
  closeReactionPicker();
@@ -1334,7 +1392,7 @@ reactionPicker.addEventListener('click',event=>{
 $('g8mPickerReply').addEventListener('click',()=>{if(menuMessageId)replyToMessage(menuMessageId);});
 $('g8mPickerDetails').addEventListener('click',()=>{if(menuMessageId)openDetailsFor(menuMessageId);});
 function openDetailsFor(id){
- if(!messageById(id))return;
+ if(!messageById(id)||messageById(id).__historical)return;
  detailsMessageId=id;closeReactionPicker();updateDetails();detailsOverlay.hidden=false;
  $('g8mDetailsClose').focus();
 }
@@ -1364,7 +1422,7 @@ function updateDetails(){
 const deleteOverlay=$('g8mDeleteOverlay');
 function openDeleteDialog(id){
  const msg=messageById(id);
- if(!msg||!user||deleteMessageBusy)return;
+ if(!msg||msg.__historical||!user||deleteMessageBusy)return;
  deleteMessageTarget={id:String(id),uid:openedUid,by:user.uid};
  closeDetails();closeReactionPicker();
  const own=msg.senderUid===user.uid;
@@ -1590,8 +1648,10 @@ function renderMessages(){
  const optimistic = [...pendingPhotoJobs.values()]
   .filter(job=>job.uid===openedUid)
   .map(job=>({id:job.id,senderUid:job.senderUid,createdAtMs:job.createdAtMs,__photoPending:job}));
- const shown=[...olderMessages,...activeMessages,...optimistic]
-  .filter((x,i,arr)=>x&&x.id&&!hiddenMessageIds[x.id]&&arr.findIndex(y=>y&&y.id===x.id)===i)
+ const shown=[...g8mHistoricMessages(),...olderMessages,...activeMessages,...optimistic]
+  .filter((x,i,arr)=>x&&x.id&&
+   !(x.__historical?g8mLinkedHistories.get(x.__threadUid)?.hidden[x.id]:hiddenMessageIds[x.id])&&
+   arr.findIndex(y=>y&&y.id===x.id&&(y.__threadUid||openedUid)===(x.__threadUid||openedUid))===i)
   .sort(compareMessages);
  const content=document.createDocumentFragment();
  // Compute group neighbors from the exact rendered order (including local
@@ -1608,8 +1668,8 @@ function renderMessages(){
   log.replaceChildren(notice('Your private conversation starts here. Send a question, a message, or a picture.'));
   g8mUpdateScrollLatest();return;
  }
- if(hasOlder){
-  const load=textEl('button','g8m-load-older',olderLoading?'Loading older messages…':'↑ Load earlier messages (older chat history)');
+ if(g8mHasMoreHistory()){
+  const load=textEl('button','g8m-load-older',olderLoading?'Loading earlier messages…':'↑ Load earlier messages');
   load.disabled=olderLoading;load.type='button';load.addEventListener('click',loadOlder);content.append(load);
  }
  let currentDay='';
@@ -1626,12 +1686,15 @@ function renderMessages(){
     content.append(divider);
    }
    const mine=msg.senderUid===user?.uid;
+   const messageUid=msg.__threadUid||openedUid;
+   const historic=!!msg.__historical;
    const group=g8mGrouping.get(String(msg.id))||{joined:false,hasNext:false,last:true};
    const item=textEl('article','g8m-message'+(mine?' own':'')+
     (group.joined?' g8m-group-joined':'')+
     (group.hasNext?' g8m-group-has-next':'')+
     (group.last?' g8m-group-last':'') ,'');
    item.dataset.messageId=String(msg.id);
+   if(historic)item.dataset.historical='true';
    if(quoteFocusId===String(msg.id)&&Date.now()<quoteFocusUntil)item.classList.add('g8m-jump-focus');
    if(msg.__photoPending){
     const job=msg.__photoPending;
@@ -1699,8 +1762,8 @@ function renderMessages(){
    }
    if(!isDeletedMessage(msg) && msg.replyText){
     const originalId=String(msg.replyTo||'');
-    const quote=textEl(originalId?'button':'div','g8m-quoted'+(originalId?' g8m-quote-link':''),short(isDeletedReference(originalId)?'Message deleted':(['📷 Photo attachment','📸 Photo attachment'].includes(String(msg.replyText).trim())?'Photo':msg.replyText),180));
-    if(originalId){quote.type='button';quote.title='Jump to original message';quote.setAttribute('aria-label','Jump to original message');quote.addEventListener('click',()=>void jumpToQuotedMessage(originalId));}
+    const quote=textEl(originalId&&!historic?'button':'div','g8m-quoted'+(originalId&&!historic?' g8m-quote-link':''),short((!historic&&isDeletedReference(originalId))?'Message deleted':(['📷 Photo attachment','📸 Photo attachment'].includes(String(msg.replyText).trim())?'Photo':msg.replyText),180));
+    if(originalId&&!historic){quote.type='button';quote.title='Jump to original message';quote.setAttribute('aria-label','Jump to original message');quote.addEventListener('click',()=>void jumpToQuotedMessage(originalId));}
     item.append(quote);
    }
    const visibleText=visibleMessageText(msg);
@@ -1715,12 +1778,12 @@ function renderMessages(){
     const targetProject=String(msg.projectId||'');
     if(!/^[A-Za-z0-9_-]{1,128}$/.test(targetProject)){
       card.disabled=true;card.title='The project reference is unavailable';
-    }else card.addEventListener('click',()=>openSharedProject(openedUid,targetProject));
+    }else card.addEventListener('click',()=>openSharedProject(messageUid,targetProject));
     item.append(card);
    }
    const attachments=Array.isArray(msg.attachments)?msg.attachments:Object.values(msg.attachments||{});
    if(!isDeletedMessage(msg)&&attachments.length){
-    const validPhotos=attachments.slice(0,MAX_FILES).filter(att=>att?.path && typeof att.path==='string' && att.path.startsWith(`g8Messages/${openedUid}/${msg.id}/`));
+    const validPhotos=attachments.slice(0,MAX_FILES).filter(att=>att?.path && typeof att.path==='string' && att.path.startsWith(`g8Messages/${messageUid}/${msg.id}/`));
     if(validPhotos.length){
      const photos=textEl('div','g8m-photo-grid','');
      const att=validPhotos[0],path=att.path;
@@ -1729,12 +1792,12 @@ function renderMessages(){
       ? previous : textEl('button','g8m-image-loading','Loading photo…');
      button.type='button';button.dataset.photoPath=path;button.dataset.photoFile=String(att.driveFileId||att.imagekitFileId||'');
      button.setAttribute('aria-label',validPhotos.length>1?`View ${validPhotos.length} photos`:`View ${att.name||'image'}`);
-     button._g8mGalleryClick=()=>openPhotoGallery(validPhotos,0,openedUid,msg.id);
+     button._g8mGalleryClick=()=>openPhotoGallery(validPhotos,0,messageUid,msg.id);
      if(button.dataset.photoState==='ready')button.onclick=button._g8mGalleryClick;
      photos.append(button);
      const photoVisual=validPhotos.length>1?textEl('div','g8m-photo-stack',''):photos;
      if(validPhotos.length>1){
-      g8mCreateStackBacks(photoVisual,validPhotos,openedUid,msg.id,false,stackedPhotosToLoad);
+      g8mCreateStackBacks(photoVisual,validPhotos,messageUid,msg.id,false,stackedPhotosToLoad);
       photoVisual.append(photos);
       const badge=textEl('span','g8m-photo-count',`+${validPhotos.length-1}`);
       badge.setAttribute('aria-hidden','true');photoVisual.append(badge);
@@ -1742,7 +1805,7 @@ function renderMessages(){
      item.append(photoVisual);
      if(!['ready','fetching','failed'].includes(button.dataset.photoState)){
       button.dataset.photoState='waiting';
-      photosToLoad.push({att:{...att,messageId:msg.id,studentUid:openedUid},button});
+      photosToLoad.push({att:{...att,messageId:msg.id,studentUid:messageUid},button});
      }
     }
    }
@@ -1750,7 +1813,7 @@ function renderMessages(){
    // acknowledgment. This is the message's Received/Checked state, not a
    // grade or a claim that subsequent edits to the project were reviewed.
    const isSharedProject=msg.type==='project' && !!msg.projectId;
-   const acknowledgeable=isReviewableStudentSubmission(msg);
+   const acknowledgeable=!historic&&isReviewableStudentSubmission(msg);
    if(acknowledgeable){
     const ack=activeAcks[msg.id];
     if(teacher){
@@ -1801,7 +1864,7 @@ function renderMessages(){
     });
    }
    const meta=textEl('div','g8m-msg-meta','');meta.append(textEl('span','',formatTime(at)));
-   if(mine){const seenLabel=textEl('span','g8m-seen-label',seenLabelFor(msg));meta.append(seenLabel);}
+   if(mine){const seenLabel=textEl('span','g8m-seen-label',historic?'✓ Sent':seenLabelFor(msg));meta.append(seenLabel);}
    // Independent of CSS: mobile plain-text metadata must start hidden.
    if(isTextOnly && mobileChatSize() && !item.classList.contains('g8m-meta-revealed'))meta.hidden=true;
    item.append(meta);
@@ -1823,15 +1886,19 @@ function renderMessages(){
      item.style.setProperty('--g8m-action-width',px);
     }
    }
-   const actions=textEl('div','g8m-hover-actions','');
-   const reactButton=textEl('button','','☺');reactButton.type='button';reactButton.title='React';reactButton.setAttribute('aria-label','React to message');reactButton.addEventListener('click',()=>openReactionPicker(msg.id,actionTarget));
-   const quickReply=textEl('button','','↩');quickReply.type='button';quickReply.title='Reply';quickReply.setAttribute('aria-label','Reply to message');quickReply.addEventListener('click',()=>replyToMessage(msg.id));
-   const quickMore=textEl('button','','⋯');quickMore.type='button';quickMore.title='More / Message Details';quickMore.setAttribute('aria-label','More message actions');quickMore.addEventListener('click',()=>openDetailsFor(msg.id));
-   reactButton.hidden=isDeletedMessage(msg);quickReply.hidden=isDeletedMessage(msg);
-   actions.append(reactButton,quickReply,quickMore);actionTarget.append(actions);
-   const reactionChip=textEl('button','g8m-reaction-chip','');reactionChip.type='button';reactionChip.setAttribute('aria-label','View or change reactions');reactionChip.addEventListener('click',()=>openReactionPicker(msg.id,actionTarget));actionTarget.append(reactionChip);
-   if(!isDeletedMessage(msg))updateOneReactionBadge(item,msg.id);
-   installLongPress(item,msg.id);
+   // A previous UID's chat is readable in-line, including private photos,
+   // but actions must not accidentally write into this CURRENT UID's RTDB path.
+   if(!historic){
+    const actions=textEl('div','g8m-hover-actions','');
+    const reactButton=textEl('button','','☺');reactButton.type='button';reactButton.title='React';reactButton.setAttribute('aria-label','React to message');reactButton.addEventListener('click',()=>openReactionPicker(msg.id,actionTarget));
+    const quickReply=textEl('button','','↩');quickReply.type='button';quickReply.title='Reply';quickReply.setAttribute('aria-label','Reply to message');quickReply.addEventListener('click',()=>replyToMessage(msg.id));
+    const quickMore=textEl('button','','⋯');quickMore.type='button';quickMore.title='More / Message Details';quickMore.setAttribute('aria-label','More message actions');quickMore.addEventListener('click',()=>openDetailsFor(msg.id));
+    reactButton.hidden=isDeletedMessage(msg);quickReply.hidden=isDeletedMessage(msg);
+    actions.append(reactButton,quickReply,quickMore);actionTarget.append(actions);
+    const reactionChip=textEl('button','g8m-reaction-chip','');reactionChip.type='button';reactionChip.setAttribute('aria-label','View or change reactions');reactionChip.addEventListener('click',()=>openReactionPicker(msg.id,actionTarget));actionTarget.append(reactionChip);
+    if(!isDeletedMessage(msg))updateOneReactionBadge(item,msg.id);
+    installLongPress(item,msg.id);
+   }
    content.append(item);
   }catch(error){
    console.error('Could not render chat item:',msg?.id,error);
@@ -1883,31 +1950,59 @@ function renderMessages(){
 
 }
 
+// Chronological pagination for CURRENT + previous student accounts. Each UID
+// has its own Firebase cursor; page them together and merge by createdAtMs.
+// This prevents skipped pages when old/new account timelines overlap.
 async function loadOlder(){
- if(olderLoading||!hasOlder||!openedUid)return;
- g8mHistoryGesture=false;
- g8mCancelAutoScroll();
- // The oldest VISIBLE/loaded message is the pagination cursor, not the oldest
- // Firebase push key. A key-based cursor could skip messages with newer-looking
- // keys but earlier server timestamps (including older client-clock skews).
+ if(olderLoading||!g8mHasMoreHistory()||!openedUid)return;
+ g8mHistoryGesture=false;g8mCancelAutoScroll();
  const uid=openedUid;
- const oldest=[...olderMessages,...activeMessages].sort(compareMessages)[0];
- if(!oldest)return;
  olderLoading=true;renderMessages();
+ const fetches=[];
+ if(hasOlder){
+  const oldest=[...olderMessages,...activeMessages].sort(compareMessages)[0];
+  if(oldest)fetches.push((async()=>{
+   const cursor=typeof oldest.createdAtMs==='number'?oldest.createdAtMs:null;
+   const page=query(ref(rtdb,`${studentPath(uid)}/messages`),orderByChild('createdAtMs'),endBefore(cursor,oldest.id),limitToLast(G8M_HISTORY_PAGE_SIZE));
+   const snap=await get(page);if(uid!==openedUid)return;
+   const found=normalizeMessageSnapshot(snap),existing=new Set([...olderMessages,...activeMessages].map(m=>m.id));
+   const additions=found.filter(m=>!existing.has(m.id));
+   if(additions.length)olderMessages=[...additions,...olderMessages].sort(compareMessages);
+   historyExhausted=found.length<G8M_HISTORY_PAGE_SIZE;
+   hasOlder=!historyExhausted;
+   rememberConversation(uid);
+  })());
+ }
+ for(const [threadUid,entry] of g8mLinkedHistories){
+  if(!entry.ready||!entry.hasOlder||entry.loading)continue;
+  const oldest=[...entry.older,...entry.recent].sort(compareMessages)[0];
+  if(!oldest)continue;
+  entry.loading=true;
+  fetches.push((async()=>{
+   try{
+    const cursor=typeof oldest.createdAtMs==='number'?oldest.createdAtMs:null;
+    const page=query(ref(rtdb,`${studentPath(threadUid)}/messages`),orderByChild('createdAtMs'),endBefore(cursor,oldest.id),limitToLast(G8M_HISTORY_PAGE_SIZE));
+    const snap=await get(page);
+    if(uid!==openedUid||g8mLinkedHistories.get(threadUid)!==entry)return;
+    const found=normalizeMessageSnapshot(snap).map(msg=>({...msg,__threadUid:threadUid,__historical:true}));
+    const existing=new Set([...entry.older,...entry.recent].map(m=>m.id));
+    const additions=found.filter(m=>!existing.has(m.id));
+    if(additions.length)entry.older=[...additions,...entry.older].sort(compareMessages);
+    entry.exhausted=found.length<G8M_HISTORY_PAGE_SIZE;
+    entry.hasOlder=!entry.exhausted;
+   }finally{entry.loading=false;}
+  })());
+ }
  try{
-  const cursor=typeof oldest.createdAtMs==='number'?oldest.createdAtMs:null;
-  const page=query(ref(rtdb,`${studentPath(uid)}/messages`),orderByChild('createdAtMs'),endBefore(cursor,oldest.id),limitToLast(G8M_HISTORY_PAGE_SIZE));
-  const snap=await get(page);if(uid!==openedUid)return;
-  const found=normalizeMessageSnapshot(snap);
-  const existing=new Set([...olderMessages,...activeMessages].map(m=>m.id));
-  const additions=found.filter(x=>!existing.has(x.id));
-  if(additions.length)olderMessages=[...additions,...olderMessages].sort(compareMessages);
-  // An empty or short page is a real end-of-history, not a failed download.
-  historyExhausted=found.length<G8M_HISTORY_PAGE_SIZE||additions.length===0;
-  hasOlder=!historyExhausted;
-  rememberConversation(uid);
- }catch(error){if(uid===openedUid)status(`Earlier messages could not load: ${friendlyError(error)}`,true);}
- finally{if(uid===openedUid){olderLoading=false;renderMessages();}}
+  const results=await Promise.allSettled(fetches);
+  const failed=results.filter(result=>result.status==='rejected');
+  if(failed.length&&uid===openedUid){
+   const error=failed[0].reason;
+   status(`Earlier messages could not load: ${friendlyError(error)}. Try scrolling up again.`,true);
+  }
+ }finally{
+  if(uid===openedUid){olderLoading=false;renderMessages();g8mUpdateLoadedStatus();}
+ }
 }
 // Allow no more than two Drive photo reads at a time. Many simultaneous
 // Apps Script executions used to compete for RTDB receipts and timeout.
