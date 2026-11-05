@@ -1,12 +1,13 @@
-/* G8Code Announcements V1. RTDB-only posts, feeds, reactions, replies and reads.
+/* G8Code Announcements V1.1. Private persistent image cache; RTDB-only posts, feeds, reactions, replies and reads.
  * Private Workspace Drive transfer uses the existing Apps Script deployment.
  * No Firestore import, read, or write occurs in this file. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id), BASE='g8AnnouncementsV1', MAX_IMAGES=10, MAX_PDFS=10, MAX_IMAGE_INPUT=30*1024*1024, MAX_PDF=3*1024*1024;
+const gaPhotos=window.G8AnnouncementsPhotoCache;
 const SRC=new URLSearchParams(location.search).get('from');
 const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,imageUrls:new Map(),viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -37,7 +38,7 @@ function sanitizeHtml(html){const parsed=new DOMParser().parseFromString('<main>
  walk(parsed.body.querySelector('main'),output,0);return output.innerHTML.slice(0,16000);
 }
 function plainHtml(html){const x=node('div');x.innerHTML=sanitizeHtml(html);return txt(x.textContent,2000);}
-function cleanup(){while(state.unsubs.length){try{state.unsubs.pop()();}catch{}}while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();state.markObserver=null;for(const u of state.imageUrls.values())URL.revokeObjectURL(u);state.imageUrls.clear();closeViewer();}
+function cleanup(){while(state.unsubs.length){try{state.unsubs.pop()();}catch{}}while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();state.markObserver=null;closeViewer();gaPhotos.clearMemory();}
 async function sdk(){if(state.sdk)return state.sdk;const base=`https://www.gstatic.com/firebasejs/${window.MCS_FIREBASE_SDK_VERSION||'10.12.5'}`;const [a,au,d]=await Promise.all([import(base+'/firebase-app.js'),import(base+'/firebase-auth.js'),import(base+'/firebase-database.js')]);const app=a.getApps().length?a.getApp():a.initializeApp(window.MCS_FIREBASE_CONFIG);state.auth=au.getAuth(app);state.db=d.getDatabase(app,window.MCS_FIREBASE_DATABASE_URL);state.sdk={...d,...au};return state.sdk;}
 function path(p){return state.sdk.ref(state.db,BASE+'/'+p);}
 function on(p,callback,bag=state.unsubs){bag.push(state.sdk.onValue(path(p),s=>callback(s.val()||{}),err=>{console.error('Announcements RTDB:',err);toast(`Announcements permission/connection issue: ${err.message}`,true);setLive('RTDB error');}));}
@@ -54,7 +55,7 @@ function installSmartBack(){
  try{history.pushState({g8AnnouncementsRoleBack:true},'',location.href);window.addEventListener('popstate',goBack);}catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';}
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
 async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Announcements are temporarily unavailable. Please try again later.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
  $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
  if(state.teacher){loadTeacher();loadCatalog();
@@ -76,7 +77,36 @@ if(teacherShortcut){
  if(SRC==='admin')$('gaLoginRole').value='teacher';toggleLoginRole();
 }
 $('gaLogin').addEventListener('submit',async e=>{e.preventDefault();const button=$('gaLoginButton');button.disabled=true;$('gaLoginError').hidden=true;try{const teacher=teacherShortcut||$('gaLoginRole').value==='teacher';let id=teacherShortcut?[...teachers][0]||'':txt($('gaLoginIdentity').value,110);if(!id)throw Error(teacherShortcut?'Authorized teacher account is not configured.':'Enter your existing G8Code account identity.');if(!teacher)id='sid-'+id.toLowerCase().replace(/[^a-z0-9]/g,'')+'@students.mcsian.app';const c=await state.sdk.signInWithEmailAndPassword(state.auth,id,$('gaLoginPassword').value);if(teacher&&!isTeacher(c.user))throw Error('Only the authorized teacher can access the Admin announcement creator.');$('gaLoginPassword').value='';}catch(err){$('gaLoginError').textContent=gaFriendlyNotice(err.message||'Sign-in failed');$('gaLoginError').hidden=false;}finally{button.disabled=false;}});
-function loadStudent(){on(`feeds/${state.user.uid}`,data=>{state.posts=data;render();restoreAnnouncementPosition();});on(`seen/${state.user.uid}`,data=>{state.seen=data;renderBadges();if(state.filter==='unread')render();else renderReadFlags();});}
+function loadStudent(){on(`feeds/${state.user.uid}`,data=>{acceptPosts(data);restoreAnnouncementPosition();});on(`seen/${state.user.uid}`,data=>{state.seen=data;renderBadges();if(state.filter==='unread')render();else renderReadFlags();});}
+// Cache lifetime is bounded by live announcement access, not by browser history.
+// RTDB remains the authority: deleted/removed/replaced attachments are evicted.
+function acceptPosts(next){
+ const previous=state.posts||{};state.posts=next||{};
+ if(state.viewerFile && state.viewerPost){
+  const live=state.posts[state.viewerPost.id];
+  const gallery=live&&(Array.isArray(live.attachments)?live.attachments:Object.values(live.attachments||{}));
+  if(!gallery||!gallery.some(f=>f.type==='image'&&f.driveFileId===state.viewerGallery[state.viewerIndex]?.driveFileId))closeViewer();
+ }
+ render();gaPhotos.scheduleReconcile(state.posts);
+ for(const [postId,raw] of Object.entries(previous)){
+  const before=Array.isArray(raw?.attachments)?raw.attachments:Object.values(raw?.attachments||{});
+  const updated=state.posts[postId];
+  const after=updated?(Array.isArray(updated.attachments)?updated.attachments:Object.values(updated.attachments||{})):[];
+  for(const f of before){
+   if(f?.type!=='image'||!f.driveFileId)continue;
+   const same=after.some(a=>a?.type==='image'&&a.driveFileId===f.driveFileId&&
+    String(a.version||a.fileVersion||a.modifiedAtMs||'')===String(f.version||f.fileVersion||f.modifiedAtMs||''));
+   if(!same)void gaPhotos.deleteFile({id:postId},f);
+  }
+ }
+}
+function attachmentAccessible(p,f){
+ if(!state.user||!p?.id||!f?.driveFileId)return false;
+ const raw=state.posts[p.id];if(!raw)return false;
+ const list=Array.isArray(raw.attachments)?raw.attachments:Object.values(raw.attachments||{});
+ return list.some(a=>a?.driveFileId===f.driveFileId&&a.type===f.type&&
+  String(a.version||a.fileVersion||a.modifiedAtMs||'')===String(f.version||f.fileVersion||f.modifiedAtMs||''));
+}
 function restoreAnnouncementPosition(){
  if(state.restoredPosition||new URLSearchParams(location.search).get('return')!=='attached')return;
  state.restoredPosition=true;
@@ -90,7 +120,7 @@ function restoreAnnouncementPosition(){
   }));
  }catch(_){}
 }
-function loadTeacher(){on('posts',data=>{state.posts=data;render();}); // RTDB only.
+function loadTeacher(){on('posts',data=>acceptPosts(data)); // RTDB only.
  // The Messages inbox resolves old/current UIDs using BOTH of these RTDB
  // sources. Reading directory alone inflated Announcements' audience picker.
  const base='g8MessagesV1/';
@@ -574,11 +604,22 @@ function base64(file){return new Promise((resolve,reject)=>{const r=new FileRead
 async function optimize(file){if(file.size<=2.5*1024*1024)return file;const bmp=await createImageBitmap(file);try{let size=Math.min(Math.max(bmp.width,bmp.height),3300);for(let pass=0;pass<9;pass++){const w=Math.max(1,Math.round(bmp.width*size/Math.max(bmp.width,bmp.height))),h=Math.max(1,Math.round(bmp.height*size/Math.max(bmp.width,bmp.height)));const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;canvas.getContext('2d').drawImage(bmp,0,0,w,h);for(const quality of [.9,.8,.7]){const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',quality));if(blob&&blob.size<=2.6*1024*1024)return new File([blob],file.name.replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'});}size=Math.floor(size*.78);}throw Error('Image could not be optimized to a safe Drive transfer size.');}finally{bmp.close?.();}}
 async function ensureUploadDraft(){if(state.editingId)return state.editingId;const id=state.sdk.push(path('posts')).key;const p={id,title:txt($('gaPostTitle').value,140)||'Untitled announcement',bodyHtml:sanitizeHtml($('gaRichText').innerHTML),background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,status:'draft',allowReplies:true,pinned:false,audience:selectedAudience(),attachments:[],recipients:{},createdAtMs:Date.now(),updatedAtMs:Date.now(),publishedAtMs:0};await state.sdk.set(path(`posts/${id}`),p);state.editingId=id;state.editingBase=p;alertStatus('Private draft created for attachment upload.');return id;}
 async function uploadBatch(files,type){if(!state.teacher)return;const count=state.files.filter(x=>x.type===type).length;if(count+files.length>(type==='image'?MAX_IMAGES:MAX_PDFS)){toast(`Maximum ${type==='image'?MAX_IMAGES:MAX_PDFS} ${type} files per announcement.`,true);return;}state.transferBusy=true;[$('gaPublish'),$('gaSaveDraft')].forEach(b=>b.disabled=true);try{const id=await ensureUploadDraft();for(let i=0;i<files.length;i++){let file=files[i];if(type==='image'){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>MAX_IMAGE_INPUT)throw Error('Images must be JPG/PNG/WEBP and up to 30 MB selected size.');file=await optimize(file);}else{if(file.size>MAX_PDF||!(file.type==='application/pdf'||/\.pdf$/i.test(file.name)))throw Error('PDF must be at most 3 MB.');}
- alertStatus(`Uploading ${i+1}/${files.length} ${type}…`);const raw=await base64(file);const result=await driveRequest('upload',{postId:id,fileName:file.name,contentType:file.type||'application/pdf',fileData:raw},90000);if(!/^[\w-]{15,150}$/.test(result.driveFileId||''))throw Error('File upload could not be confirmed.');state.files.push({type,name:file.name,driveFileId:result.driveFileId,size:file.size,contentType:file.type});renderAttachments();const draft=postFromEditor(id,'draft');await state.sdk.set(path(`posts/${id}`),draft);state.editingBase=draft;alertStatus(`✓ Uploaded ${i+1}/${files.length}. Draft saved.`);}}
+ alertStatus(`Uploading ${i+1}/${files.length} ${type}…`);const raw=await base64(file);const result=await driveRequest('upload',{postId:id,fileName:file.name,contentType:file.type||'application/pdf',fileData:raw},90000);if(!/^[\w-]{15,150}$/.test(result.driveFileId||''))throw Error('File upload could not be confirmed.');state.files.push({type,name:file.name,driveFileId:result.driveFileId,size:file.size,contentType:file.type});renderAttachments();const draft=postFromEditor(id,'draft');await state.sdk.set(path(`posts/${id}`),draft);state.editingBase=draft;if(type==='image')void gaPhotos.seed({id},state.files[state.files.length-1],file);alertStatus(`✓ Uploaded ${i+1}/${files.length}. Draft saved.`);}}
  catch(e){alertStatus('Upload failed: '+e.message,true);toast(e.message,true);}finally{state.transferBusy=false;[$('gaPublish'),$('gaSaveDraft')].forEach(b=>b.disabled=false);$('gaImageFiles').value='';$('gaPdfFiles').value='';}}
 $('gaImageFiles').addEventListener('change',e=>uploadBatch([...e.target.files].slice(0,MAX_IMAGES),'image'));$('gaPdfFiles').addEventListener('change',e=>uploadBatch([...e.target.files].slice(0,MAX_PDFS),'pdf'));
-async function getFileData(p,f){if(state.imageUrls.has(f.driveFileId))return state.imageUrls.get(f.driveFileId);const res=await driveRequest('read',{postId:p.id,driveFileId:f.driveFileId},70000);if(!res.data||!res.contentType)throw Error('The attached file could not be opened.');const bytes=Uint8Array.from(atob(res.data),c=>c.charCodeAt(0));const blob=new Blob([bytes],{type:res.contentType});const url=URL.createObjectURL(blob);state.imageUrls.set(f.driveFileId,url);return url;}
-async function loadImage(p,f,img){try{const url=await withPreviewTurn(()=>getFileData(p,f));if(img.isConnected)img.src=url;}catch(e){img.alt='Image unavailable: '+e.message;img.style.objectFit='contain';}}
+async function getFileData(p,f,variant='full'){
+ return gaPhotos.get(p,f,variant,async()=>{
+  const res=await driveRequest('read',{postId:p.id,driveFileId:f.driveFileId},70000);
+  if(!res.data||!res.contentType)throw Error('The attached file could not be opened.');
+  const bytes=Uint8Array.from(atob(res.data),c=>c.charCodeAt(0));
+  return new Blob([bytes],{type:res.contentType});
+ },()=>attachmentAccessible(p,f));
+}
+async function loadImage(p,f,img){
+ try{const url=await withPreviewTurn(()=>{if(!img.isConnected)return '';return getFileData(p,f,'thumb');});
+  if(img.isConnected&&attachmentAccessible(p,f)){img.loading='eager';img.decoding='async';img.src=url;}
+ }catch(e){if(img.isConnected){img.alt='Image unavailable: '+e.message;img.style.objectFit='contain';}}
+}
 function closeViewer(){
  state.viewerRequest++;state.viewerGallery=[];state.viewerPost=null;state.viewerIndex=0;state.viewerFile=null;
  if(state.viewerUrl){URL.revokeObjectURL(state.viewerUrl);state.viewerUrl='';}
@@ -612,7 +653,7 @@ async function displayGalleryImage(direction=0){
   image.src=url;state.viewerFile={url,name:file.name};$('gaViewerDownload').disabled=false;
   $('gaViewerError').textContent='';
   // Warm one neighboring photo for faster Next/Swipe, without downloading the full gallery.
-  if(files.length>1){const next=files[(current+1)%files.length];if(next?.driveFileId&&!state.imageUrls.has(next.driveFileId))withPreviewTurn(()=>getFileData(p,next)).catch(()=>{});}
+  if(files.length>1){const next=files[(current+1)%files.length];if(next?.driveFileId)withPreviewTurn(()=>getFileData(p,next)).catch(()=>{});}
  }catch(e){if(request===state.viewerRequest)$('gaViewerError').textContent='Photo unavailable: '+e.message;}
 }
 function changeGallery(delta){
