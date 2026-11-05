@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=521-immersive-swipe-v4c17" />
+<link rel="stylesheet" href="messages.css?v=522-admin-search-media-v4c18" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js?v=ik-default-20261105"></script>
 <style>
@@ -54,7 +54,7 @@
       <div class="g8m-tablet-filter"><label for="g8mTabletSectionSelect">Section</label><select id="g8mTabletSectionSelect" aria-label="Select section"><option value="*">All Sections</option></select></div><div id="g8mStudentList" class="g8m-student-list"></div>
     </aside>
     <main class="g8m-conversation" id="g8mConversation" aria-label="Conversation">
-      <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatPresence" class="g8m-presence-line" aria-live="polite">Checking activity…</small><small id="g8mChatMeta" class="g8m-chat-extra">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" class="g8m-chat-theme" id="g8mChatTheme" title="Toggle light or dark theme" aria-label="Toggle light or dark theme">☼</button><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
+      <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatPresence" class="g8m-presence-line" aria-live="polite">Checking activity…</small><small id="g8mChatMeta" class="g8m-chat-extra">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" id="g8mAdminToolsOpen" class="g8m-admin-tools-open" title="Search conversation, shared photos and projects" aria-label="Open conversation search and shared media" hidden>⌕ <span>Search &amp; Media</span></button><button type="button" class="g8m-chat-theme" id="g8mChatTheme" title="Toggle light or dark theme" aria-label="Toggle light or dark theme">☼</button><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
       <div class="g8m-feed-state" id="g8mFeedState" role="status" aria-live="polite" hidden></div><div class="g8m-messages" id="g8mMessages" role="log" aria-live="polite" aria-relevant="additions text"><div class="g8m-empty">Select a conversation to begin.</div></div>
       <div id="g8mTypingIndicator" class="g8m-typing-indicator" hidden aria-live="polite"><span class="g8m-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="g8mTypingText">Typing…</span></div>
       <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
@@ -161,7 +161,25 @@
     </div>
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
+  <button id="g8mImageFindMessage" type="button" class="g8m-image-control g8m-image-find-message" title="Go to this photo in the conversation" hidden>View in Chat</button>
 </div>
-<script defer src="messages.js?v=gallery-v4c17-20261105"></script>
+<!-- V4C-18: teacher-only on-demand conversation index. No server writes. -->
+<div id="g8mAdminToolsBackdrop" class="g8m-admin-tools-backdrop" hidden></div>
+<section id="g8mAdminTools" class="g8m-admin-tools" role="dialog" aria-modal="true" aria-labelledby="g8mAdminToolsTitle" hidden>
+ <header class="g8m-admin-tools-head"><div><strong id="g8mAdminToolsTitle">Conversation Details</strong><small id="g8mAdminToolsPerson">Shared with this student</small></div><button id="g8mAdminToolsClose" type="button" aria-label="Close conversation details">×</button></header>
+ <nav id="g8mAdminToolsTabs" class="g8m-admin-tools-tabs" aria-label="Conversation tools">
+  <button type="button" data-g8m-admin-tab="search" class="active" aria-pressed="true">⌕ Search</button>
+  <button type="button" data-g8m-admin-tab="photos" aria-pressed="false">▧ Photos</button>
+  <button type="button" data-g8m-admin-tab="projects" aria-pressed="false">⌘ Projects</button>
+ </nav>
+ <div class="g8m-admin-tools-controls" id="g8mAdminSearchControls">
+  <label class="g8m-admin-tools-input"><span aria-hidden="true">⌕</span><input type="search" id="g8mAdminSearchText" placeholder="Search all conversation messages" autocomplete="off" aria-label="Search within conversation" /></label>
+  <div class="g8m-admin-tools-filter" id="g8mAdminSearchFilter"><button data-g8m-search-kind="all" class="active" type="button" aria-pressed="true">All</button><button data-g8m-search-kind="text" type="button" aria-pressed="false">Messages</button><button data-g8m-search-kind="photo" type="button" aria-pressed="false">Photos</button><button data-g8m-search-kind="project" type="button" aria-pressed="false">Projects</button></div>
+ </div>
+ <div class="g8m-admin-tools-status" id="g8mAdminToolsStatus" role="status" aria-live="polite"></div>
+ <div class="g8m-admin-tools-results" id="g8mAdminToolsResults" tabindex="0"></div>
+ <footer class="g8m-admin-tools-footer"><span id="g8mAdminToolsCount"></span><button type="button" id="g8mAdminToolsRetry" hidden>Try Again</button></footer>
+</section>
+<script defer src="messages.js?v=admin-search-media-v4c18-20261105"></script>
 </body>
 </html>

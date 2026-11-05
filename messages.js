@@ -1,9 +1,9 @@
-/* G8Code Messages V4C-17 — immersive full-slide swipe and clean chat status; preserves V4C-15 reconciliation and photo cache. */
+/* G8Code Messages V4C-18 — admin-only history search, photo/project gallery; preserves V4C-17 swipe and V4C-15 history. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
 let initializeApp, getApps, getApp, getAuth, onAuthStateChanged, signInWithEmailAndPassword;
-let getDatabase, ref, onValue, query, limitToLast, orderByChild, endBefore, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect;
+let getDatabase, ref, onValue, query, limitToLast, orderByChild, orderByKey, endBefore, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect;
 // Firestore is LAZY: normal text/image chat and inbox use RTDB only.
 // Firestore SDK loads solely when opening a saved project or exceptional legacy login recovery.
 let getFirestore, collection, doc, getDoc, getDocFromServer, getDocs;
@@ -36,7 +36,7 @@ async function loadMessagesFirebaseSDK(){
  const [a, au, d] = await Promise.race([load, timeout]);
  ({initializeApp, getApps, getApp} = a);
  ({getAuth, onAuthStateChanged, signInWithEmailAndPassword} = au);
- ({getDatabase, ref, onValue, query, limitToLast, orderByChild, endBefore, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect} = d);
+ ({getDatabase, ref, onValue, query, limitToLast, orderByChild, orderByKey, endBefore, get, push, set, update, remove, runTransaction, serverTimestamp, onDisconnect} = d);
 
 }
 
@@ -67,6 +67,7 @@ let sections = [], students = new Map(), summaries = {}, openedUid = '', current
 let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], activeAcks = {}, seenAt = 0;
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
 let olderMessages=[], hasOlder=false, olderLoading=false, historyExhausted=false;
+let g8mAdminFocusedMessages=[]; // Ephemeral jump context, never changes the history pagination cursor.
 let g8mEarlierLoadError=''; // Do not disguise history-query failures as an empty history.
 let g8mHistoryCheckRunning=false;
 const G8M_HISTORY_RECONCILE_LIMIT=250; // Only inspect a bounded tail; never download an unlimited chat.
@@ -463,7 +464,7 @@ async function boot(){
     g8mIkCorsBlobAllowed=null;
     void prunePhotoDiskCache(nextPhotoOwner);
    }
-   conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
+   g8mAdminReset();conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
    if(!account){
     if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
     else {showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
@@ -586,6 +587,7 @@ async function initWorkspace(){
  installSmartBackNavigation();
  $('g8mHeaderNote').textContent=teacher?'Teacher inbox · Private per student':'Official ICT teacher conversation';
  $('g8mComposer').querySelector('textarea').placeholder=teacher?'Write your reply…':'Message your teacher…';
+ $('g8mAdminToolsOpen').hidden=!teacher;
  $('g8mChooseProject').hidden=teacher;
  $('g8mSectionsPane').hidden=!teacher;$('g8mStudentsPane').hidden=!teacher;
  if(teacher){
@@ -831,6 +833,7 @@ function openChat(uid){
  // to the active student account even if they referenced a prior Auth UID.
  if(teacher){const group=groupForUid(uid);if(group)uid=selectGroupThread(group);}
  if(uid===openedUid && activeUnsubs.length){switchMobile('chat');g8mJumpLatest({settle:true});return;}
+ g8mAdminReset();
  stopTyping();closeReactionPicker();
  if(openedUid && activeMessages.length){
   rememberConversation(openedUid);
@@ -1829,7 +1832,7 @@ function renderMessages(){
   .filter(job=>job.uid===openedUid)
   .map(job=>({id:job.id,senderUid:job.senderUid,createdAtMs:job.createdAtMs,__photoPending:job}));
  const seenMessageKeys=new Set();
- const shown=[...g8mHistoricMessages(),...olderMessages,...activeMessages,...optimistic]
+ const shown=[...g8mHistoricMessages(),...olderMessages,...activeMessages,...g8mAdminFocusedMessages,...optimistic]
   .filter(x=>{
    if(!x?.id||(x.__historical?g8mLinkedHistories.get(x.__threadUid)?.hidden[x.id]:hiddenMessageIds[x.id]))return false;
    const key=`${x.__threadUid||openedUid}/${x.id}`;
@@ -2711,6 +2714,7 @@ function g8mCancelGalleryAnimation(){
 }
 function galleryControlState(){
  const hasGroup=photoGallery.length>1;
+ $('g8mImageFindMessage').hidden=!(teacher&&g8mAdminGalleryViewer&&photoGallery[photoGalleryIndex]?.messageId);
  $('g8mImagePrev').hidden=!hasGroup;
  $('g8mImageNext').hidden=!hasGroup;
  $('g8mImageCounter').hidden=!hasGroup;
@@ -2747,15 +2751,18 @@ function g8mPrepareGalleryNeighbors(token){
  g8mPrepareGalleryNeighbor(-1,'g8mImagePreviousPreview','g8mImagePreviousFrame',token);
  g8mPrepareGalleryNeighbor(1,'g8mImageNextPreview','g8mImageNextFrame',token);
 }
-function openPhotoGallery(photos,index,uid,messageId){
+let g8mAdminGalleryViewer=false;
+function openPhotoGallery(photos,index,uid,messageId,fromAdminGallery=false){
  if(!Array.isArray(photos)||!photos.length)return;
  g8mCancelGalleryAnimation();
- photoGallery=photos.map(att=>({...att,studentUid:uid,messageId}));
+ g8mAdminGalleryViewer=Boolean(teacher&&fromAdminGallery);
+ photoGallery=photos.map(att=>({...att,studentUid:att.studentUid||uid,messageId:att.messageId||messageId}));
  showPhotoGalleryIndex(index);
 }
 function openLocalPhotoGallery(entries){
  if(!Array.isArray(entries)||!entries.length)return;
  g8mCancelGalleryAnimation();
+ g8mAdminGalleryViewer=false;
  photoGallery=entries.map(entry=>({localUrl:entry.url,name:entry.file?.name||'Photo'}));
  showPhotoGalleryIndex(0);
 }
@@ -4064,4 +4071,304 @@ window.addEventListener('beforeunload',event=>{
  // Revoke transient object URLs; persistent cache is managed by auth/TTL.
  imageCache.forEach(url=>URL.revokeObjectURL(url));
 });
+
+
+// === V4C-18: Admin-only Search / Shared Photos / Shared Projects ==============
+// All reads are on demand; each student's already verified UID group is used.
+// orderByKey pages prevent legacy missing/incorrect createdAtMs values from
+// hiding records from the index. No messages or media are copied to RTDB.
+const g8mAdminUI={button:$('g8mAdminToolsOpen'),panel:$('g8mAdminTools'),backdrop:$('g8mAdminToolsBackdrop'),tabs:$('g8mAdminToolsTabs'),results:$('g8mAdminToolsResults'),status:$('g8mAdminToolsStatus'),count:$('g8mAdminToolsCount'),input:$('g8mAdminSearchText'),filter:$('g8mAdminSearchFilter'),retry:$('g8mAdminToolsRetry')};
+let g8mAdminContext=0,g8mAdminScan=null,g8mAdminTab='search',g8mAdminKind='all',g8mAdminMediaObserver=null,g8mAdminResultsTimer=null,g8mAdminLastFocus=null;
+const G8M_ADMIN_SCAN_PAGE=120;
+function g8mAdminAllowed(){return Boolean(teacher&&user&&openedUid&&g8mAdminUI.button&&!g8mAdminUI.button.hidden);}
+function g8mAdminReset(){
+ g8mAdminContext++;
+ clearTimeout(g8mAdminResultsTimer);g8mAdminResultsTimer=null;
+ if(g8mAdminMediaObserver){g8mAdminMediaObserver.disconnect();g8mAdminMediaObserver=null;}
+ g8mAdminScan=null;g8mAdminFocusedMessages=[];g8mAdminGalleryViewer=false;
+ if(g8mAdminUI.panel){g8mAdminUI.panel.hidden=true;g8mAdminUI.backdrop.hidden=true;}
+ if(g8mAdminUI.button)g8mAdminUI.button.setAttribute('aria-expanded','false');
+ if(g8mAdminUI.results)g8mAdminUI.results.replaceChildren();
+}
+function g8mAdminPhotoList(msg){
+ const uid=String(msg.__threadUid||openedUid),id=String(msg.id||'');
+ const attachments=Array.isArray(msg.attachments)?msg.attachments:Object.values(msg.attachments||{});
+ return attachments.slice(0,MAX_FILES).filter(att=>att&&typeof att.path==='string'&&att.path.startsWith(`g8Messages/${uid}/${id}/`)&&/^[A-Za-z0-9_-]+$/.test(att.path.split('/').pop())).map(att=>({...att,studentUid:uid,messageId:id,at:messageTime(msg)}));
+}
+function g8mAdminVisible(msg){
+ if(!msg||isDeletedMessage(msg))return false;
+ const uid=String(msg.__threadUid||openedUid);
+ if(uid===openedUid)return !hiddenMessageIds[msg.id]&&!deletedMessageIndex[msg.id];
+ const entry=g8mLinkedHistories.get(uid);
+ return Boolean(entry&&!entry.hidden?.[msg.id]);
+}
+function g8mAdminSorted(){
+ const index=new Map(g8mAdminScan?.records||[]);
+ // Overlay realtime snapshots, so newly delivered and deleted messages are current.
+ for(const m of [...g8mHistoricMessages(),...olderMessages,...activeMessages]){
+  if(m?.id)index.set(`${m.__threadUid||openedUid}/${m.id}`,m);
+ }
+ return [...index.values()].filter(g8mAdminVisible).sort((a,b)=>compareMessages(b,a));
+}
+function g8mAdminPhotoItems(){
+ return g8mAdminSorted().flatMap(msg=>g8mAdminPhotoList(msg));
+}
+function g8mAdminProjectItems(){
+ return g8mAdminSorted().filter(msg=>msg.type==='project'&&/^[A-Za-z0-9_-]{1,128}$/.test(String(msg.projectId||'')));
+}
+function g8mAdminText(msg){
+ return [visibleMessageText(msg),msg.type==='project'?msg.projectName:'',msg.replyText||''].filter(Boolean).join(' ');
+}
+function g8mAdminStatus(message){g8mAdminUI.status.textContent=message;g8mAdminUI.status.hidden=!message;}
+function g8mAdminScheduleRender(){
+ if(g8mAdminUI.panel.hidden)return;
+ clearTimeout(g8mAdminResultsTimer);
+ g8mAdminResultsTimer=setTimeout(g8mAdminRender,125);
+}
+function g8mAdminVerifiedUids(primary){
+ // Do not trust arbitrary uid from search parameters. Same verified group
+ // used by showRelatedAccountThreads / the existing admin inbox.
+ const group=groupForUid(primary),linked=(group?.uids||[]).filter(uid=>students.has(uid)||Boolean(summaries[uid]));
+ return [...new Set([primary,...linked])].filter(uid=>/^[A-Za-z0-9_-]{5,128}$/.test(uid));
+}
+async function g8mAdminIndexConversation(){
+ if(!g8mAdminAllowed()||g8mAdminUI.panel.hidden)return;
+ const primary=openedUid,owner=user.uid,context=g8mAdminContext;
+ if(g8mAdminScan?.uid===primary){if(!g8mAdminScan.loading){g8mAdminScheduleRender();}return;}
+ const scan={uid:primary,owner,records:new Map(),loading:true,finished:false,error:null,threads:g8mAdminVerifiedUids(primary),done:0};
+ g8mAdminScan=scan;
+ g8mAdminStatus('Finding shared conversation history…');
+ g8mAdminScheduleRender();
+ const valid=()=>context===g8mAdminContext&&teacher&&user?.uid===owner&&openedUid===primary&&g8mAdminScan===scan;
+ // Parallel per UID; sequential bounded pages within a thread. Never fetch
+ // photo bytes or Firestore project documents to build the index.
+ const results=await Promise.allSettled(scan.threads.map(async uid=>{
+  let cursor=null;
+  while(valid()){
+   const baseRef=ref(rtdb,`${studentPath(uid)}/messages`);
+   const args=[orderByKey()];
+   if(cursor!==null)args.push(endBefore(cursor));
+   args.push(limitToLast(G8M_ADMIN_SCAN_PAGE));
+   const snap=await get(query(baseRef,...args));
+   if(!valid())return;
+   const page=[];
+   snap.forEach(child=>{
+    const v=child.val();if(v&&typeof v==='object'&&child.key)page.push({id:String(child.key),...v,__threadUid:uid,__historical:uid!==primary});
+   });
+   for(const msg of page)scan.records.set(`${uid}/${msg.id}`,msg);
+   g8mAdminScheduleRender();
+   if(page.length<G8M_ADMIN_SCAN_PAGE)break;
+   const oldest=page[0]?.id;
+   if(!oldest||oldest===cursor)break;
+   cursor=oldest;
+  }
+  if(valid()){scan.done++;g8mAdminScheduleRender();}
+ }));
+ if(!valid())return;
+ const failed=results.filter(result=>result.status==='rejected');
+ scan.loading=false;scan.finished=!failed.length;scan.error=failed.length?'Some older messages could not be loaded. Try again to search the complete conversation.':null;
+ g8mAdminUI.retry.hidden=!failed.length;
+ if(failed.length)console.warn('Admin conversation history search incomplete:',failed.map(x=>x.reason));
+ g8mAdminRender();
+}
+function g8mAdminOpen(tab='search'){
+ if(!g8mAdminAllowed())return;
+ g8mAdminLastFocus=document.activeElement;
+ g8mAdminUI.panel.hidden=false;g8mAdminUI.backdrop.hidden=false;
+ g8mAdminUI.button.setAttribute('aria-expanded','true');
+ $('g8mAdminToolsPerson').textContent=$('g8mChatName').textContent;
+ g8mAdminSetTab(tab);
+ if(!g8mAdminScan||g8mAdminScan.uid!==openedUid)void g8mAdminIndexConversation();
+ if(tab==='search')g8mAdminUI.input.focus();else $('g8mAdminToolsClose').focus();
+}
+function g8mAdminClose(restoreFocus=true){
+ g8mAdminUI.panel.hidden=true;g8mAdminUI.backdrop.hidden=true;
+ g8mAdminUI.button.setAttribute('aria-expanded','false');
+ if(g8mAdminMediaObserver){g8mAdminMediaObserver.disconnect();g8mAdminMediaObserver=null;}
+ if(restoreFocus)g8mAdminLastFocus?.focus?.();
+}
+function g8mAdminSetTab(tab){
+ if(!['search','photos','projects'].includes(tab))return;
+ g8mAdminTab=tab;
+ for(const b of g8mAdminUI.tabs.querySelectorAll('button[data-g8m-admin-tab]')){
+  const active=b.dataset.g8mAdminTab===tab;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
+ }
+ $('g8mAdminSearchControls').hidden=tab!=='search';
+ g8mAdminRender();
+}
+function g8mAdminMakeItem(tag,cls,text){return textEl(tag,cls,text);}
+function g8mAdminStamp(msg){return absoluteTime(messageTime(msg)).replace(/:\d{2}(\s*[AP]M)/i,'$1');}
+function g8mAdminResultButton(msg,description,icon){
+ const b=g8mAdminMakeItem('button','g8m-admin-result','');b.type='button';
+ const glyph=g8mAdminMakeItem('span','g8m-admin-result-icon',icon);
+ const body=g8mAdminMakeItem('span','g8m-admin-result-body','');
+ body.append(g8mAdminMakeItem('strong','',description||'Message'),g8mAdminMakeItem('small','',`${msg.senderRole==='teacher'?'Teacher':'Student'} · ${g8mAdminStamp(msg)}`));
+ b.append(glyph,body,g8mAdminMakeItem('span','g8m-admin-result-go','›'));
+ return b;
+}
+function g8mAdminRender(){
+ if(!g8mAdminAllowed()||g8mAdminUI.panel.hidden)return;
+ const target=g8mAdminUI.results;
+ const scan=g8mAdminScan;
+ if(g8mAdminMediaObserver){g8mAdminMediaObserver.disconnect();g8mAdminMediaObserver=null;}
+ target.replaceChildren();
+ const loading=Boolean(scan?.loading);
+ const ready=scan&&scan.uid===openedUid;
+ if(!ready){g8mAdminStatus('Preparing conversation history…');return;}
+ if(scan.error)g8mAdminStatus(scan.error);
+ else if(loading)g8mAdminStatus(`Finding messages in this conversation… ${scan.done} of ${scan.threads.length} threads checked`);
+ else g8mAdminStatus('');
+ g8mAdminUI.retry.hidden=!scan.error;
+ if(g8mAdminTab==='photos'){
+  const photos=g8mAdminPhotoItems();
+  g8mAdminUI.count.textContent=`${photos.length} photo${photos.length===1?'':'s'}${loading?' found so far':''}`;
+  if(!photos.length){target.append(notice(loading?'Looking for photos…':'No shared photos in this conversation.'));return;}
+  const grid=g8mAdminMakeItem('div','g8m-admin-photo-gallery','');
+  const renderThumb=(item,att,token)=>{
+   if(item.dataset.photoLoading==='1')return;
+   item.dataset.photoLoading='1';
+   const fileId=att.driveFileId||att.imagekitFileId;
+   const variant=att.provider==='imagekit'?'thumb':'full';
+   const cached=cachedPhotoUrl(att.path,fileId,variant);
+   const finish=url=>{
+    if(g8mAdminContext!==token||!item.isConnected||!g8mAdminAllowed())return;
+    const picture=document.createElement('img');picture.alt='Shared photo';picture.loading='lazy';picture.decoding='async';picture.src=url;
+    item.replaceChildren(picture);item.classList.add('is-ready');
+   };
+   if(cached){finish(cached);return;}
+   void privatePhotoURL(att,3,variant).then(finish).catch(()=>{
+    if(g8mAdminContext!==token||!item.isConnected)return;
+    item.dataset.photoLoading='';
+    item.classList.add('is-error');item.replaceChildren(g8mAdminMakeItem('span','','Tap to retry'));
+   });
+  };
+  const context=g8mAdminContext;
+  if(typeof IntersectionObserver==='function'){
+   g8mAdminMediaObserver=new IntersectionObserver(entries=>{
+    for(const e of entries)if(e.isIntersecting){g8mAdminMediaObserver?.unobserve(e.target);renderThumb(e.target,e.target._g8mPhoto,context);}
+   },{root:target,rootMargin:'220px'});
+  }
+  photos.forEach((att,i)=>{
+   const b=g8mAdminMakeItem('button','g8m-admin-photo-tile','');b.type='button';
+   b.title='Open photo · '+g8mAdminStamp({createdAtMs:att.at});b.setAttribute('aria-label',`Open photo ${i+1} of ${photos.length}`);
+   b._g8mPhoto=att;
+   b.addEventListener('click',()=>{
+    if(b.classList.contains('is-error')){b.classList.remove('is-error');renderThumb(b,att,context);return;}
+    if(!g8mAdminAllowed())return;
+    // Reuse *exactly* the corrected V4C-17 full-slide drag/pinch viewer.
+    // Each attachment keeps its own UID/message id while navigating all photos.
+    openPhotoGallery(photos,i,null,null,true);
+   });
+   grid.append(b);
+   if(g8mAdminMediaObserver)g8mAdminMediaObserver.observe(b);else if(i<18)renderThumb(b,att,context);
+  });
+  target.append(grid);
+ }else if(g8mAdminTab==='projects'){
+  const projects=g8mAdminProjectItems();
+  g8mAdminUI.count.textContent=`${projects.length} shared project${projects.length===1?'':'s'}${loading?' found so far':''}`;
+  if(!projects.length){target.append(notice(loading?'Looking for shared projects…':'No projects have been shared in this conversation.'));return;}
+  for(const msg of projects){
+   const b=g8mAdminResultButton(msg,short(msg.projectName||'G8Code Project',120),'⌘');
+   b.addEventListener('click',()=>{if(g8mAdminAllowed())void openSharedProject(msg.__threadUid||openedUid,String(msg.projectId));});
+   const jump=g8mAdminMakeItem('button','g8m-admin-inline-jump','View in Chat');jump.type='button';
+   jump.addEventListener('click',()=>g8mAdminJumpToMessage(msg));
+   const line=g8mAdminMakeItem('div','g8m-admin-project-row','');line.append(b,jump);target.append(line);
+  }
+ }else{
+  const q=g8mAdminUI.input.value.trim().toLocaleLowerCase();
+  const all=g8mAdminSorted();
+  const matches=q?all.filter(msg=>{
+   const text=g8mAdminText(msg).toLocaleLowerCase();
+   if(!text.includes(q))return false;
+   if(g8mAdminKind==='text')return !!visibleMessageText(msg);
+   if(g8mAdminKind==='photo')return g8mAdminPhotoList(msg).length>0;
+   if(g8mAdminKind==='project')return msg.type==='project';
+   return true;
+  }):[];
+  g8mAdminUI.count.textContent=q?`${matches.length} match${matches.length===1?'':'es'}${loading?' so far':''}`:'Search by word, phrase, or project name';
+  if(!q){target.append(notice('Search messages and shared project titles from this student’s conversation.'));return;}
+  if(!matches.length){target.append(notice(loading?'Searching older messages…':'No matching messages found.'));return;}
+  // Bounded rendering for large searches: all matches are indexed, but
+  // only the first 120 cards enter the DOM at once to avoid mobile freezes.
+  const PAGE=120;let displayed=0;
+  const highlight=(target,value,term)=>{
+   target.replaceChildren();
+   const low=value.toLocaleLowerCase(),needle=term.toLocaleLowerCase();
+   let start=0,position=low.indexOf(needle,start),parts=0;
+   while(position>=0 && parts++<24){
+    target.append(document.createTextNode(value.slice(start,position)));
+    const mark=document.createElement('mark');mark.className='g8m-admin-highlight';mark.textContent=value.slice(position,position+term.length);target.append(mark);
+    start=position+term.length;position=low.indexOf(needle,start);
+   }
+   target.append(document.createTextNode(value.slice(start)));
+  };
+  const appendPage=()=>{
+   const next=matches.slice(displayed,displayed+PAGE);displayed+=next.length;
+   for(const msg of next){
+    const value=short(g8mAdminText(msg).replace(/\s+/g,' ').trim(),210)||'Shared message';
+    const b=g8mAdminResultButton(msg,value,msg.type==='project'?'⌘':g8mAdminPhotoList(msg).length?'▧':'✉');
+    highlight(b.querySelector('strong'),value,q);
+    b.addEventListener('click',()=>g8mAdminJumpToMessage(msg));target.append(b);
+   }
+   const more=target.querySelector('.g8m-admin-more');if(more)more.remove();
+   if(displayed<matches.length){
+    const b=g8mAdminMakeItem('button','g8m-admin-more',`Show more (${matches.length-displayed} remaining)`);b.type='button';b.addEventListener('click',appendPage);target.append(b);
+   }
+  };
+  appendPage();
+ }
+}
+function g8mAdminJumpToMessage(msg){
+ if(!g8mAdminAllowed()||!msg?.id)return;
+ const uid=String(msg.__threadUid||openedUid),key=`message:${uid}:${msg.id}`;
+ if(!g8mAdminVisible(msg))return;
+ // Search may find a record older than the live/history windows. Add only a
+ // temporary surrounding context: do NOT alter olderMessages pagination cursor.
+ const existing=new Set([...g8mHistoricMessages(),...activeMessages,...olderMessages].map(m=>`${m.__threadUid||openedUid}/${m.id}`));
+ if(!existing.has(`${uid}/${msg.id}`)){
+  const sorted=g8mAdminSorted().slice().reverse();const at=sorted.findIndex(m=>m.id===msg.id&&(m.__threadUid||openedUid)===uid);
+  const windowRecords=sorted.slice(Math.max(0,at-9),at+10).filter(m=>!existing.has(`${m.__threadUid||openedUid}/${m.id}`));
+  const focused=new Map(g8mAdminFocusedMessages.map(m=>[`${m.__threadUid||openedUid}/${m.id}`,m]));
+  for(const m of windowRecords)focused.set(`${m.__threadUid||openedUid}/${m.id}`,m);
+  g8mAdminFocusedMessages=[...focused.values()].slice(-70);
+ }
+ g8mAdminClose(false);switchMobile('chat');g8mFollowLatest=false;g8mSmoothLatest=false;
+ renderMessages();
+ const focus=()=>{
+  const feed=$('g8mMessages');const row=[...feed.querySelectorAll('.g8m-message[data-chat-key]')].find(el=>el.dataset.chatKey===key);
+  if(!row)return;
+  const feedRect=feed.getBoundingClientRect(),rect=row.getBoundingClientRect();
+  const shift=rect.top-feedRect.top-(feed.clientHeight-rect.height)*.36;
+  feed.scrollTo({top:feed.scrollTop+shift,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+  row.classList.remove('g8m-jump-focus');void row.offsetWidth;row.classList.add('g8m-jump-focus');
+  setTimeout(()=>row.classList.remove('g8m-jump-focus'),1800);
+ };
+ requestAnimationFrame(()=>requestAnimationFrame(focus));
+}
+g8mAdminUI.button?.addEventListener('click',()=>g8mAdminOpen('search'));
+$('g8mAdminToolsClose')?.addEventListener('click',()=>g8mAdminClose());
+g8mAdminUI.backdrop?.addEventListener('click',()=>g8mAdminClose());
+g8mAdminUI.tabs?.addEventListener('click',event=>{const b=event.target.closest('button[data-g8m-admin-tab]');if(b)g8mAdminSetTab(b.dataset.g8mAdminTab);});
+g8mAdminUI.filter?.addEventListener('click',event=>{
+ const b=event.target.closest('button[data-g8m-search-kind]');if(!b)return;
+ g8mAdminKind=b.dataset.g8mSearchKind;
+ g8mAdminUI.filter.querySelectorAll('button').forEach(btn=>{const selected=btn===b;btn.classList.toggle('active',selected);btn.setAttribute('aria-pressed',String(selected));});
+ g8mAdminScheduleRender();
+});
+g8mAdminUI.input?.addEventListener('input',g8mAdminScheduleRender);
+g8mAdminUI.retry?.addEventListener('click',()=>{g8mAdminScan=null;void g8mAdminIndexConversation();});
+$('g8mImageFindMessage')?.addEventListener('click',()=>{
+ if(!g8mAdminAllowed()||!g8mAdminGalleryViewer)return;
+ const photo=photoGallery[photoGalleryIndex];if(!photo?.messageId)return;
+ const uid=photo.studentUid||openedUid;
+ const msg=g8mAdminSorted().find(m=>m.id===photo.messageId&&(m.__threadUid||openedUid)===uid);
+ $('g8mImageClose').click();
+ if(msg)g8mAdminJumpToMessage(msg);
+});
+document.addEventListener('keydown',event=>{
+ if(!g8mAdminUI.panel.hidden && event.key==='Escape' && imageViewer.hidden && projectViewer.hidden){event.preventDefault();g8mAdminClose();}
+});
+// === End V4C-18 ==============================================================
+
+
 boot();
