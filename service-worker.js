@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v679-unified-push-worker';
+const CACHE_NAME = 'ict8-connect-v680-push-bg-check';
 const APP_SHELL = [
   './',
   './index.html',
@@ -116,26 +116,62 @@ async function pushIdentity(writeUid){
   request.onerror=()=>reject(request.error);
  });}finally{db.close();}
 }
+async function writePushAudit(status){
+ try{
+  const db=await openPushIdb();
+  try{
+   await new Promise((resolve,reject)=>{
+    const tx=db.transaction('prefs','readwrite');
+    tx.objectStore('prefs').put({atMs:Date.now(),status:String(status||'unknown').slice(0,40)},'lastPush');
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+   });
+  }finally{db.close();}
+ }catch(_){}
+}
+async function readPushAudit(){
+ try{
+  const db=await openPushIdb();
+  try{return await new Promise((resolve,reject)=>{
+   const tx=db.transaction('prefs','readonly'),req=tx.objectStore('prefs').get('lastPush');
+   req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);
+  });}finally{db.close();}
+ }catch(_){return null;}
+}
+// Use a message-channel acknowledgement, so registration is never marked
+// ready before active-account identity has been persisted in IndexedDB.
 self.addEventListener('message',event=>{
- if(event.data?.type!=='G8PUSH_SET_ACTIVE_USER')return;
- const uid=String(event.data.uid||'');
- if(!uid||/^[A-Za-z0-9_-]{1,128}$/.test(uid)){
-  event.waitUntil?.(pushIdentity(uid).catch(()=>{}));
+ const request=event.data||{};
+ if(request.type==='G8PUSH_SET_ACTIVE_USER'){
+  const uid=String(request.uid||'');
+  if(uid&&!/^[A-Za-z0-9_-]{1,128}$/.test(uid))return;
+  event.waitUntil((async()=>{
+   let ok=false;
+   try{await pushIdentity(uid);ok=true;}catch(_){}
+   try{event.ports?.[0]?.postMessage({ok});}catch(_){}
+  })());
+ }else if(request.type==='G8PUSH_INSPECT'){
+  event.waitUntil((async()=>{
+   const uid=await pushIdentity().catch(()=>null);
+   const lastPush=await readPushAudit();
+   // No sensitive identifiers or registration tokens returned to UI.
+   const expectedUid=String(request.uid||'');
+   try{event.ports?.[0]?.postMessage({ok:true,hasIdentity:Boolean(uid),identityMatchesUid:Boolean(uid&&expectedUid===uid),lastPush});}catch(_){}
+  })());
  }
 });
 const pushLabels={messages:'You have a new private message.',announcements:'A new announcement is available.',lessons:'A new lesson is available.',activities:'A new activity is available.'};
 self.addEventListener('push',event=>{
  event.waitUntil((async()=>{
-  let raw={};try{raw=event.data?.json()||{};}catch(_){return;}
+  let raw={};try{raw=event.data?.json()||{};}catch(_){await writePushAudit('invalid-payload');return;}
   const data=raw.data||raw.message?.data||raw;
   const type=String(data.type||'').toLowerCase();
   const targetUid=String(data.targetUid||'');
-  if(!pushLabels[type]||!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid))return;
-  let activeUid='';try{activeUid=await pushIdentity();}catch(_){return;}
-  if(!activeUid||activeUid!==targetUid)return;
+  if(!pushLabels[type]||!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)){await writePushAudit('unknown-payload');return;}
+  let activeUid='';try{activeUid=await pushIdentity();}catch(_){await writePushAudit('identity-read-error');return;}
+  if(!activeUid||activeUid!==targetUid){await writePushAudit('account-mismatch');return;}
   // The in-app RTDB listeners already provide live badges while app is visible.
   const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-  if(windows.some(c=>c.visibilityState==='visible'&&c.focused))return;
+  if(windows.some(c=>c.visibilityState==='visible'&&c.focused)){await writePushAudit('in-app-foreground');return;}
   const itemId=String(data.itemId||'');
   const validItem=/^[A-Za-z0-9_-]{1,128}$/.test(itemId);
   const destination=type==='messages'?'./messages.html?from=student'
@@ -143,11 +179,14 @@ self.addEventListener('push',event=>{
     :validItem?`./index.html?g8mBack=student&gaOpen=${type==='lessons'?'lesson':'activity'}&gaItem=${encodeURIComponent(itemId)}`
     :'./index.html';
   const eventId=String(data.eventId||'latest').slice(0,80).replace(/[^A-Za-z0-9_-]/g,'');
+  try{
   await self.registration.showNotification('G8Code',{
    body:pushLabels[type],icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
    tag:`g8code-${type}-${eventId}`,renotify:false,
    data:{destination,type,targetUid},silent:false
   });
+   await writePushAudit('notification-shown');
+  }catch(_){await writePushAudit('notification-error');}
  })());
 });
 self.addEventListener('notificationclick',event=>{

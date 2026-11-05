@@ -41,14 +41,58 @@ function render(){
   opted?(state.registered?'Enabled for this device.':'Syncing device registration…'):'Get alerts for private messages, announcements, lessons and activities.'));
  showStatus(msg);
 }
-async function identityToWorker(uid){
- try{
-  const reg=state.reg||(await navigator.serviceWorker.getRegistration('./'));
-  if(!reg?.active)return;
-  // Worker persists the active account in IndexedDB and discards wrong-account pushes.
-  reg.active.postMessage({type:'G8PUSH_SET_ACTIVE_USER',uid:validId(uid)?uid:''});
- }catch(_){}
+// Persist the active account BEFORE relying on closed-tab push delivery.
+// An acknowledgement ensures that a new worker has finished writing IndexedDB.
+async function workerRequest(message, timeoutMs=3000){
+ if(!('serviceWorker' in navigator))throw Error('Service Worker unavailable');
+ const reg=state.reg || await navigator.serviceWorker.getRegistration('./') || await navigator.serviceWorker.ready;
+ const worker=reg?.active || navigator.serviceWorker.controller;
+ if(!worker)throw Error('Background worker has not activated');
+ return await new Promise((resolve,reject)=>{
+  const channel=new MessageChannel();let finished=false;
+  const finish=(error,data)=>{if(finished)return;finished=true;clearTimeout(timeout);channel.port1.close();if(error)reject(error);else resolve(data);};
+  const timeout=setTimeout(()=>finish(Error('Background worker did not respond')),timeoutMs);
+  channel.port1.onmessage=e=>finish(null,e.data||{});
+  worker.postMessage(message,[channel.port2]);
+ });
 }
+async function identityToWorker(uid){
+ const safeUid=validId(uid)?uid:'';
+ // Return the result; caller may retry if an update is activating.
+ for(let attempt=0;attempt<2;attempt++){
+  try{
+   const result=await workerRequest({type:'G8PUSH_SET_ACTIVE_USER',uid:safeUid});
+   if(result?.ok)return true;
+  }catch(_){}
+  if(attempt===0)await new Promise(resolve=>setTimeout(resolve,350));
+ }
+ return false;
+}
+function readablePushTime(ms){
+ if(!Number.isFinite(ms)||ms<=0)return 'Never';
+ try{return new Date(ms).toLocaleString();}catch(_){return 'Unknown';}
+}
+async function checkBackground(){
+ const el=$('g8pushCheckResult');
+ if(!el)return;
+ el.textContent='Checking background notification readiness…';
+ try{
+  const reg=await navigator.serviceWorker.getRegistration('./');
+  if(!reg?.active)throw Error('No active Service Worker. Reload G8Code once.');
+  const result=await workerRequest({type:'G8PUSH_INSPECT',uid:state.uid});
+  const subscription=await reg.pushManager.getSubscription();
+  const allowed=window.Notification?.permission==='granted';
+  const sameAccount=Boolean(state.uid&&!state.teacher&&safeGet(optKey(state.uid))==='yes'&&result?.hasIdentity&&result?.identityMatchesUid===true);
+  const last=result?.lastPush;
+  if(!subscription||!allowed||!sameAccount){
+   el.textContent='Background status: Not ready. '+(!allowed?'Allow browser notifications. ':!subscription?'Enable Phone Notifications again. ':'Reopen Account Settings and re-enable Phone Notifications to sync this account. ');
+   return;
+  }
+  const lastText=last?.atMs?` Last push: ${readablePushTime(last.atMs)} (${last.status||'received'}).`:' No background push observed on this browser yet.';
+  el.textContent='Background status: Registered and linked to this student.'+lastText;
+ }catch(err){el.textContent='Background check unavailable: '+(err?.message||err);}
+}
+
 async function loadSection(uid){
  try{
   const ownSection=(()=>{try{return typeof appSession!=='undefined'&&appSession?.student?.uid===uid?appSession.student.section:'';}catch(_){return '';}})();
@@ -96,8 +140,9 @@ async function registerDevice(uid){
   // Reuse the SINGLE app Service Worker registration. Registering a different
   // script URL for the same scope can trigger a controllerchange/reload loop.
   let reg=await navigator.serviceWorker.getRegistration('./');
-  if(!reg)reg=await navigator.serviceWorker.register('./service-worker.js?v=678-unified-push',{scope:'./',updateViaCache:'none'});
-  state.reg=reg;await navigator.serviceWorker.ready;await identityToWorker(uid);
+  if(!reg)reg=await navigator.serviceWorker.register('./service-worker.js?v=680-background-check',{scope:'./',updateViaCache:'none'});
+  state.reg=reg;await navigator.serviceWorker.ready;
+  if(!await identityToWorker(uid))throw Error('Background worker could not save this student account. Please retry.');
   state.deviceId=getDeviceId();if(!state.deviceId)throw Error('Secure device registration is unavailable.');
   const messaging=m.getMessaging(pushApp);state.messaging=messaging;
   // Current FCM API: FID, not the deprecated getToken flow.
@@ -106,6 +151,8 @@ async function registerDevice(uid){
    state.unregisteredHook=m.onUnregistered(messaging,()=>{state.registered=false;render();});
   }
   await m.register(messaging,{vapidKey:publicKey(),serviceWorkerRegistration:reg});
+  // The FCM registration may update the worker asynchronously. Sync again.
+  if(uid===state.uid&&!await identityToWorker(uid))throw Error('Could not confirm background notification registration. Try again.');
   if(uid!==state.uid){await identityToWorker(state.uid);return;}
   state.lastError='';
  }catch(err){state.lastError='Phone notification setup failed: '+(err?.message||err);state.registered=false;}
@@ -175,6 +222,13 @@ async function init(){
    render();
    if(uid&&!teacher&&safeGet(optKey(uid))==='yes'&&window.Notification?.permission==='granted')void registerDevice(uid);
   });
+  if('serviceWorker'in navigator){
+   navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    const active=state.uid&&!state.teacher&&safeGet(optKey(state.uid))==='yes'?state.uid:'';
+    void identityToWorker(active);
+   });
+  }
+  const check=$('g8pushCheck');if(check)check.addEventListener('click',()=>{void checkBackground();});
   const btn=$('g8pushToggle');if(btn)btn.addEventListener('click',()=>{void (safeGet(optKey(state.uid))==='yes'?disable():enable());});
   render();
  })().catch(err=>{state.lastError=err?.message||'Push setup unavailable';render();});

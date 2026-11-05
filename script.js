@@ -23576,7 +23576,7 @@ function registerPWAServiceWorker() {
     // Same script URL as the Phone Notifications registration. Different URLs
     // for one scope can continuously replace each other and reload the app.
     const hadControllerBeforeRegistration = Boolean(navigator.serviceWorker.controller);
-    navigator.serviceWorker.register('./service-worker.js?v=678-unified-push', {
+    navigator.serviceWorker.register('./service-worker.js?v=680-background-check', {
       scope: './',
       updateViaCache: 'none'
     }).then(registration => {
