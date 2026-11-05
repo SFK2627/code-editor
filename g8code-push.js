@@ -180,7 +180,7 @@ async function registerDevice(uid){
   // Reuse the SINGLE app Service Worker registration. Registering a different
   // script URL for the same scope can trigger a controllerchange/reload loop.
   let reg=await navigator.serviceWorker.getRegistration('./');
-  if(!reg)reg=await navigator.serviceWorker.register('./service-worker.js?v=680-background-check',{scope:'./',updateViaCache:'none'});
+  if(!reg)reg=await navigator.serviceWorker.register('./service-worker.js?v=681-adviser-student-name',{scope:'./',updateViaCache:'none'});
   state.reg=reg;await reg.update().catch(()=>{});await navigator.serviceWorker.ready;
   if(!await identityToWorker(uid))throw Error('Background worker could not save this account. Please retry.');
   state.deviceId=getDeviceId();if(!state.deviceId)throw Error('Secure device registration is unavailable.');

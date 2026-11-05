@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v712-adviser-push-speed';
+const CACHE_NAME = 'ict8-connect-v713-adviser-sender-name';
 const APP_SHELL = [
   './',
   './index.html',
@@ -95,7 +95,7 @@ self.addEventListener('fetch', event => {
 });
 
 
-/* G8Code Push V3.1 — privacy-safe background push for the signed-in student OR adviser.
+/* G8Code Push V3.3 — privacy-safe two-way background push + adviser sender names.
  * Account UID lives in worker IndexedDB to survive device restart.
  * Any push targeted at a previous account on a shared device is discarded.
  * Data-only server sends; no private message text in lock-screen notifications.
@@ -200,9 +200,15 @@ self.addEventListener('push',event=>{
     :validItem?`./index.html?g8mBack=student&gaOpen=${type==='lessons'?'lesson':'activity'}&gaItem=${encodeURIComponent(itemId)}`
     :'./index.html';
   const eventId=String(data.eventId||'latest').slice(0,80).replace(/[^A-Za-z0-9_-]/g,'');
+  // Server-sourced directory name; never display student-supplied message text.
+  // Strip control chars/newlines so an unexpected value cannot distort alerts.
+  const studentName=recipientRole==='teacher'
+   ?String(data.studentName||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+     .replace(/\s+/g,' ').trim().slice(0,72):'';
+  const adviserBody=studentName?`New message from ${studentName}`:'A student sent you a private message.';
   try{
-  await self.registration.showNotification('G8Code',{
-   body:recipientRole==='teacher'?'A student sent you a private message.':pushLabels[type],icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
+  await self.registration.showNotification(recipientRole==='teacher'?'G8Code Messages':'G8Code',{
+   body:recipientRole==='teacher'?adviserBody:pushLabels[type],icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
    tag:`g8code-${type}-${eventId}`,renotify:false,
    data:{destination,type,targetUid},silent:false
   });
