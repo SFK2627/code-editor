@@ -238,3 +238,18 @@ body{margin:0;background:var(--ga-bg);color:var(--ga-ink);font-size:14px}body.ga
 .ga-reactor-emoji{font-size:20px}.ga-reactors-empty{padding:25px 4px;text-align:center;color:var(--ga-muted);font-size:13px}
 .ga-reactors-summary{font-size:11px;color:var(--ga-muted);padding:13px 19px;border-top:1px solid var(--ga-border)}
 @media(max-width:690px){.ga-engagement-filters{gap:8px}.ga-engagement-filters label{min-width:calc(50% - 6px)}.ga-reactors-dialog{height:100dvh;max-height:100dvh;border-radius:0;width:100%}.ga-reactors-header{padding:18px}.ga-reactors-tabs{padding:11px}.ga-reactors-search{margin:0 12px 10px}.ga-reactors-list{padding:3px 12px 15px}}
+
+/* V3.2: scheduled publication options / independent of theme. */
+.ga-publish-settings{border:1px solid var(--ga-border);border-radius:15px;background:var(--ga-raised);padding:16px;margin:15px 0;display:grid;gap:12px}
+.ga-publish-settings>strong{font-size:13px;color:var(--ga-ink)}
+.ga-publish-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.ga-publish-modes label{display:block;border-radius:12px;border:1px solid var(--ga-border);background:var(--ga-surface);padding:12px;font-size:12px;font-weight:780;color:var(--ga-ink);cursor:pointer}
+.ga-publish-modes input{accent-color:var(--ga-primary);margin-right:4px}
+.ga-publish-modes label:has(input:checked){border-color:var(--ga-primary);box-shadow:0 0 0 1px var(--ga-primary)}
+.ga-publish-modes small{display:block;font-weight:400;color:var(--ga-muted);line-height:1.45;padding:5px 0 0 23px}
+.ga-schedule-fields{display:grid;gap:8px}
+.ga-schedule-fields label{font-weight:700;font-size:12px}
+.ga-schedule-fields label span{color:var(--ga-muted);font-weight:500}
+#gaScheduleDate{width:100%;min-width:0;color:var(--ga-ink);background:var(--ga-surface);border:1px solid var(--ga-border);border-radius:10px;padding:12px;font-size:14px;color-scheme:inherit}
+.ga-schedule-fields small{font-size:11px;color:var(--ga-muted);line-height:1.55}
+@media(max-width:540px){.ga-publish-modes{grid-template-columns:1fr}.ga-publish-settings{padding:12px}}

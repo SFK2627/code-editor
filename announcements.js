@@ -273,12 +273,12 @@ function determineRecipients(audience){
 // A single PERSON is counted in the picker. Historical accounts with matching
 // Student IDs can receive a feed. Name-only matches never grant private access.
 function recipientAccountUids(audience){return [...new Set(determineRecipients(audience).flatMap(p=>p.deliveryUids))];}
-function normalizePost(raw,id){return {id,title:txt(raw.title||'Untitled announcement',140),bodyHtml:sanitizeHtml(raw.bodyHtml||''),background:['plain','blue','lavender','yellow','mint','rose','navy','gradient','custom'].includes(raw.background)?raw.background:'plain',font:['Arial','Georgia','Verdana','Trebuchet MS','Times New Roman','Courier New'].includes(raw.font)?raw.font:'Arial',bgColor:/^#[0-9a-f]{6}$/i.test(raw.bgColor||'')?raw.bgColor:'#e8f0ff',status:raw.status||'draft',pinned:!!raw.pinned,allowReplies:raw.allowReplies!==false,attachments:(Array.isArray(raw.attachments)?raw.attachments:Object.values(raw.attachments||{})).slice(0,40),createdAtMs:Number(raw.createdAtMs||0),publishedAtMs:Number(raw.publishedAtMs||0),updatedAtMs:Number(raw.updatedAtMs||0),audience:raw.audience||{type:'all'}};}
+function normalizePost(raw,id){return {id,title:txt(raw.title||'Untitled announcement',140),bodyHtml:sanitizeHtml(raw.bodyHtml||''),background:['plain','blue','lavender','yellow','mint','rose','navy','gradient','custom'].includes(raw.background)?raw.background:'plain',font:['Arial','Georgia','Verdana','Trebuchet MS','Times New Roman','Courier New'].includes(raw.font)?raw.font:'Arial',bgColor:/^#[0-9a-f]{6}$/i.test(raw.bgColor||'')?raw.bgColor:'#e8f0ff',status:raw.status||'draft',pinned:!!raw.pinned,allowReplies:raw.allowReplies!==false,attachments:(Array.isArray(raw.attachments)?raw.attachments:Object.values(raw.attachments||{})).slice(0,40),createdAtMs:Number(raw.createdAtMs||0),publishedAtMs:Number(raw.publishedAtMs||0),scheduledForMs:Number(raw.scheduledForMs||0),createdByUid:raw.createdByUid||'',updatedAtMs:Number(raw.updatedAtMs||0),audience:raw.audience||{type:'all'}};}
 function published(p){return p.status==='published';}
 function allIds(){
  const filter=state.filter;
  const rows=Object.entries(state.posts).map(([id,p])=>normalizePost(p,id));
- return rows.filter(p=>state.teacher?filter==='drafts'?p.status==='draft':filter==='archived'?p.status==='archived':filter==='all'?p.status!=='archived':published(p):published(p))
+ return rows.filter(p=>state.teacher?filter==='drafts'?p.status==='draft':filter==='archived'?p.status==='archived':filter==='scheduled'?p.status==='scheduled':filter==='all'?p.status!=='archived':published(p):published(p))
  .filter(p=>filter!=='unread'||state.teacher||!state.seen[p.id])
  .filter(p=>filter!=='pinned'||p.pinned)
  .filter(p=>!state.teacher||state.audienceFilter==='all'||p.audience.type===(state.audienceFilter==='everyone'?'all':state.audienceFilter))
@@ -307,7 +307,7 @@ function updateAudienceFilterOptions(){
  $('gaAudienceSectionWrap').hidden=state.audienceFilter!=='sections';
 }
 
-function renderBadges(){if(state.teacher){$('gaAllCount').textContent=Object.values(state.posts).filter(p=>p.status==='published').length;return;}const posts=Object.entries(state.posts).filter(([,p])=>published(p));const newCount=posts.filter(([id])=>!state.seen[id]).length;$('gaAllCount').textContent=posts.length;$('gaUnreadCount').textContent=newCount;document.title=newCount?`(${newCount}) Announcements · G8Code`:'Announcements · G8Code';}
+function renderBadges(){if(state.teacher){$('gaAllCount').textContent=Object.values(state.posts).filter(p=>p.status==='published').length;$('gaScheduledCount').textContent=Object.values(state.posts).filter(p=>p.status==='scheduled').length;return;}const posts=Object.entries(state.posts).filter(([,p])=>published(p));const newCount=posts.filter(([id])=>!state.seen[id]).length;$('gaAllCount').textContent=posts.length;$('gaUnreadCount').textContent=newCount;document.title=newCount?`(${newCount}) Announcements · G8Code`:'Announcements · G8Code';}
 function renderReadFlags(){document.querySelectorAll('[data-ga-post-new]').forEach(el=>{el.hidden=!!state.seen[el.dataset.gaPostNew];});}
 // A push notification can open the exact announcement and its comments.
 const gaLink=new URLSearchParams(location.search);
@@ -382,7 +382,7 @@ function renderCard(p){
  const card=node('article','ga-card');card.dataset.gaPost=p.id;
  const h=node('div','ga-post-head');h.append(node('span','ga-avatar','📣'));
  const author=node('div','ga-post-author');
- author.append(node('strong','',state.teacher?'ICT Teacher · Admin':'ICT Teacher'),node('small','',`${stamp(p.publishedAtMs||p.createdAtMs)}${p.pinned?' · 📌 Pinned':''}${state.teacher?' · '+p.status:''}`));
+ author.append(node('strong','',state.teacher?'ICT Teacher · Admin':'ICT Teacher'),node('small','',`${p.status==='scheduled'?'🗓 Scheduled: '+scheduledLabel(p.scheduledForMs):stamp(p.publishedAtMs||p.createdAtMs)}${p.pinned?' · 📌 Pinned':''}${state.teacher?' · '+p.status:''}`));
  h.append(author);
  if(!state.teacher){const n=node('span','ga-post-tag ga-post-new','New');n.dataset.gaPostNew=p.id;n.hidden=!!state.seen[p.id];h.append(n);}
  else{const scope=p.audience.type==='all'?'All sections':p.audience.type==='sections'?`${(p.audience.sections||[]).length} section${(p.audience.sections||[]).length===1?'':'s'}`:'Selected students';const label=node('span','ga-post-tag',scope);label.title=p.audience.type==='sections'?(p.audience.sections||[]).join(', '):scope;h.append(label);}
@@ -475,7 +475,7 @@ function renderCard(p){
   on(`reactions/${p.id}`,data=>{state.reactions[p.id]=data;updateTotals();if(state.reactorsPostId===p.id)renderReactorDialog();},state.postUnsubs);
   on(`replies/${p.id}`,data=>{state.comments[p.id]=data;updateTotals();drawComments(p.id,card,p);},state.postUnsubs);
  }
- if(state.teacher){const menu=node('div','ga-teacher-menu');for(const [label,action] of [['Edit',()=>openComposer(p)],['Duplicate',()=>openComposer(p,true)],[p.status==='published'?'Archive':'Publish',()=>p.status==='published'?archivePost(p):publishExisting(p)],['Delete',()=>deletePost(p)]]){const b=node('button',label==='Delete'?'danger':'',label);b.type='button';b.addEventListener('click',action);menu.append(b);}card.append(menu);}
+ if(state.teacher){const menu=node('div','ga-teacher-menu');for(const [label,action] of [['Edit',()=>openComposer(p)],['Duplicate',()=>openComposer(p,true)],[p.status==='published'?'Archive':p.status==='scheduled'?'Publish Now':'Publish',()=>p.status==='published'?archivePost(p):publishExisting(p)],['Delete',()=>deletePost(p)]]){const b=node('button',label==='Delete'?'danger':'',label);b.type='button';b.addEventListener('click',action);menu.append(b);}card.append(menu);}
  return card;
 }
 let gaPreviewActive=0;const gaPreviewWaiting=[];function withPreviewTurn(fn){return new Promise((resolve,reject)=>{gaPreviewWaiting.push({fn,resolve,reject});pumpPreview();});}function pumpPreview(){while(gaPreviewActive<2&&gaPreviewWaiting.length){const task=gaPreviewWaiting.shift();gaPreviewActive++;Promise.resolve().then(task.fn).then(task.resolve,task.reject).finally(()=>{gaPreviewActive--;pumpPreview();});}}
@@ -604,8 +604,14 @@ $('gaAudienceTypeFilter').addEventListener('change',e=>{state.audienceFilter=e.t
 $('gaAudienceSectionFilter').addEventListener('change',e=>{state.audienceSection=e.target.value;render();});
 
 $('gaSearch').addEventListener('input',e=>{state.search=e.target.value.toLowerCase().trim();render();});$('gaRefresh').addEventListener('click',()=>render());$('gaNew').addEventListener('click',()=>openComposer());
+// Date/time is explicitly Philippine Time (UTC+08). No browser locale/DST guesses.
+function phInput(ms){if(!ms)return '';const date=new Date(ms+8*3600000);return date.toISOString().slice(0,16);}
+function phMillis(value){if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value||''))return NaN;const n=Date.parse(value+':00+08:00');return Number.isFinite(n)&&phInput(n)===value?n:NaN;}
+function scheduledLabel(ms){return ms?new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}).format(new Date(ms))+' PHT':'Not set';}
+function syncPublishTiming(){const scheduled=document.querySelector('input[name="gaPublishTiming"]:checked')?.value==='schedule';$('gaScheduleFields').hidden=!scheduled;$('gaScheduleDate').required=scheduled;$('gaPublish').textContent=scheduled?'🗓 Schedule Announcement':'⚡ Publish Now';}
+document.querySelectorAll('input[name="gaPublishTiming"]').forEach(el=>el.addEventListener('change',syncPublishTiming));
 // Composer supports multiple attachment types in the SAME published post.
-function openComposer(p=null,duplicate=false){if(!state.teacher)return;state.editingId=p&&!duplicate?p.id:'';state.editingBase=p&&!duplicate?p:null;state.files=p?JSON.parse(JSON.stringify(p.attachments||[])).map(f=>(duplicate && ['image','pdf'].includes(f.type))?{...f,sourcePostId:f.sourcePostId||p.id}:f):[];state.selectedSections=new Set(p?.audience?.sections||[]);state.selectedStudents=new Set(p?.audience?.students||[]);$('gaComposeTitle').textContent=p?(duplicate?'Duplicate announcement':'Edit announcement'):'Create announcement';$('gaPostTitle').value=p?.title||'';$('gaRichText').innerHTML=p?.bodyHtml||'';$('gaBackground').value=p?.background||'plain';$('gaCustomBackground').value=p?.bgColor||'#e8f0ff';$('gaCustomBackgroundWrap').hidden=$('gaBackground').value!=='custom';$('gaFont').value=p?.font||'Arial';document.querySelector(`input[name="gaAudience"][value="${p?.audience?.type||'all'}"]`).checked=true;$('gaAllowReplies').checked=p?.allowReplies!==false;$('gaPinned').checked=!!p?.pinned;$('gaComposerModal').hidden=false;document.body.style.overflow='hidden';$('gaComposeStatus').textContent='Compose your announcement. Attachments are saved before publishing.';renderAudience();renderAttachments();drawPreview();$('gaPostTitle').focus();}
+function openComposer(p=null,duplicate=false){if(!state.teacher)return;state.editingId=p&&!duplicate?p.id:'';state.editingBase=p&&!duplicate?p:null;state.files=p?JSON.parse(JSON.stringify(p.attachments||[])).map(f=>(duplicate && ['image','pdf'].includes(f.type))?{...f,sourcePostId:f.sourcePostId||p.id}:f):[];state.selectedSections=new Set(p?.audience?.sections||[]);state.selectedStudents=new Set(p?.audience?.students||[]);$('gaComposeTitle').textContent=p?(duplicate?'Duplicate announcement':'Edit announcement'):'Create announcement';$('gaPostTitle').value=p?.title||'';$('gaRichText').innerHTML=p?.bodyHtml||'';$('gaBackground').value=p?.background||'plain';$('gaCustomBackground').value=p?.bgColor||'#e8f0ff';$('gaCustomBackgroundWrap').hidden=$('gaBackground').value!=='custom';$('gaFont').value=p?.font||'Arial';document.querySelector(`input[name="gaAudience"][value="${p?.audience?.type||'all'}"]`).checked=true;$('gaAllowReplies').checked=p?.allowReplies!==false;$('gaPinned').checked=!!p?.pinned;const existingSchedule=!!(p&&!duplicate&&p.status==='scheduled');document.querySelector('input[name="gaPublishTiming"][value="'+(existingSchedule?'schedule':'now')+'"]').checked=true;$('gaScheduleDate').value=existingSchedule?phInput(p.scheduledForMs):phInput(Date.now()+10*60000);syncPublishTiming();$('gaComposerModal').hidden=false;document.body.style.overflow='hidden';$('gaComposeStatus').textContent='Compose your announcement. Attachments are saved before publishing.';renderAudience();renderAttachments();drawPreview();$('gaPostTitle').focus();}
 function closeComposer(){if(state.transferBusy||state.composerBusy){toast('An upload or save is still in progress. Wait for its verified result.',true);return;}$('gaComposerModal').hidden=true;document.body.style.overflow='';}
 $('gaComposeClose').addEventListener('click',closeComposer);document.querySelectorAll('[data-ga-close="composer"]').forEach(el=>el.addEventListener('click',closeComposer));
 function selectedAudience(){const type=document.querySelector('input[name="gaAudience"]:checked')?.value||'all';return {type,sections:type==='sections'?[...state.selectedSections]:[],students:type==='students'?[...state.selectedStudents]:[]};}
@@ -723,14 +729,58 @@ $('gaAddActivity').addEventListener('click',()=>openResourcePicker('activity'));
 $('gaAddImages').addEventListener('click',()=>$('gaImageFiles').click());
 $('gaAddPdf').addEventListener('click',()=>$('gaPdfFiles').click());
 function renderAttachments(){const host=$('gaAttachmentList');host.replaceChildren();state.files.forEach((f,i)=>{const row=node('div','ga-attachment-item');row.append(node('span','',f.type==='image'?'🖼':f.type==='pdf'?'📄':f.type==='lesson'?'📘':f.type==='activity'?'📝':f.type==='youtube'?'▶':'🔗'),node('strong','',f.name),node('small','',f.type.toUpperCase()));for(const [mark,delta] of [['↑',-1],['↓',1]]){const b=node('button','',mark);b.type='button';b.title='Reorder';b.disabled=i+delta<0||i+delta>=state.files.length;b.addEventListener('click',()=>{const tmp=state.files[i];state.files[i]=state.files[i+delta];state.files[i+delta]=tmp;renderAttachments();});row.append(b);}const x=node('button','','×');x.type='button';x.title='Remove attachment';x.addEventListener('click',()=>{state.files.splice(i,1);renderAttachments();});row.append(x);host.append(row);});drawPreview();}
-function postFromEditor(id,status){const old=state.editingBase;const title=txt($('gaPostTitle').value,140);const bodyHtml=sanitizeHtml($('gaRichText').innerHTML);if(!title&&!plainHtml(bodyHtml)&&!state.files.length)throw Error('Write a title, message, or include an attachment.');return {id,title:title||'Class announcement',bodyHtml,background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,status,allowReplies:$('gaAllowReplies').checked,pinned:$('gaPinned').checked,audience:selectedAudience(),attachments:state.files.map(f=>({...f})),createdAtMs:old?.createdAtMs||Date.now(),updatedAtMs:Date.now(),publishedAtMs:status==='published'?(old?.publishedAtMs||Date.now()):0};}
+function postFromEditor(id,status){
+ const old=state.editingBase,title=txt($('gaPostTitle').value,140),bodyHtml=sanitizeHtml($('gaRichText').innerHTML);
+ if(!title&&!plainHtml(bodyHtml)&&!state.files.length)throw Error('Write a title, message, or include an attachment.');
+ const scheduledForMs=status==='scheduled'?phMillis($('gaScheduleDate').value):0;
+ if(status==='scheduled'){
+  if(!Number.isFinite(scheduledForMs))throw Error('Select a valid Philippine date and time.');
+  if(scheduledForMs<Date.now()+90000)throw Error('Schedule at least 2 minutes in the future to allow server processing.');
+  if(scheduledForMs>Date.now()+366*86400000)throw Error('Schedule within the next 12 months.');
+ }
+ // A previously published post preserves its first publication date when edited.
+ const publishedAtMs=status==='published'?(old?.status==='published'&&old?.publishedAtMs||Date.now()):0;
+ return {id,title:title||'Class announcement',bodyHtml,background:$('gaBackground').value,bgColor:$('gaCustomBackground').value,font:$('gaFont').value,status,allowReplies:$('gaAllowReplies').checked,pinned:$('gaPinned').checked,audience:selectedAudience(),attachments:state.files.map(f=>({...f})),createdByUid:old?.createdByUid||state.user.uid,createdAtMs:old?.createdAtMs||Date.now(),updatedAtMs:Date.now(),publishedAtMs,scheduledForMs};
+}
 function feedCopy(p){return {id:p.id,title:p.title,bodyHtml:p.bodyHtml,background:p.background,bgColor:p.bgColor,font:p.font,status:p.status,allowReplies:p.allowReplies,pinned:p.pinned,attachments:p.attachments||[],createdAtMs:p.createdAtMs,publishedAtMs:p.publishedAtMs,updatedAtMs:p.updatedAtMs};}
-async function persistPost(p){if(p.status==='published'&&(!state.directoryLoaded||!state.summaryLoaded))throw Error('Student information is still loading. Please try again shortly.');const old=state.posts[p.id]||{};const oldList=Object.keys(old.recipients||{});const newList=p.status==='published'?recipientAccountUids(p.audience):[];p.recipients=Object.fromEntries(newList.map(uid=>[uid,true]));if(p.status==='published'&&!newList.length)throw Error('No students found for this audience. Check your student list and try again.');if(newList.length>2500)throw Error('Unusually large audience. Review the selected students before publishing.');const updates={[`posts/${p.id}`]:p};const oldSet=new Set(oldList),newSet=new Set(newList);for(const uid of oldSet)if(!newSet.has(uid))updates[`feeds/${uid}/${p.id}`]=null;for(const uid of newSet)updates[`feeds/${uid}/${p.id}`]=feedCopy(p);await state.sdk.update(state.sdk.ref(state.db,BASE),updates);}
-async function saveCurrent(status){if(state.composerBusy||state.transferBusy)return;state.composerBusy=true;const buttons=[$('gaSaveDraft'),$('gaPublish')];buttons.forEach(b=>b.disabled=true);alertStatus(status==='published'?'Publishing to selected students…':'Saving draft…');try{const id=state.editingId||state.sdk.push(path('posts')).key;const p=postFromEditor(id,status);await persistPost(p);if(status==='published')void window.G8CodePush?.queueTeacherEvent?.({type:'announcements',itemId:p.id,recipientUids:Object.keys(p.recipients||{})});toast(status==='published'?`Published to ${determineRecipients(p.audience).length} students.`:'Draft saved successfully.');state.composerBusy=false;closeComposer();}catch(e){alertStatus('Save failed: '+e.message,true);toast(e.message,true);}finally{state.composerBusy=false;buttons.forEach(b=>b.disabled=false);}}
-$('gaSaveDraft').addEventListener('click',()=>saveCurrent('draft'));$('gaPublish').addEventListener('click',()=>saveCurrent('published'));
+async function persistPost(p){
+ if(['published','scheduled'].includes(p.status)&&(!state.directoryLoaded||!state.summaryLoaded))throw Error('Student information is still loading. Please try again shortly.');
+ const old=state.posts[p.id]||{};
+ const oldList=Object.keys(old.recipients||{});
+ const targetList=['published','scheduled'].includes(p.status)?recipientAccountUids(p.audience):[];
+ p.recipients=Object.fromEntries(targetList.map(uid=>[uid,true]));
+ if(['published','scheduled'].includes(p.status)&&!targetList.length)throw Error('No students found for this audience. Check your student list and try again.');
+ if(targetList.length>2500)throw Error('Unusually large audience. Review the selected students before publishing.');
+ const updates={[`posts/${p.id}`]:p,
+  // Private admin-only queue; no student feed exists until actual publication.
+  [`scheduleQueue/${p.id}`]:p.status==='scheduled'?{postId:p.id,scheduledForMs:p.scheduledForMs,updatedAtMs:p.updatedAtMs}:null};
+ const newList=p.status==='published'?targetList:[];
+ const oldSet=new Set(oldList),newSet=new Set(newList);
+ // Remove any previously published student feed when moving to scheduled/draft.
+ for(const uid of oldSet)if(!newSet.has(uid))updates[`feeds/${uid}/${p.id}`]=null;
+ for(const uid of newSet)updates[`feeds/${uid}/${p.id}`]=feedCopy(p);
+ await state.sdk.update(state.sdk.ref(state.db,BASE),updates);
+}
+async function saveCurrent(status){
+ if(state.composerBusy||state.transferBusy)return;
+ if(status!=='draft')status=document.querySelector('input[name="gaPublishTiming"]:checked')?.value==='schedule'?'scheduled':'published';
+ state.composerBusy=true;
+ const buttons=[$('gaSaveDraft'),$('gaPublish')];buttons.forEach(b=>b.disabled=true);
+ alertStatus(status==='published'?'Publishing to selected students…':status==='scheduled'?'Scheduling automatic publication…':'Saving draft…');
+ try{
+  const id=state.editingId||state.sdk.push(path('posts')).key;
+  const p=postFromEditor(id,status);await persistPost(p);
+  if(status==='published')void window.G8CodePush?.queueTeacherEvent?.({type:'announcements',itemId:p.id,recipientUids:Object.keys(p.recipients||{})});
+  toast(status==='published'?`Published to ${determineRecipients(p.audience).length} students.`:status==='scheduled'?`Scheduled for ${scheduledLabel(p.scheduledForMs)}. Students cannot see it yet.`:'Draft saved successfully.');
+  state.composerBusy=false;closeComposer();
+ }catch(e){alertStatus('Save failed: '+e.message,true);toast(e.message,true);}
+ finally{state.composerBusy=false;buttons.forEach(b=>b.disabled=false);}
+}
+$('gaSaveDraft').addEventListener('click',()=>saveCurrent('draft'));
+$('gaPublish').addEventListener('click',()=>saveCurrent('publish'));
 async function archivePost(p){if(!confirm('Archive this post and remove it from student feeds?'))return;try{const updated={...state.posts[p.id],status:'archived',updatedAtMs:Date.now()};await persistPost(updated);toast('Announcement archived.');}catch(e){toast(e.message,true);}}
-async function publishExisting(p){try{const updated={...state.posts[p.id],status:'published',publishedAtMs:Date.now(),updatedAtMs:Date.now()};await persistPost(updated);void window.G8CodePush?.queueTeacherEvent?.({type:'announcements',itemId:updated.id,recipientUids:Object.keys(updated.recipients||{})});toast('Announcement published.');}catch(e){toast(e.message,true);}}
-async function deletePost(p){if(!confirm(`Permanently delete “${p.title}” for everyone? Attached Drive files will remain in private Drive until cleaned up.`))return;try{const old=state.posts[p.id];const recipients=Object.keys(old.recipients||{}).map(uid=>({uid}));const updates={[`posts/${p.id}`]:null,[`reactions/${p.id}`]:null,[`replies/${p.id}`]:null};for(const r of recipients)updates[`feeds/${r.uid}/${p.id}`]=null;await state.sdk.update(state.sdk.ref(state.db,BASE),updates);toast('Post deleted.');}catch(e){toast('Delete failed: '+e.message,true);}}
+async function publishExisting(p){try{const updated={...state.posts[p.id],status:'published',publishedAtMs:p.status==='published'&&p.publishedAtMs||Date.now(),scheduledForMs:0,updatedAtMs:Date.now()};await persistPost(updated);void window.G8CodePush?.queueTeacherEvent?.({type:'announcements',itemId:updated.id,recipientUids:Object.keys(updated.recipients||{})});toast('Announcement published.');}catch(e){toast(e.message,true);}}
+async function deletePost(p){if(!confirm(`Permanently delete “${p.title}” for everyone? Attached Drive files will remain in private Drive until cleaned up.`))return;try{const old=state.posts[p.id];const recipients=Object.keys(old.recipients||{}).map(uid=>({uid}));const updates={[`posts/${p.id}`]:null,[`scheduleQueue/${p.id}`]:null,[`reactions/${p.id}`]:null,[`replies/${p.id}`]:null};for(const r of recipients)updates[`feeds/${r.uid}/${p.id}`]=null;await state.sdk.update(state.sdk.ref(state.db,BASE),updates);toast('Post deleted.');}catch(e){toast('Delete failed: '+e.message,true);}}
 // Workspace Drive: receipt-based request (no CORS response is ever treated as success).
 function driveEndpoint(){return String(window.MCS_G8_MESSAGES_DRIVE_URL||window.MCS_APPS_SCRIPT_URL||'').trim();}
 async function driveRequest(action,data={},maxWait=70000){currentUser();if(location.protocol!=='https:')throw Error('Private Drive transfers require your deployed HTTPS G8Code site.');const endpoint=driveEndpoint();if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec(?:\?.*)?$/.test(endpoint))throw Error('Apps Script /exec URL is missing.');const token=await state.user.getIdToken();const nonce=Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');const inbox=path(`transfers/${state.user.uid}/${nonce}`);return new Promise((resolve,reject)=>{let done=false,off=()=>{};let timer;const finish=(err,receipt)=>{if(done)return;done=true;clearTimeout(timer);off();if(receipt)state.sdk.remove(inbox).catch(()=>{});if(err)reject(err);else resolve(receipt?.data||{});};timer=setTimeout(()=>finish(Error('The file request could not be confirmed. Please try again.')),maxWait);off=state.sdk.onValue(inbox,s=>{if(!s.exists())return;const r=s.val();if(r.action!==action)return;finish(r.ok?null:Error(r.error||'Drive request denied'),r);},e=>finish(Error('Cannot read Drive confirmation: '+e.message)));const body=new URLSearchParams({g8aBridge:'1',nonce,action,idToken:token,origin:location.origin,...Object.fromEntries(Object.entries(data).map(([k,v])=>[k,String(v??'')]))});fetch(endpoint,{method:'POST',mode:'no-cors',credentials:'omit',body,cache:'no-store'}).catch(e=>console.warn('No-CORS POST error (receipt still authoritative):',e));});}
