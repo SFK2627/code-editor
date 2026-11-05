@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v713-adviser-sender-name';
+const CACHE_NAME = 'ict8-connect-v714-adviser-message-types';
 const APP_SHELL = [
   './',
   './index.html',
@@ -95,7 +95,7 @@ self.addEventListener('fetch', event => {
 });
 
 
-/* G8Code Push V3.3 — privacy-safe two-way background push + adviser sender names.
+/* G8Code Push V3.5 — privacy-safe two-way background push + verified adviser sender and message type.
  * Account UID lives in worker IndexedDB to survive device restart.
  * Any push targeted at a previous account on a shared device is discarded.
  * Data-only server sends; no private message text in lock-screen notifications.
@@ -208,12 +208,19 @@ self.addEventListener('push',event=>{
   const studentSection=recipientRole==='teacher'
    ?String(data.studentSection||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
      .replace(/\s+/g,' ').trim().slice(0,100):'';
-  const adviserBody=studentName
-   ?`New message from ${studentName}${studentSection?' • '+studentSection:''}`
-   :studentSection?`New message • ${studentSection}`
-   :'A student sent you a private message.';
+  // Only controlled message categories from the server are displayed. The
+  // message text, attachment names, and project source are never sent to FCM.
+  const adviserKind=['message','photo','project'].includes(String(data.messageKind||''))
+   ?String(data.messageKind):'message';
+  const photoCount=Math.max(1,Math.min(10,Number.parseInt(data.photoCount,10)||1));
+  const adviserTitle=studentName
+   ?`${studentName}${studentSection?' ('+studentSection+')':''}`
+   :studentSection?`Student (${studentSection})`:'G8Code Messages';
+  const adviserBody=adviserKind==='project'?'Shared a project with you.'
+   :adviserKind==='photo'?(photoCount>1?`Sent you ${photoCount} photos.`:'Sent you a photo.')
+   :'Sent you a message.';
   try{
-  await self.registration.showNotification(recipientRole==='teacher'?'G8Code Messages':'G8Code',{
+  await self.registration.showNotification(recipientRole==='teacher'?adviserTitle:'G8Code',{
    body:recipientRole==='teacher'?adviserBody:pushLabels[type],icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
    tag:`g8code-${type}-${eventId}`,renotify:false,
    data:{destination,type,targetUid},silent:false
