@@ -1,4 +1,4 @@
-/* G8Code Push V2.1 — shared Service Worker, no registration race; opt-in, student-only Firebase Installation ID push registration.
+/* G8Code Push V2.3 — shared Service Worker, no registration race; opt-in, student-only Firebase Installation ID push registration.
  * Zero credentials are embedded: PUBLIC VAPID key is loaded from g8code-push-config.js.
  * The private server credential belongs exclusively in Google Apps Script Properties.
  */
@@ -88,7 +88,7 @@ async function checkBackground(){
    el.textContent='Background status: Not ready. '+(!allowed?'Allow browser notifications. ':!subscription?'Enable Phone Notifications again. ':'Reopen Account Settings and re-enable Phone Notifications to sync this account. ');
    return;
   }
-  const lastText=last?.atMs?` Last push: ${readablePushTime(last.atMs)} (${last.status||'received'}).`:' No background push observed on this browser yet.';
+  const lastText=last?.atMs?` Last push event: ${readablePushTime(last.receivedAtMs||last.atMs)}. Result: ${last.status||'received'}.`:' No background push event recorded on this browser yet.';
   el.textContent='Background status: Registered and linked to this student.'+lastText;
  }catch(err){el.textContent='Background check unavailable: '+(err?.message||err);}
 }

@@ -95,7 +95,7 @@ self.addEventListener('fetch', event => {
 });
 
 
-/* G8Code Push V2 — privacy-safe push for the currently registered student.
+/* G8Code Push V2.3 — privacy-safe background push for the currently registered student.
  * Account UID lives in worker IndexedDB to survive device restart.
  * Any push targeted at a previous account on a shared device is discarded.
  * Data-only server sends; no private message text in lock-screen notifications.
@@ -116,13 +116,14 @@ async function pushIdentity(writeUid){
   request.onerror=()=>reject(request.error);
  });}finally{db.close();}
 }
-async function writePushAudit(status){
+async function writePushAudit(status,receiptMs){
  try{
   const db=await openPushIdb();
   try{
    await new Promise((resolve,reject)=>{
     const tx=db.transaction('prefs','readwrite');
-    tx.objectStore('prefs').put({atMs:Date.now(),status:String(status||'unknown').slice(0,40)},'lastPush');
+    const now=Date.now();
+    tx.objectStore('prefs').put({atMs:now,receivedAtMs:Number(receiptMs||now),status:String(status||'unknown').slice(0,40)},'lastPush');
     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
    });
   }finally{db.close();}
@@ -162,16 +163,19 @@ self.addEventListener('message',event=>{
 const pushLabels={messages:'You have a new private message.',announcements:'A new announcement is available.',lessons:'A new lesson is available.',activities:'A new activity is available.'};
 self.addEventListener('push',event=>{
  event.waitUntil((async()=>{
-  let raw={};try{raw=event.data?.json()||{};}catch(_){await writePushAudit('invalid-payload');return;}
+  // Audit whether the browser woke this worker at all (even with a closed tab).
+  const receivedAtMs=Date.now();
+  await writePushAudit('push-received',receivedAtMs);
+  let raw={};try{raw=event.data?.json()||{};}catch(_){await writePushAudit('invalid-payload',receivedAtMs);return;}
   const data=raw.data||raw.message?.data||raw;
   const type=String(data.type||'').toLowerCase();
   const targetUid=String(data.targetUid||'');
-  if(!pushLabels[type]||!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)){await writePushAudit('unknown-payload');return;}
-  let activeUid='';try{activeUid=await pushIdentity();}catch(_){await writePushAudit('identity-read-error');return;}
-  if(!activeUid||activeUid!==targetUid){await writePushAudit('account-mismatch');return;}
+  if(!pushLabels[type]||!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)){await writePushAudit('unknown-payload',receivedAtMs);return;}
+  let activeUid='';try{activeUid=await pushIdentity();}catch(_){await writePushAudit('identity-read-error',receivedAtMs);return;}
+  if(!activeUid||activeUid!==targetUid){await writePushAudit('account-mismatch',receivedAtMs);return;}
   // The in-app RTDB listeners already provide live badges while app is visible.
   const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-  if(windows.some(c=>c.visibilityState==='visible'&&c.focused)){await writePushAudit('in-app-foreground');return;}
+  if(windows.some(c=>c.visibilityState==='visible'&&c.focused)){await writePushAudit('in-app-foreground',receivedAtMs);return;}
   const itemId=String(data.itemId||'');
   const validItem=/^[A-Za-z0-9_-]{1,128}$/.test(itemId);
   const destination=type==='messages'?'./messages.html?from=student'
@@ -185,8 +189,8 @@ self.addEventListener('push',event=>{
    tag:`g8code-${type}-${eventId}`,renotify:false,
    data:{destination,type,targetUid},silent:false
   });
-   await writePushAudit('notification-shown');
-  }catch(_){await writePushAudit('notification-error');}
+   await writePushAudit('notification-shown',receivedAtMs);
+  }catch(_){await writePushAudit('notification-error',receivedAtMs);}
  })());
 });
 self.addEventListener('notificationclick',event=>{
