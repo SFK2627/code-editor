@@ -611,6 +611,8 @@ function allPeople(){
    unreadCount, checkingCount,
    lastAtMs:Math.max(0,...allUids.map(uid=>Number(summaries[uid]?.lastAtMs||0))),
    lastText:String(summaries[latest.uid]?.lastText || ''),
+   // Preview's sender must belong to the SAME latest summary/UID as lastText.
+   lastRole:String(summaries[latest.uid]?.lastRole || ''),
   });
  }
  return result;
@@ -653,6 +655,31 @@ function renderSections(){if(!teacher)return;
  });
  if(rows.length===1)rootList.append(notice('No conversations or student records yet.'));
 }
+// Admin inbox: identify the LAST sender without extra message reads.
+// Most school directory names are "Surname, Given Name(s)"; a compact given
+// name keeps the actual message visible in narrow phone/tablet inboxes.
+function inboxPreviewSender(p){
+ if(p.lastRole==='teacher')return 'You';
+ if(p.lastRole!=='student')return '';
+ const full=String(p.name||'').trim();
+ const given=(full.includes(',')?full.substring(full.indexOf(',')+1):full).trim();
+ return short(given.split(/\s+/).filter(Boolean).slice(0,2).join(' ')||'Student',24);
+}
+function createInboxPreview(p){
+ const message=String(p.lastText||'').trim();
+ const el=textEl('small','g8m-last-message','');
+ const sender=message?inboxPreviewSender(p):'';
+ if(sender){
+  // Use DOM textContent instead of HTML to keep names/messages safe.
+  el.append(textEl('b','',`${sender}: `),document.createTextNode(message));
+  el.title=`${p.lastRole==='teacher'?'You':p.name}: ${message}`;
+ }else{
+  // Historic summaries may not have lastRole; never guess the sender.
+  el.textContent=message||p.studentId||'Start a conversation';
+  el.title=el.textContent;
+ }
+ return el;
+}
 function renderStudents(){if(!teacher)return;
  const name=currentSection==='*'?'All Sections':currentSection;
  $('g8mCurrentSection').textContent=name;
@@ -664,7 +691,7 @@ function renderStudents(){if(!teacher)return;
   const row=textEl('button','g8m-student-row'+(p.uids.includes(openedUid)?' active':''),'');row.type='button';
   row.append(textEl('span','g8m-student-avatar',iconLetter(p)));
   const copy=textEl('span','g8m-row-copy','');copy.append(textEl('strong','',p.name));
-  copy.append(textEl('small','',short(p.lastText||p.studentId||'Start a conversation',42)));
+  copy.append(createInboxPreview(p));
   row.append(copy);
   if(p.unreadCount)row.append(textEl('span','g8m-bubble-count',p.unreadCount>99?'99+':p.unreadCount));
   row.addEventListener('click',()=>{
