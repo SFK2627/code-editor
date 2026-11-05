@@ -3636,14 +3636,15 @@ async function processPhotoJob(job){
    };
    await set(messageRef,payload);
    photoMessageWasJustCreated=true;
+   // A resolved Firebase set() means the message is committed on the server.
+   // Begin adviser push now; don't wait for a second network GET or photo UI.
+   if(job.senderRole==='student')void window.G8CodePush?.queueStudentMessage?.({itemId:job.id,chatUid:job.uid});
    confirmed=await get(messageRef);
   }
   if(!confirmed.exists()||confirmed.val()?.senderUid!==job.senderUid)
    throw new Error('Photo uploaded, but the chat message could not be confirmed. Retry safely.');
-  if(photoMessageWasJustCreated){
-   if(job.senderRole==='teacher')void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:job.id,targetUid:job.uid});
-   else void window.G8CodePush?.queueStudentMessage?.({itemId:job.id,chatUid:job.uid});
-  }
+  if(photoMessageWasJustCreated && job.senderRole==='teacher')
+   void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:job.id,targetUid:job.uid});
   // Reuse the LOCAL preview as a temporary sender-side Drive thumbnail.
   // There is no unnecessary second Drive download after a verified send.
   for(let i=0;i<job.uploaded.length;i++){
@@ -3713,10 +3714,13 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   // must never roll back a reply or make messages appear to silently disappear.
   const messageRef=ref(rtdb,`${studentPath(uid)}/messages/${key}`);
   await set(messageRef,payload);
+  // Server-acknowledged Firebase write is already a confirmed persisted
+  // message. Queue the adviser alert while the optional GET checks the UI.
+  // RTDB Rules and the Apps Script revalidate the saved message separately.
+  if(senderRole==='student')void window.G8CodePush?.queueStudentMessage?.({itemId:key,chatUid:uid});
   const confirmed=await get(messageRef);
   if(!confirmed.exists()||confirmed.val()?.senderUid!==user.uid)throw new Error('Message write could not be verified. Please retry.');
   if(senderRole==='teacher')void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:key,targetUid:uid});
-  else void window.G8CodePush?.queueStudentMessage?.({itemId:key,chatUid:uid});
   // Render the verified message immediately. The onValue listener will reconcile
   // it with the other participant's updates. This also protects against UI
   // stalls when the live listener is delayed, interrupted, or showing a stale page.

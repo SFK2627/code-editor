@@ -19,11 +19,11 @@ const immediateUrl=()=>{
 // Apps Script ContentService responses redirect cross-origin. In no-cors mode
 // the response is opaque, so never treat fetch resolving as confirmed delivery.
 // The scheduled worker safely retries any event still marked pending.
-async function nudgeImmediateSender(account,eventId){
+async function nudgeImmediateSender(account,eventId,prefetchedToken){
  const endpoint=immediateUrl();
  if(!endpoint||!validId(eventId)||!account)return;
  try{
-  const idToken=await account.getIdToken();
+  const idToken=await (prefetchedToken||account.getIdToken());
   if(!idToken||account.uid!==state.auth?.currentUser?.uid)return;
   const body=new URLSearchParams({eventId,idToken});
   await fetch(endpoint,{
@@ -231,10 +231,14 @@ async function queueStudentMessage(event){
   if(!validId(itemId)||!validId(chatUid)||chatUid!==account.uid)return false;
   const eventId=`s2t_${account.uid}_${itemId}`;
   if(!validId(eventId))return false;
+  // Fetch the short-lived Firebase ID token in parallel with the RTDB outbox
+  // write. It is never sent before the outbox has been committed, and it is
+  // never stored in the database, a log, or the public website.
+  const tokenReady=account.getIdToken().catch(()=>null);
   const record={type:'messages',itemId,chatUid,createdByUid:account.uid,
    audience:'teacher',createdAtMs:Date.now(),status:'pending'};
   await state.database.set(state.database.ref(state.db,`${ROOT}/outbox/${eventId}`),record);
-  void nudgeImmediateSender(account,eventId);
+  void nudgeImmediateSender(account,eventId,tokenReady);
   return true;
  }catch(err){
   console.info('Adviser alert not queued; chat message remains safely saved.');
@@ -264,11 +268,12 @@ async function queueTeacherEvent(event){
   if(audienceSection)record.audienceSection=audienceSection;
   if(recipientUids)record.recipientUids=recipientUids;
   const newRef=state.database.push(state.database.ref(state.db,`${ROOT}/outbox`));
+  const tokenReady=account.getIdToken().catch(()=>null);
   await state.database.set(newRef,record);
   // Do not hold the chat/lesson publish flow open for a cross-origin GAS call.
   // If the endpoint is unavailable or still being configured, the existing
   // 1-minute worker processes this same pending event without duplication.
-  void nudgeImmediateSender(account,newRef.key);
+  void nudgeImmediateSender(account,newRef.key,tokenReady);
   return true;
  }catch(err){console.warn('Phone alert could not be queued (main content was saved):',err?.message||err);return false;}
 }

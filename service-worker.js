@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v711-adviser-push';
+const CACHE_NAME = 'ict8-connect-v712-adviser-push-speed';
 const APP_SHELL = [
   './',
   './index.html',
@@ -165,7 +165,8 @@ self.addEventListener('push',event=>{
  event.waitUntil((async()=>{
   // Audit whether the browser woke this worker at all (even with a closed tab).
   const receivedAtMs=Date.now();
-  await writePushAudit('push-received',receivedAtMs);
+  // Do not delay user-visible notification display on a diagnostic IDB write.
+  // Failure paths still write an audit; successful delivery audits after show.
   let raw={};try{raw=event.data?.json()||{};}catch(_){await writePushAudit('invalid-payload',receivedAtMs);return;}
   const data=raw.data||raw.message?.data||raw;
   const type=String(data.type||'').toLowerCase();
@@ -173,14 +174,24 @@ self.addEventListener('push',event=>{
   if(!pushLabels[type]||!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)){await writePushAudit('unknown-payload',receivedAtMs);return;}
   let activeUid='';try{activeUid=await pushIdentity();}catch(_){await writePushAudit('identity-read-error',receivedAtMs);return;}
   if(!activeUid||activeUid!==targetUid){await writePushAudit('account-mismatch',receivedAtMs);return;}
-  // The in-app RTDB listeners already provide live badges while app is visible.
-  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-  if(windows.some(c=>c.visibilityState==='visible'&&c.focused&&
-    (recipientRole==='student'||/\/messages\.html(?:[?#]|$)/.test(c.url)))){await writePushAudit('in-app-foreground',receivedAtMs);return;}
+  // Validate role BEFORE using it in the foreground check. V3.1 referenced
+  // recipientRole in the temporal dead zone when a focused tab was present.
   const recipientRole=String(data.recipientRole||'student');
   const chatUid=String(data.chatUid||'');
-  if(!['teacher','student'].includes(recipientRole))return;
-  if(recipientRole==='teacher' && (type!=='messages'||!/^[A-Za-z0-9_-]{1,128}$/.test(chatUid)))return;
+  if(!['teacher','student'].includes(recipientRole)){
+   await writePushAudit('unknown-role',receivedAtMs);return;
+  }
+  if(recipientRole==='teacher' && (type!=='messages'||!/^[A-Za-z0-9_-]{1,128}$/.test(chatUid))){
+   await writePushAudit('unknown-chat',receivedAtMs);return;
+  }
+  // Messenger itself already shows the incoming message live. Do not send a
+  // redundant OS alert when the focused tab is the current conversation.
+  // The Admin Dashboard (including while open) should show OS notifications.
+  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  if(windows.some(c=>c.visibilityState==='visible'&&c.focused&&
+    (recipientRole==='student'||/\/messages\.html(?:[?#]|$)/.test(c.url)))){
+   await writePushAudit('in-app-foreground',receivedAtMs);return;
+  }
   const itemId=String(data.itemId||'');
   const validItem=/^[A-Za-z0-9_-]{1,128}$/.test(itemId);
   const destination=recipientRole==='teacher'?`./messages.html?from=admin&student=${encodeURIComponent(chatUid)}`
