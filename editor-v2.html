@@ -4,7 +4,7 @@
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#142e50"><meta name="description" content="G8Code Studio — official G8Code code editor">
   <link rel="icon" href="favicon.png"><title>G8Code Studio · Code Workspace</title>
-  <link rel="stylesheet" href="editor-v2.css?v=20261102-v240-phone-full-header-centered">
+  <link rel="stylesheet" href="editor-v2.css?v=20261105-v245-brand-cycle">
   <link rel="stylesheet" href="g8code-theme-tokens.css?v=20261102-v241">
   <link rel="stylesheet" href="studio-v2-coding-tools.css?v=20261103-v244">
   <script defer src="firebase-config.js"></script>
@@ -16,12 +16,22 @@
   <script defer src="studio-v2-edit-assist.js?v=20261102-v242"></script>
   <script defer src="studio-v2-find-learn.js?v=20261103-v243"></script>
   <script defer src="studio-v2-auto-css.js?v=20261103-v244"></script>
-  <script defer src="editor-v2.js?v=20261103-v244-auto-css"></script>
+  <script defer src="editor-v2.js?v=20261105-v245-brand-cycle"></script>
 </head>
 <body data-appearance="light" data-theme="classic">
   <div class="studio-shell" id="studioShell">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">{ }</span><span class="brand-text">G8Code <button type="button" class="brand-admin-shortcut" id="studioAdminShortcut" aria-label="Open Admin sign-in" title="Open Admin sign-in">Studio</button></span></div>
+      <div class="brand g8-brand-identity" role="img" aria-label="G8Code — Learn, Code, Connect">
+        <span class="brand-mark g8-brand-mark" aria-hidden="true">{ }</span>
+        <span class="brand-text g8-brand-text" aria-hidden="true">
+          <span class="g8-brand-title">G8Code</span>
+          <span class="g8-brand-words">
+            <span class="g8-brand-word">Learn.</span>
+            <span class="g8-brand-word">Code.</span>
+            <span class="g8-brand-word">Connect.</span>
+          </span>
+        </span>
+      </div>
       <div class="topbar-center"><label class="sr-only" for="projectTitle">Project name</label><input id="projectTitle" maxlength="80" value="My First Webpage" aria-label="Project name"><span class="save-state" id="saveState" aria-live="polite">● Local draft</span></div>
       <div class="header-actions"><button type="button" class="auth-pill" id="authPill" title="Student account">Guest mode</button><button type="button" class="icon-button compact" id="toggleTheme" title="Switch light/dark appearance" aria-label="Toggle appearance">☾</button><button type="button" class="top-save" id="saveBtn" title="Save project">Save</button><button type="button" class="icon-button" id="menuBtn" aria-label="Open navigation menu" aria-expanded="false">☰</button></div>
     </header>

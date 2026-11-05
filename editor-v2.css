@@ -940,25 +940,62 @@ body[data-immersive="preview"] #focusMembers{display:none!important}
 #dialog.studio-leave-dialog #dialogFooter button{flex:1 1 130px;min-height:43px}
 @media(max-width:440px){#dialog.studio-leave-dialog #dialogFooter{display:flex;flex-direction:column-reverse;align-items:stretch}#dialog.studio-leave-dialog #dialogFooter button{flex:0 0 auto;width:100%}}
 
-/* v2.21: The word Studio alone opens the existing Admin PIN/login via guarded navigation. */
-.brand-text .brand-admin-shortcut {
-  appearance: none;
-  display: block;
-  width: max-content;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: 850;
-  text-align: left;
-  cursor: pointer;
-  line-height: inherit;
+/* V2.45: presentation-only G8Code brand. No legacy Admin shortcut/link. */
+.topbar .g8-brand-identity{
+  flex:0 0 auto;min-width:135px;max-width:160px;gap:10px;
+  cursor:default;user-select:none;-webkit-user-select:none;pointer-events:none;
 }
-.brand-text .brand-admin-shortcut:hover { text-decoration: underline; text-underline-offset: 3px; }
-.brand-text .brand-admin-shortcut:focus-visible { outline: 2px solid #ffd27d; outline-offset: 3px; }
+.topbar .g8-brand-mark{
+  position:relative;isolation:isolate;overflow:hidden;
+  box-shadow:0 2px 8px rgba(255,205,112,.15);
+}
+.topbar .g8-brand-mark::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(105deg,transparent 26%,rgba(255,255,255,.38) 50%,transparent 74%);
+  transform:translateX(-160%);animation:g8BrandGleam 9s ease-in-out infinite;
+}
+.topbar .g8-brand-text{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;min-width:0;line-height:1}
+.topbar .g8-brand-title{font-weight:840;font-size:15px;letter-spacing:-.35px;line-height:1.12;color:#f6f8ff}
+.topbar .g8-brand-words{display:block;position:relative;width:92px;height:17px;overflow:hidden;isolation:isolate}
+.topbar .g8-brand-word{
+  position:absolute;inset:0;display:flex;align-items:center;white-space:nowrap;
+  font-size:11px;line-height:17px;font-weight:770;letter-spacing:.07em;
+  color:#e5c9ff;text-shadow:0 0 12px rgba(176,145,255,.22);
+  opacity:0;transform:translate3d(0,7px,0);
+  animation:g8BrandWords 9s cubic-bezier(.3,0,.2,1) infinite;
+  will-change:opacity,transform;
+}
+.topbar .g8-brand-word:nth-child(1){animation-delay:0s}
+.topbar .g8-brand-word:nth-child(2){animation-delay:-6s}
+.topbar .g8-brand-word:nth-child(3){animation-delay:-3s}
+@keyframes g8BrandWords{
+  0%,24%{opacity:1;transform:translate3d(0,0,0)}
+  33%,89%{opacity:0;transform:translate3d(0,-7px,0)}
+  90%{opacity:0;transform:translate3d(0,7px,0)}
+  100%{opacity:1;transform:translate3d(0,0,0)}
+}
+@keyframes g8BrandGleam{
+  0%,9%,100%{transform:translateX(-160%)}
+  16%,19%{transform:translateX(160%)}
+  21%,99%{transform:translateX(160%)}
+}
+@media(max-width:700px){
+  .topbar .g8-brand-identity{min-width:111px;max-width:117px;gap:7px}
+  .topbar .g8-brand-title{font-size:13px}
+  .topbar .g8-brand-words{width:72px;height:15px}
+  .topbar .g8-brand-word{font-size:10px;line-height:15px;letter-spacing:.03em}
+}
+@media(max-width:370px){
+  .topbar .g8-brand-identity{min-width:98px;max-width:106px;gap:6px}
+  .topbar .g8-brand-title{font-size:12px}
+  .topbar .g8-brand-words{width:70px;height:14px}
+  .topbar .g8-brand-word{font-size:9px;line-height:14px}
+}
+@media(prefers-reduced-motion:reduce){
+  .topbar .g8-brand-word{animation:none!important;opacity:0;transform:none!important;will-change:auto}
+  .topbar .g8-brand-word:first-child{opacity:1}
+  .topbar .g8-brand-mark::after{animation:none;display:none}
+}
 
 /* V2.25 Integrated reliability and touch UI */
 .studio-guest-route{display:none!important}
