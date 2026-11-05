@@ -1,4 +1,4 @@
-/* G8Code Messages V4C-20 — unified chat/gallery project viewer with correct zoom and two-axis scrolling. */
+/* G8Code Messages V4C-21 — teacher-only screenshot policy and student watermark; all V4C-20 project fixes retained. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -65,6 +65,7 @@ const teacherEmails = (window.MCS_TEACHER_EMAILS || []).map(x => String(x).toLow
 let app, auth, rtdb, firestore, user, teacher = false, profile = null;
 let sections = [], students = new Map(), summaries = {}, openedUid = '', currentSection = '*';
 let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], activeAcks = {}, seenAt = 0;
+let g8mScreenshotPolicy={uid:'',allowed:false,ready:false,error:'',saving:false};
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
 let olderMessages=[], hasOlder=false, olderLoading=false, historyExhausted=false;
 let g8mAdminFocusedMessages=[]; // Ephemeral jump context, never changes the history pagination cursor.
@@ -408,6 +409,63 @@ for(const id of ['g8mTheme','g8mChatTheme']){
 // G8Code V5.0 photo viewer handlers are installed below.
 
 const studentPath = uid => `${BASE}/chats/${uid}`;
+// Intentionally kept OUTSIDE chats/$uid, to avoid inheriting broad message-write
+// permissions. Deploy the accompanying RTDB rule fragment as part of your
+// current deployed rule tree (never replace the existing rules with it).
+const g8mScreenshotPolicyPath=uid=>`${BASE}/screenshotPolicies/${uid}`;
+function g8mResetScreenshotPolicy(uid=''){
+ g8mScreenshotPolicy={uid,allowed:false,ready:false,error:'',saving:false};
+ g8mPaintScreenshotPolicy();
+}
+function g8mPaintScreenshotPolicy(){
+ const studentRestricted=!teacher&&Boolean(openedUid)&&!g8mScreenshotPolicy.allowed;
+ for(const id of ['g8mStudentScreenshotNotice','g8mChatScreenshotWatermark','g8mImageScreenshotWatermark']){
+  const el=$(id);if(el)el.hidden=!studentRestricted;
+ }
+ const notice=$('g8mStudentScreenshotNotice');
+ if(notice&&studentRestricted){
+  notice.textContent=g8mScreenshotPolicy.error?'Screenshot permission could not be checked. Please ask your teacher.':
+   '🔒 Your teacher has not permitted screenshots of this conversation. Device screenshots cannot be blocked by a website.';
+ }
+ const toggle=$('g8mAdminScreenshotToggle'),description=$('g8mAdminScreenshotDescription'),feedback=$('g8mAdminScreenshotFeedback');
+ if(!toggle||!description||!feedback)return;
+ const valid=teacher&&Boolean(openedUid)&&g8mScreenshotPolicy.uid===openedUid;
+ toggle.checked=valid&&g8mScreenshotPolicy.allowed;
+ toggle.disabled=!valid||!g8mScreenshotPolicy.ready||g8mScreenshotPolicy.saving;
+ description.textContent=!valid?'Choose a student conversation first.':
+  !g8mScreenshotPolicy.ready?'Loading permission…':
+  g8mScreenshotPolicy.allowed?'Teacher permits student screenshots.':'Teacher does not permit student screenshots.';
+ feedback.classList.toggle('is-error',Boolean(g8mScreenshotPolicy.error));
+ feedback.textContent=g8mScreenshotPolicy.error?g8mScreenshotPolicy.error:
+  g8mScreenshotPolicy.saving?'Saving setting…':
+  !g8mScreenshotPolicy.ready?'Reading live setting…':
+  `Student permission: ${g8mScreenshotPolicy.allowed?'Allowed':'Not permitted'}. Teacher screenshots: Always permitted.`;
+}
+async function g8mSaveScreenshotPolicy(allowed){
+ const uid=openedUid,owner=user?.uid;
+ if(!teacher||!uid||!owner||g8mScreenshotPolicy.uid!==uid||!g8mScreenshotPolicy.ready||g8mScreenshotPolicy.saving)return;
+ const previousAllowed=g8mScreenshotPolicy.allowed;
+ g8mScreenshotPolicy.error='';
+ g8mScreenshotPolicy.saving=true;g8mPaintScreenshotPolicy();
+ try{
+  // Never claim success before Firebase confirms the teacher-only write.
+  await set(ref(rtdb,g8mScreenshotPolicyPath(uid)),{
+   allowStudentScreenshots:allowed,updatedAtMs:serverTimestamp(),updatedByUid:owner
+  });
+  if(uid!==openedUid||owner!==user?.uid)return;
+  g8mScreenshotPolicy.allowed=allowed;
+  g8mScreenshotPolicy.error='';
+ }catch(error){
+  if(uid===openedUid&&owner===user?.uid){
+   g8mScreenshotPolicy.allowed=previousAllowed;
+   g8mScreenshotPolicy.error='Could not save permission. Check screenshot-policy RTDB rules, then try again.';
+   console.warn('Teacher screenshot setting not saved:',error);
+  }
+ }finally{
+  if(uid===openedUid&&owner===user?.uid){g8mScreenshotPolicy.saving=false;g8mPaintScreenshotPolicy();}
+ }
+}
+$('g8mAdminScreenshotToggle')?.addEventListener('change',e=>{void g8mSaveScreenshotPolicy(Boolean(e.target.checked));});
 const summaryPath = uid => `${BASE}/summary/${uid}`;
 function role(){return teacher?'teacher':'student';}
 function roleDestination(){
@@ -464,7 +522,7 @@ async function boot(){
     g8mIkCorsBlobAllowed=null;
     void prunePhotoDiskCache(nextPhotoOwner);
    }
-   g8mAdminReset();conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
+   g8mAdminReset();conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};g8mResetScreenshotPolicy();
    if(!account){
     if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
     else {showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
@@ -842,7 +900,7 @@ function openChat(uid){
  g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;g8mEarlierLoadError='';g8mHistoryCheckRunning=false;
  g8mAwaitingFirstSnapshotUid=uid;
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
- clearUnsubs(activeUnsubs);g8mClearLinkedHistories();openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
+ clearUnsubs(activeUnsubs);g8mClearLinkedHistories();openedUid=uid;g8mResetScreenshotPolicy(uid);lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
  hasOlder=warm?.hasOlder||false;historyExhausted=warm?.historyExhausted===true;olderLoading=false;activeAcks=warm?.acks||{};seenAt=warm?.seenAt||0;reply=null;renderReply();
@@ -853,6 +911,20 @@ function openChat(uid){
  g8mJumpLatest({settle:true});
  status('');
  updateChatFeedState(warm?'Showing recent messages · Syncing…':'Loading conversation…');
+ // A single per-conversation listener is enough for instant student updates.
+ // The toggle is never cached in localStorage, and students cannot write this
+ // node when the documented RTDB rules are deployed.
+ activeUnsubs.push(onValue(ref(rtdb,g8mScreenshotPolicyPath(uid)),snap=>{
+  if(uid!==openedUid)return;
+  const policy=snap.val();
+  g8mScreenshotPolicy={uid,allowed:policy?.allowStudentScreenshots===true,ready:true,error:'',saving:g8mScreenshotPolicy.saving};
+  g8mPaintScreenshotPolicy();
+ },error=>{
+  if(uid!==openedUid)return;
+  console.warn('Screenshot policy cannot be read:',error);
+  g8mScreenshotPolicy={uid,allowed:false,ready:false,error:'Permission unavailable. Screenshot settings need RTDB rules.',saving:false};
+  g8mPaintScreenshotPolicy();
+ }));
  const messagesRef=recentMessageQuery(uid);
  activeUnsubs.push(onValue(messagesRef,snap=>{
   if(uid!==openedUid)return;
@@ -4246,7 +4318,7 @@ function g8mAdminVerifiedUids(primary){
  return [...new Set([primary,...linked])].filter(uid=>/^[A-Za-z0-9_-]{5,128}$/.test(uid));
 }
 async function g8mAdminIndexConversation(){
- if(!g8mAdminAllowed()||g8mAdminUI.panel.hidden)return;
+ if(!g8mAdminAllowed()||g8mAdminUI.panel.hidden||g8mAdminTab==='settings')return;
  const primary=openedUid,owner=user.uid,context=g8mAdminContext;
  if(g8mAdminScan?.uid===primary){if(!g8mAdminScan.loading){g8mAdminScheduleRender();}return;}
  const scan={uid:primary,owner,records:new Map(),loading:true,finished:false,error:null,threads:g8mAdminVerifiedUids(primary),done:0};
@@ -4292,7 +4364,7 @@ function g8mAdminOpen(tab='search'){
  g8mAdminUI.button.setAttribute('aria-expanded','true');
  $('g8mAdminToolsPerson').textContent=$('g8mChatName').textContent;
  g8mAdminSetTab(tab);
- if(!g8mAdminScan||g8mAdminScan.uid!==openedUid)void g8mAdminIndexConversation();
+ if(tab!=='settings'&&(!g8mAdminScan||g8mAdminScan.uid!==openedUid))void g8mAdminIndexConversation();
  if(tab==='search')g8mAdminUI.input.focus();else $('g8mAdminToolsClose').focus();
 }
 function g8mAdminClose(restoreFocus=true){
@@ -4302,13 +4374,19 @@ function g8mAdminClose(restoreFocus=true){
  if(restoreFocus)g8mAdminLastFocus?.focus?.();
 }
 function g8mAdminSetTab(tab){
- if(!['search','photos','projects'].includes(tab))return;
+ if(!['search','photos','projects','settings'].includes(tab))return;
  g8mAdminTab=tab;
  for(const b of g8mAdminUI.tabs.querySelectorAll('button[data-g8m-admin-tab]')){
   const active=b.dataset.g8mAdminTab===tab;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
  }
  $('g8mAdminSearchControls').hidden=tab!=='search';
+ $('g8mAdminScreenshotSettings').hidden=tab!=='settings';
+ g8mAdminUI.results.hidden=tab==='settings';
+ g8mAdminUI.status.hidden=tab==='settings';
+ g8mAdminUI.count.closest('.g8m-admin-tools-footer').hidden=tab==='settings';
+ if(tab==='settings'){g8mPaintScreenshotPolicy();return;}
  g8mAdminRender();
+ if(!g8mAdminScan||g8mAdminScan.uid!==openedUid)void g8mAdminIndexConversation();
 }
 function g8mAdminMakeItem(tag,cls,text){return textEl(tag,cls,text);}
 function g8mAdminStamp(msg){return absoluteTime(messageTime(msg)).replace(/:\d{2}(\s*[AP]M)/i,'$1');}
@@ -4321,7 +4399,7 @@ function g8mAdminResultButton(msg,description,icon){
  return b;
 }
 function g8mAdminRender(){
- if(!g8mAdminAllowed()||g8mAdminUI.panel.hidden)return;
+ if(!g8mAdminAllowed()||g8mAdminUI.panel.hidden||g8mAdminTab==='settings')return;
  const target=g8mAdminUI.results;
  const scan=g8mAdminScan;
  if(g8mAdminMediaObserver){g8mAdminMediaObserver.disconnect();g8mAdminMediaObserver=null;}

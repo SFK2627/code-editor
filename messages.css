@@ -979,3 +979,33 @@ html,body{overflow:hidden;overscroll-behavior:none}
 .g8m-project-view-dialog .g8m-preview-host::-webkit-scrollbar{height:8px;width:8px}
 .g8m-project-view-dialog .g8m-preview-host::-webkit-scrollbar-thumb{background:#9aa9bd;border-radius:99px;border:2px solid #fff}
 .g8m-project-view-dialog .g8m-preview-host::-webkit-scrollbar-track{background:#eff3f8}
+
+
+/* V4C-21 — teacher-controlled screenshot policy. This is a visual deterrent,
+   not native OS screenshot prevention (not possible in a normal web page). */
+.g8m-conversation{position:relative}
+.g8m-screenshot-notice{padding:8px 13px;flex:none;background:var(--accent-soft);border-bottom:1px solid var(--line);font-size:11px;line-height:1.45;color:var(--ink);text-align:center;z-index:3}
+.g8m-capture-watermark{position:absolute;left:50%;top:43%;transform:translate(-50%,-50%) rotate(-22deg);font-size:clamp(16px,3vw,24px);font-weight:850;letter-spacing:1px;color:var(--ink);opacity:.075;white-space:nowrap;z-index:2;pointer-events:none;user-select:none}
+.g8m-image-screenshot-watermark{position:absolute;left:50%;top:53%;transform:translate(-50%,-50%) rotate(-22deg);pointer-events:none;user-select:none;white-space:nowrap;z-index:7;color:white;font-size:clamp(18px,5vw,36px);font-weight:800;letter-spacing:1px;opacity:.17;text-shadow:0 1px 3px #1118}
+.g8m-admin-tools-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g8m-admin-screenshot-settings{padding:18px 15px;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.g8m-screenshot-settings-heading{display:flex;align-items:center;gap:12px;margin-bottom:19px}
+.g8m-screenshot-settings-icon{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;background:var(--accent-soft);font-size:23px;color:var(--accent)}
+.g8m-screenshot-settings-heading strong{display:block;font-size:15px;line-height:1.4}
+.g8m-screenshot-settings-heading small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.g8m-screenshot-setting-row{padding:16px 13px;border:1px solid var(--line);border-radius:14px;display:flex;gap:14px;align-items:center;justify-content:space-between;cursor:pointer}
+.g8m-screenshot-setting-row>span{flex:1;min-width:0}
+.g8m-screenshot-setting-row strong{font-size:12px;display:block;line-height:1.4}
+.g8m-screenshot-setting-row small{font-size:11px;color:var(--muted);display:block;margin-top:4px;line-height:1.5}
+.g8m-screenshot-setting-row input{appearance:none;-webkit-appearance:none;width:43px;height:25px;border-radius:999px;position:relative;background:var(--line);flex:none;border:1px solid var(--muted);transition:background .2s ease;cursor:pointer}
+.g8m-screenshot-setting-row input::before{content:'';position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0002;transition:transform .2s ease}
+.g8m-screenshot-setting-row input:checked{background:var(--accent);border-color:var(--accent)}
+.g8m-screenshot-setting-row input:checked::before{transform:translateX(18px)}
+.g8m-screenshot-setting-row input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.g8m-screenshot-setting-row input:disabled{opacity:.5;cursor:wait}
+.g8m-screenshot-settings-feedback{font-size:11px;color:var(--muted);line-height:1.5;margin:10px 3px}
+.g8m-screenshot-settings-feedback.is-error{color:#d14c63}
+.g8m-screenshot-settings-caveat{font-size:11px;line-height:1.65;border:1px solid var(--line);background:var(--field);color:var(--muted);border-radius:12px;padding:12px;margin:16px 0}
+.g8m-screenshot-settings-caveat strong{color:var(--ink)}
+@media(max-width:420px){.g8m-admin-tools-tabs{gap:4px;padding:8px 8px 0}.g8m-admin-tools-tabs button{font-size:11px;padding:9px 2px}.g8m-screenshot-notice{font-size:10px;padding:7px 9px}}
+@media(prefers-reduced-motion:reduce){.g8m-screenshot-setting-row input,.g8m-screenshot-setting-row input::before{transition:none}}

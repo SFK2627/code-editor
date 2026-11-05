@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=524-unified-project-zoom-scroll-v4c20" />
+<link rel="stylesheet" href="messages.css?v=525-screenshot-policy-v4c21" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js?v=ik-default-20261105"></script>
 <style>
@@ -55,6 +55,7 @@
     </aside>
     <main class="g8m-conversation" id="g8mConversation" aria-label="Conversation">
       <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatPresence" class="g8m-presence-line" aria-live="polite">Checking activity…</small><small id="g8mChatMeta" class="g8m-chat-extra">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" id="g8mAdminToolsOpen" class="g8m-admin-tools-open" title="Search conversation, shared photos and projects" aria-label="Open conversation search and shared media" hidden>⌕ <span>Search &amp; Media</span></button><button type="button" class="g8m-chat-theme" id="g8mChatTheme" title="Toggle light or dark theme" aria-label="Toggle light or dark theme">☼</button><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
+      <div id="g8mStudentScreenshotNotice" class="g8m-screenshot-notice" role="status" aria-live="polite" hidden>🔒 Your teacher has not permitted screenshots of this conversation. Device screenshot buttons cannot be blocked by a website.</div><div class="g8m-capture-watermark" id="g8mChatScreenshotWatermark" aria-hidden="true" hidden>G8Code · Student view</div>
       <div class="g8m-feed-state" id="g8mFeedState" role="status" aria-live="polite" hidden></div><div class="g8m-messages" id="g8mMessages" role="log" aria-live="polite" aria-relevant="additions text"><div class="g8m-empty">Select a conversation to begin.</div></div>
       <div id="g8mTypingIndicator" class="g8m-typing-indicator" hidden aria-live="polite"><span class="g8m-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="g8mTypingText">Typing…</span></div>
       <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
@@ -153,6 +154,7 @@
     <button id="g8mImageFit" type="button" class="g8m-image-control g8m-image-fit" title="Fit entire image to screen">Fit</button>
     <button id="g8mImageClose" type="button" class="g8m-image-control g8m-image-close" aria-label="Close image" title="Close image">×</button>
   </div>
+  <div id="g8mImageScreenshotWatermark" class="g8m-image-screenshot-watermark" aria-hidden="true" hidden>G8Code · Student view</div>
   <div id="g8mImageStage" class="g8m-image-stage" aria-label="Zoomable photo. Use pinch gestures or zoom controls.">
     <div id="g8mImageTrack" class="g8m-image-track">
       <div id="g8mImagePreviousFrame" class="g8m-image-frame g8m-image-neighbor is-empty" aria-hidden="true"><img id="g8mImagePreviousPreview" alt="" draggable="false" /></div>
@@ -171,15 +173,22 @@
   <button type="button" data-g8m-admin-tab="search" class="active" aria-pressed="true">⌕ Search</button>
   <button type="button" data-g8m-admin-tab="photos" aria-pressed="false">▧ Photos</button>
   <button type="button" data-g8m-admin-tab="projects" aria-pressed="false">⌘ Projects</button>
+  <button type="button" data-g8m-admin-tab="settings" aria-pressed="false">⚙ Settings</button>
  </nav>
  <div class="g8m-admin-tools-controls" id="g8mAdminSearchControls">
   <label class="g8m-admin-tools-input"><span aria-hidden="true">⌕</span><input type="search" id="g8mAdminSearchText" placeholder="Search all conversation messages" autocomplete="off" aria-label="Search within conversation" /></label>
   <div class="g8m-admin-tools-filter" id="g8mAdminSearchFilter"><button data-g8m-search-kind="all" class="active" type="button" aria-pressed="true">All</button><button data-g8m-search-kind="text" type="button" aria-pressed="false">Messages</button><button data-g8m-search-kind="photo" type="button" aria-pressed="false">Photos</button><button data-g8m-search-kind="project" type="button" aria-pressed="false">Projects</button></div>
  </div>
+ <div id="g8mAdminScreenshotSettings" class="g8m-admin-screenshot-settings" hidden>
+   <div class="g8m-screenshot-settings-heading"><span class="g8m-screenshot-settings-icon" aria-hidden="true">▣</span><div><strong>Student screenshot permission</strong><small>Only for the selected student conversation</small></div></div>
+   <label class="g8m-screenshot-setting-row" for="g8mAdminScreenshotToggle"><span><strong>Allow student screenshots</strong><small id="g8mAdminScreenshotDescription">Checking teacher setting…</small></span><input type="checkbox" id="g8mAdminScreenshotToggle" role="switch" aria-label="Allow student screenshots for this conversation" disabled /></label>
+   <p id="g8mAdminScreenshotFeedback" class="g8m-screenshot-settings-feedback" role="status" aria-live="polite">Loading permission…</p>
+   <p class="g8m-screenshot-settings-caveat"><strong>Web limitation:</strong> Turning this off sets a classroom policy and adds a student-view watermark. It cannot stop phone hardware buttons, OS screenshot tools, or another camera. Teacher screenshots are always permitted.</p>
+ </div>
  <div class="g8m-admin-tools-status" id="g8mAdminToolsStatus" role="status" aria-live="polite"></div>
  <div class="g8m-admin-tools-results" id="g8mAdminToolsResults" tabindex="0"></div>
  <footer class="g8m-admin-tools-footer"><span id="g8mAdminToolsCount"></span><button type="button" id="g8mAdminToolsRetry" hidden>Try Again</button></footer>
 </section>
-<script defer src="messages.js?v=unified-project-zoom-scroll-v4c20-20261105"></script>
+<script defer src="messages.js?v=screenshot-policy-v4c21-20261105"></script>
 </body>
 </html>
