@@ -7,7 +7,7 @@ const gaPhotos=window.G8AnnouncementsPhotoCache;
 const SRC=new URLSearchParams(location.search).get('from');
 const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',audienceSection:'all',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -55,7 +55,7 @@ function installSmartBack(){
  try{history.pushState({g8AnnouncementsRoleBack:true},'',location.href);window.addEventListener('popstate',goBack);}catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.audienceSection='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
 async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Announcements are temporarily unavailable. Please try again later.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
  $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
  if(state.teacher){loadTeacher();loadCatalog();
@@ -278,11 +278,10 @@ function published(p){return p.status==='published';}
 function allIds(){
  const filter=state.filter;
  const rows=Object.entries(state.posts).map(([id,p])=>normalizePost(p,id));
- return rows.filter(p=>state.teacher?filter==='drafts'?p.status==='draft':filter==='archived'?p.status==='archived':filter==='scheduled'?p.status==='scheduled':filter==='all'?p.status!=='archived':published(p):published(p))
+ return rows.filter(p=>state.teacher?filter==='drafts'?p.status==='draft':filter==='archived'?p.status==='archived':filter==='scheduled'?p.status==='scheduled':filter==='all'?(state.audienceFilter==='all'||p.status!=='archived'):published(p):published(p))
  .filter(p=>filter!=='unread'||state.teacher||!state.seen[p.id])
  .filter(p=>filter!=='pinned'||p.pinned)
- .filter(p=>!state.teacher||state.audienceFilter==='all'||p.audience.type===(state.audienceFilter==='everyone'?'all':state.audienceFilter))
- .filter(p=>!state.teacher||state.audienceSection==='all'||(p.audience.type==='sections'&&(p.audience.sections||[]).some(section=>sectionKey(section)===state.audienceSection)))
+ .filter(p=>!state.teacher||matchesAudienceFilter(p,state.audienceFilter))
  .filter(p=>!state.search||[p.title,plainHtml(p.bodyHtml)].join(' ').toLowerCase().includes(state.search))
  .sort((a,b)=>{
   // Always show the most recently PUBLISHED announcement first, for both roles.
@@ -294,20 +293,52 @@ function allIds(){
  })
  .slice(0,80);
 }
+// An audience filter describes what a section can SEE, not merely the post's
+// original targeting label. A school-wide post belongs in EVERY section view.
+// Individually targeted posts remain in the separate Selected Students view.
+function matchesAudienceFilter(post,selection){
+ const audience=post.audience||{};
+ if(selection==='all')return true;
+ if(selection==='everyone')return audience.type==='all';
+ if(selection==='students')return audience.type==='students';
+ if(selection.startsWith('section:')){
+  const key=selection.slice('section:'.length);
+  return audience.type==='all'||(audience.type==='sections'&&
+   (audience.sections||[]).some(section=>sectionKey(section)===key));
+ }
+ return false;
+}
 function updateAudienceFilterOptions(){
- const select=$('gaAudienceSectionFilter');if(!select)return;
- const current=state.audienceSection;
+ const select=$('gaAudienceTypeFilter');if(!select||!state.teacher)return;
+ const current=state.audienceFilter;
  const sections=new Map();
- for(const p of Object.values(state.posts))if(p?.audience?.type==='sections')for(const s of p.audience.sections||[])if(sectionKey(s))sections.set(sectionKey(s),txt(s,100));
- if(state.teacher&&(state.directoryLoaded||state.summaryLoaded))for(const p of activePeople())if(p.sectionKey)sections.set(p.sectionKey,txt(p.section,100));
- select.replaceChildren();const any=node('option','','All selected sections');any.value='all';select.append(any);
- for(const [key,label] of [...sections].sort((a,b)=>a[1].localeCompare(b[1]))){const option=node('option','',label);option.value=key;select.append(option);}
- if(current==='all'||sections.has(current)){select.value=current;}else{select.value='all';state.audienceSection='all';}
- select.disabled=state.audienceFilter!=='sections';
- $('gaAudienceSectionWrap').hidden=state.audienceFilter!=='sections';
+ // Include sections found on older posts, even if the students no longer appear
+ // in the currently loaded directory. No extra database reads are required.
+ for(const p of Object.values(state.posts))if(p?.audience?.type==='sections')for(const s of p.audience.sections||[]){
+  const key=sectionKey(s);if(key)sections.set(key,txt(s,100));
+ }
+ if(state.directoryLoaded||state.summaryLoaded)for(const person of activePeople()){
+  if(person.sectionKey)sections.set(person.sectionKey,txt(person.section,100));
+ }
+ const options=[{value:'all',label:'All Announcements'},
+  {value:'everyone',label:'For All Sections'},
+  ...[...sections].sort((a,b)=>a[1].localeCompare(b[1])).map(([key,label])=>({value:'section:'+key,label})),
+  {value:'students',label:'Selected Students Only'}];
+ select.replaceChildren();
+ for(const entry of options){const option=node('option','',entry.label);option.value=entry.value;select.append(option);}
+ if(options.some(option=>option.value===current)){select.value=current;}
+ else{state.audienceFilter='all';select.value='all';}
+ const hint=$('gaAudienceFilterHint');
+ if(hint)hint.textContent=state.audienceFilter==='all'
+  ?'All posts across all audiences, including published, scheduled, drafts, and archived.'
+  :state.audienceFilter==='everyone'
+  ?'Only school-wide announcements. Choose a section to include school-wide posts and posts for that section.'
+  :state.audienceFilter==='students'
+   ?'Only announcements sent to individually selected students.'
+   :'Includes school-wide announcements and announcements targeted to this section.';
 }
 
-function renderBadges(){if(state.teacher){$('gaAllCount').textContent=Object.values(state.posts).filter(p=>p.status==='published').length;$('gaScheduledCount').textContent=Object.values(state.posts).filter(p=>p.status==='scheduled').length;return;}const posts=Object.entries(state.posts).filter(([,p])=>published(p));const newCount=posts.filter(([id])=>!state.seen[id]).length;$('gaAllCount').textContent=posts.length;$('gaUnreadCount').textContent=newCount;document.title=newCount?`(${newCount}) Announcements · G8Code`:'Announcements · G8Code';}
+function renderBadges(){if(state.teacher){const visible=Object.entries(state.posts).map(([id,p])=>normalizePost(p,id)).filter(p=>matchesAudienceFilter(p,state.audienceFilter));$('gaAllCount').textContent=visible.filter(p=>state.audienceFilter==='all'||p.status!=='archived').length;$('gaScheduledCount').textContent=visible.filter(p=>p.status==='scheduled').length;return;}const posts=Object.entries(state.posts).filter(([,p])=>published(p));const newCount=posts.filter(([id])=>!state.seen[id]).length;$('gaAllCount').textContent=posts.length;$('gaUnreadCount').textContent=newCount;document.title=newCount?`(${newCount}) Announcements · G8Code`:'Announcements · G8Code';}
 function renderReadFlags(){document.querySelectorAll('[data-ga-post-new]').forEach(el=>{el.hidden=!!state.seen[el.dataset.gaPostNew];});}
 // A push notification can open the exact announcement and its comments.
 const gaLink=new URLSearchParams(location.search);
@@ -327,7 +358,22 @@ function focusPushPost(){
  });
 }
 
-function render(){renderBadges();while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();const feed=$('gaFeed');feed.replaceChildren();const rows=allIds();state.displayedIds=rows.map(r=>r.id);$('gaFeedStatus').textContent=`${rows.length} post${rows.length===1?'':'s'}`;if(!rows.length){const empty=node('div','ga-empty');empty.append(node('strong','',state.filter==='unread'?'All caught up!':'No announcements here yet.'),node('span','',state.teacher?'Create a post to share a class update.':'Your teacher’s announcements will appear here.'));feed.append(empty);return;}for(const p of rows)feed.append(renderCard(p));focusPushPost();if(!state.teacher){state.markObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const id=entry.target.dataset.gaPost;setTimeout(()=>{if(!state.user||!entry.target.isConnected||!state.markObserver)return;const r=entry.target.getBoundingClientRect();if(r.top<innerHeight*.8&&r.bottom>innerHeight*.25&&!state.seen[id])state.sdk.set(path(`seen/${state.user.uid}/${id}`),{atMs:Date.now(),publishedAtMs:Number(state.posts[id]?.publishedAtMs||0)}).catch(e=>console.warn('Mark read:',e.message));},900);state.markObserver.unobserve(entry.target);}}},{threshold:.55});for(const card of feed.querySelectorAll('[data-ga-post]'))state.markObserver.observe(card);}}
+// A tapped adviser push may link to a section-specific or student-only post.
+// Switch the Admin audience view automatically so the existing deep link can
+// focus the real post instead of silently displaying an unrelated filtered feed.
+function ensurePushPostVisible(){
+ if(!state.teacher||gaFocused||!gaTarget||!state.posts[gaTarget])return;
+ const post=normalizePost(state.posts[gaTarget],gaTarget);
+ if(matchesAudienceFilter(post,state.audienceFilter))return;
+ if(post.audience.type==='students')state.audienceFilter='students';
+ else if(post.audience.type==='sections'){
+  const key=(post.audience.sections||[]).map(sectionKey).find(Boolean);
+  if(!key)return;
+  state.audienceFilter='section:'+key;
+ }else if(post.audience.type==='all')state.audienceFilter='everyone';
+ updateAudienceFilterOptions();
+}
+function render(){ensurePushPostVisible();renderBadges();while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();const feed=$('gaFeed');feed.replaceChildren();const rows=allIds();state.displayedIds=rows.map(r=>r.id);$('gaFeedStatus').textContent=`${rows.length} post${rows.length===1?'':'s'}`;if(!rows.length){const empty=node('div','ga-empty');empty.append(node('strong','',state.filter==='unread'?'All caught up!':'No announcements here yet.'),node('span','',state.teacher?'No posts match this view. Try another section or audience.':'Your teacher’s announcements will appear here.'));feed.append(empty);return;}for(const p of rows)feed.append(renderCard(p));focusPushPost();if(!state.teacher){state.markObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const id=entry.target.dataset.gaPost;setTimeout(()=>{if(!state.user||!entry.target.isConnected||!state.markObserver)return;const r=entry.target.getBoundingClientRect();if(r.top<innerHeight*.8&&r.bottom>innerHeight*.25&&!state.seen[id])state.sdk.set(path(`seen/${state.user.uid}/${id}`),{atMs:Date.now(),publishedAtMs:Number(state.posts[id]?.publishedAtMs||0)}).catch(e=>console.warn('Mark read:',e.message));},900);state.markObserver.unobserve(entry.target);}}},{threshold:.55});for(const card of feed.querySelectorAll('[data-ga-post]'))state.markObserver.observe(card);}}
 // Text-only announcements can use a design background. Any attachment switches
 // the post to Facebook-style text + media layout without losing saved design.
 function postBody(p){
@@ -600,8 +646,7 @@ function openCourseItem(file,postId){
 }
 function applyFilter(filter){state.filter=filter;document.querySelectorAll('[data-ga-filter]').forEach(b=>b.classList.toggle('active',b.dataset.gaFilter===filter));render();}
 document.querySelectorAll('[data-ga-filter]').forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.gaFilter)));
-$('gaAudienceTypeFilter').addEventListener('change',e=>{state.audienceFilter=e.target.value;state.audienceSection='all';updateAudienceFilterOptions();render();});
-$('gaAudienceSectionFilter').addEventListener('change',e=>{state.audienceSection=e.target.value;render();});
+$('gaAudienceTypeFilter').addEventListener('change',e=>{state.audienceFilter=e.target.value;updateAudienceFilterOptions();render();});
 
 $('gaSearch').addEventListener('input',e=>{state.search=e.target.value.toLowerCase().trim();render();});$('gaRefresh').addEventListener('click',()=>render());$('gaNew').addEventListener('click',()=>openComposer());
 // Date/time is explicitly Philippine Time (UTC+08). No browser locale/DST guesses.

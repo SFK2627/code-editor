@@ -8,7 +8,7 @@
 <script src="announcements-photo-cache.js?v=529" defer></script>
 <script defer src="g8code-push-config.js?v=2"></script>
 <script defer src="g8code-push.js?v=736-announcement-engagement"></script>
-<script src="announcements.js?v=811-scheduled-publish" defer></script>
+<script src="announcements.js?v=821-all-announcements" defer></script>
 </head>
 <body>
 <div class="ga-app" id="gaApp">
@@ -17,8 +17,8 @@
 <div id="gaWorkspace" class="ga-workspace" hidden>
  <aside class="ga-sidebar"><div class="ga-side-intro"><span>CLASS COMMUNICATION</span><h2>Keep everyone<br>in the loop.</h2><p>Updates, class materials, and conversations from your teacher.</p></div><nav class="ga-filters" aria-label="Announcement views"><button type="button" class="active" data-ga-filter="all">☷ All posts <b id="gaAllCount">0</b></button><button type="button" data-ga-filter="unread">● New & unread <b id="gaUnreadCount">0</b></button><button type="button" data-ga-filter="pinned">⌑ Pinned</button><button type="button" data-ga-filter="drafts" class="ga-teacher-only">✎ Drafts</button><button type="button" data-ga-filter="scheduled" class="ga-teacher-only">◷ Scheduled <b id="gaScheduledCount">0</b></button><button type="button" data-ga-filter="archived" class="ga-teacher-only">▤ Archived</button></nav><div class="ga-side-footer"><span class="ga-live-dot"></span> Class updates, all in one place <small>See the latest posts from your teacher.</small></div></aside>
  <main class="ga-main"><div class="ga-main-head"><div><small class="ga-overline" id="gaGreeting">SCHOOL BULLETIN</small><h1 id="gaTitle">Class announcements</h1><p id="gaSubtitle">Your latest updates and resources appear here.</p></div><button id="gaNew" type="button" class="ga-primary ga-teacher-only" hidden>＋ New post</button></div><div class="ga-feed-tools"><label class="ga-search">⌕ <input id="gaSearch" type="search" placeholder="Search announcements" aria-label="Search announcements"></label><button id="gaRefresh" type="button" title="Refresh announcements" aria-label="Refresh announcements">↻</button><span id="gaFeedStatus" role="status">Loading…</span></div><div class="ga-engagement-filters ga-teacher-only" hidden aria-label="Filter admin announcements by audience">
- <label>Audience <select id="gaAudienceTypeFilter" aria-label="Filter announcements by audience"><option value="all">All audiences</option><option value="everyone">For all sections</option><option value="sections">Selected sections</option><option value="students">Selected students</option></select></label>
- <label id="gaAudienceSectionWrap" hidden>Section <select id="gaAudienceSectionFilter" aria-label="Filter by target section"><option value="all">All selected sections</option></select></label>
+ <label>Show announcements for <select id="gaAudienceTypeFilter" aria-label="Filter announcements by audience"><option value="all">All Announcements</option><option value="everyone">For All Sections</option><option value="students">Selected Students Only</option></select></label>
+ <p class="ga-smallprint ga-audience-filter-hint" id="gaAudienceFilterHint">Showing every announcement across all audiences and publication statuses.</p>
  
  </div><div id="gaFeed" class="ga-feed" aria-live="polite"></div><p id="gaFeedMore" class="ga-footnote">Only announcements meant for your account are shown.</p></main>
 </div>
