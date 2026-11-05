@@ -941,3 +941,22 @@ html,body{overflow:hidden;overscroll-behavior:none}
 
 /* Keep the existing V4C-17 zoom/swipe toolbar intact on narrow phones. */
 .g8m-image-viewer #g8mImageFindMessage{position:absolute;top:auto;right:auto;bottom:calc(16px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:7;height:36px;min-width:115px;padding:0 14px!important;font-size:12px!important;background:rgba(17,24,39,.86);border:1px solid #ffffff65;box-shadow:0 4px 24px #0006;backdrop-filter:blur(6px)}
+
+/* V4C-19: full-slide gallery paint stability and direct project output. */
+.g8m-image-viewer .g8m-image-track{backface-visibility:hidden;-webkit-backface-visibility:hidden;}
+.g8m-image-stage.has-gallery .g8m-image-frame:not(.is-zoomed){background:#020308;}
+.g8m-image-viewer .g8m-image-stage .g8m-image-frame img{-webkit-backface-visibility:hidden;backface-visibility:hidden;}
+.g8m-project-view-dialog>header{align-items:center;}
+.g8m-project-view-dialog>header>div{flex:1;min-width:0;}
+.g8m-project-view-chat{border:1px solid var(--line);background:var(--accent-soft);color:var(--accent);border-radius:10px;padding:9px 12px;font-size:12px;font-weight:750;flex:none;}
+@media(max-width:700px){.g8m-project-view-chat{font-size:11px;padding:9px 8px}.g8m-project-view-dialog>header{padding:11px 12px}.g8m-project-view-dialog>header h2{font-size:14px}}
+/* Keep the gallery's View in Chat action readable beside the close control. */
+.g8m-project-view-dialog>header .g8m-project-view-chat{
+ display:inline-flex;align-items:center;justify-content:center;
+ width:auto;height:35px;min-width:105px;white-space:nowrap;
+ padding:0 10px;line-height:1.2;border-radius:10px;
+}
+@media(max-width:420px){
+ .g8m-project-view-dialog>header .g8m-project-view-chat{min-width:89px;padding:0 7px;font-size:11px;}
+ .g8m-project-view-dialog>header>div h2,.g8m-project-view-dialog>header>div p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+}

@@ -2691,6 +2691,8 @@ function imageKitPrivatePhotoURL(att,priority=10,variant='full'){
 let photoGallery=[],photoGalleryIndex=0,photoGalleryToken=0;
 let g8mGallerySliding=false,g8mGallerySlideTimer=0,g8mGallerySlideListener=null;
 const G8M_GALLERY_SLIDE_MS=310;
+// The cross-message Admin gallery gets a slightly gentler slide.
+function g8mGalleryDuration(){return g8mAdminGalleryViewer?350:G8M_GALLERY_SLIDE_MS;}
 const g8mCarouselRail=$('g8mImageTrack');
 const g8mGalleryCenterPanel=$('g8mImageCurrentFrame');
 function g8mGalleryStepSize(){
@@ -2700,7 +2702,7 @@ function g8mGalleryStepSize(){
 }
 function g8mSetGalleryOffset(px,animate=false){
  g8mCarouselRail.style.transition=animate && !matchMedia('(prefers-reduced-motion: reduce)').matches
-  ?`transform ${G8M_GALLERY_SLIDE_MS}ms cubic-bezier(.2,.82,.24,1)`:'none';
+  ?`transform ${g8mGalleryDuration()}ms cubic-bezier(.22,.8,.23,1)`:'none';
  g8mCarouselRail.style.setProperty('--g8m-gallery-shift',`${Math.round(px)}px`);
 }
 function g8mMeasureGalleryLayout(){
@@ -2708,6 +2710,7 @@ function g8mMeasureGalleryLayout(){
  imageStage.style.setProperty('--g8m-gallery-stage-width',width+'px');
 }
 function g8mCancelGalleryAnimation(){
+ if(typeof g8mGalleryCommitCleanup==='function')g8mGalleryCommitCleanup();
  clearTimeout(g8mGallerySlideTimer);g8mGallerySlideTimer=0;
  if(g8mGallerySlideListener){g8mCarouselRail.removeEventListener('transitionend',g8mGallerySlideListener);g8mGallerySlideListener=null;}
  g8mGallerySliding=false;g8mSetGalleryOffset(0,false);
@@ -2766,7 +2769,7 @@ function openLocalPhotoGallery(entries){
  photoGallery=entries.map(entry=>({localUrl:entry.url,name:entry.file?.name||'Photo'}));
  showPhotoGalleryIndex(0);
 }
-function showPhotoGalleryIndex(index,landingPreview=''){
+function showPhotoGalleryIndex(index,landingPreview='',deferNeighbors=false){
  if(!photoGallery.length||index<0||index>=photoGallery.length)return;
  const isOpening=imageViewer.hidden;
  if(isOpening)imageViewerPreviousFocus=document.activeElement;
@@ -2774,7 +2777,7 @@ function showPhotoGalleryIndex(index,landingPreview=''){
  const load=++photoGalleryToken,att=photoGallery[index];
  imageViewer.hidden=false;
  galleryControlState();
- g8mPrepareGalleryNeighbors(load);
+ if(!deferNeighbors)g8mPrepareGalleryNeighbors(load);
  if(att.localUrl){openFullPhoto(att.localUrl,true);return;}
  const fid=att.driveFileId||att.imagekitFileId;
  const localFull=att.provider==='imagekit'?g8mCachedFullLocalBlob(att.path,fid):cachedPhotoUrl(att.path,fid);
@@ -2803,33 +2806,67 @@ function showPhotoGalleryIndex(index,landingPreview=''){
   state.hidden=false;
  });
 }
+// V4C-19: Keep the ARRIVING slide visible until the center has a decoded
+// image. The old implementation recentered first, then replaced its src:
+// browsers briefly showed the old photo / black frame during that handoff.
+let g8mGalleryCommitTimer=0,g8mGalleryCommitCleanup=null;
 function g8mGallerySlideTo(nextIndex){
  if(imageViewer.hidden||g8mGallerySliding||nextIndex<0||nextIndex>=photoGallery.length){
   g8mSetGalleryOffset(0,true);return;
  }
  const direction=Math.sign(nextIndex-photoGalleryIndex);
  if(Math.abs(nextIndex-photoGalleryIndex)!==1)return;
- const preview=$(direction>0?'g8mImageNextPreview':'g8mImagePreviousPreview').getAttribute('src')||'';
+ const previewEl=$(direction>0?'g8mImageNextPreview':'g8mImagePreviousPreview');
+ const preview=previewEl.getAttribute('src')||'';
  g8mGallerySliding=true;
- const settle=()=>{
+ const cleanTransition=()=>{
   clearTimeout(g8mGallerySlideTimer);g8mGallerySlideTimer=0;
   if(g8mGallerySlideListener){g8mCarouselRail.removeEventListener('transitionend',g8mGallerySlideListener);g8mGallerySlideListener=null;}
-  if(!g8mGallerySliding)return;
-  g8mGallerySliding=false;
-  // Recenter without animation after the outgoing image has slid away.
-  // The arriving neighbor's already-loaded preview becomes the new center.
-  g8mSetGalleryOffset(0,false);
-  showPhotoGalleryIndex(nextIndex,preview);
+ };
+ const settled=()=>{
+  cleanTransition();
+  if(!g8mGallerySliding||imageViewer.hidden)return;
+  // Do not replace the neighbor currently on-screen until the destination
+  // image is already painted in the hidden center frame.
+  showPhotoGalleryIndex(nextIndex,preview,true);
+  const token=photoGalleryToken;
+  let done=false;
+  const finish=()=>{
+   if(done)return;done=true;
+   clearTimeout(g8mGalleryCommitTimer);g8mGalleryCommitTimer=0;
+   imageLarge.removeEventListener('load',ready);
+   imageLarge.removeEventListener('error',ready);
+   g8mGalleryCommitCleanup=null;
+   if(!g8mGallerySliding||imageViewer.hidden||token!==photoGalleryToken)return;
+   // A decoded center and the arriving neighbor now share the same frame
+   // geometry. Reset them in one paint without changing the visible image.
+   if(imageLarge.naturalWidth)imageViewerMeasure(true);
+   g8mSetGalleryOffset(0,false);
+   g8mGallerySliding=false;
+   g8mPrepareGalleryNeighbors(token);
+  };
+  const ready=()=>requestAnimationFrame(()=>requestAnimationFrame(finish));
+  g8mGalleryCommitCleanup=()=>{
+   done=true;clearTimeout(g8mGalleryCommitTimer);g8mGalleryCommitTimer=0;
+   imageLarge.removeEventListener('load',ready);imageLarge.removeEventListener('error',ready);
+   g8mGalleryCommitCleanup=null;
+  };
+  imageLarge.addEventListener('load',ready);
+  imageLarge.addEventListener('error',ready);
+  // A genuinely unavailable neighbor must not trap gestures indefinitely.
+  // Its own loading indicator will remain after this bounded fallback.
+  g8mGalleryCommitTimer=setTimeout(finish,1350);
+  if(imageLarge.complete&&imageLarge.naturalWidth)ready();
  };
  g8mGallerySlideListener=event=>{
-  if(event.target===g8mCarouselRail&&event.propertyName==='transform')settle();
+  if(event.target===g8mCarouselRail&&event.propertyName==='transform')settled();
  };
  g8mCarouselRail.addEventListener('transitionend',g8mGallerySlideListener);
- // Flush the current dragged position before enabling the settle transition.
+ // Preserve the physical drag position when starting the CSS settle.
  void g8mCarouselRail.getBoundingClientRect().left;
- const duration=matchMedia('(prefers-reduced-motion: reduce)').matches?0:G8M_GALLERY_SLIDE_MS;
+ const duration=matchMedia('(prefers-reduced-motion: reduce)').matches?0:g8mGalleryDuration();
  g8mSetGalleryOffset(-direction*g8mGalleryStepSize(),true);
- g8mGallerySlideTimer=setTimeout(settle,duration+65);
+ g8mGallerySlideTimer=setTimeout(settled,duration+65);
 }
 function galleryStep(direction){
  if(photoGallery.length<2||g8mGallerySliding)return;
@@ -3651,6 +3688,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
 
 // === V4.0: Secure, live-reference project sharing (no code snapshots in messages). ===
 const projectPicker=$('g8mProjectPicker'),projectViewer=$('g8mProjectViewer');
+let g8mAdminProjectSource=null,g8mProjectOpenVersion=0;
 function closeAttachMenu(){if($('g8mAttachMenu'))$('g8mAttachMenu').hidden=true;}
 $('g8mAttachMenuToggle').addEventListener('click',()=>{
  if(sending)return;
@@ -3665,12 +3703,12 @@ document.addEventListener('click',event=>{
 function openModal(modal){modal.hidden=false;projectModalReturnFocus=document.activeElement;const focus=modal.querySelector('button,input,select');focus?.focus();}
 function closeModal(modal){modal.hidden=true;projectModalReturnFocus?.focus?.();}
 $('g8mPickClose').addEventListener('click',()=>closeModal(projectPicker));
-$('g8mViewerClose').addEventListener('click',()=>closeModal(projectViewer));
-for(const modal of [projectPicker,projectViewer])modal.addEventListener('click',event=>{if(event.target===modal)closeModal(modal);});
+$('g8mViewerClose').addEventListener('click',g8mCloseSharedProject);
+for(const modal of [projectPicker,projectViewer])modal.addEventListener('click',event=>{if(event.target===modal){if(modal===projectViewer)g8mCloseSharedProject();else closeModal(modal);}});
 document.addEventListener('keydown',event=>{
  if(event.key!=='Escape')return;
  if(!cameraOverlay.hidden){event.preventDefault();closeCamera();return;}
- if(!projectViewer.hidden){event.preventDefault();closeModal(projectViewer);return;}
+ if(!projectViewer.hidden){event.preventDefault();g8mCloseSharedProject();return;}
  if(!projectPicker.hidden){event.preventDefault();closeModal(projectPicker);return;}
  closeAttachMenu();
 });
@@ -3726,31 +3764,67 @@ function renderProjectSelection(){
  clear.addEventListener('click',()=>{selectedProject=null;renderProjectSelection();setSendEnabled();});
  area.append(label,clear);
 }
-// Use EXACT authenticated conversation owner as project owner, never message metadata.
-// Each view reads from Firestore's server to pick up later student edits.
-async function openSharedProject(studentUid,projectId){
+// The teacher's gallery uses the same isolated, read-only real project
+// renderer as project cards in chat. Do not replace it with a metadata card.
+function g8mCloseSharedProject(reopenGallery=true){
+ const fromGallery=Boolean(g8mAdminProjectSource);
+ g8mProjectOpenVersion++; // Ignore late Firestore responses after closing.
+ g8mAdminProjectSource=null;
+ $('g8mViewerFindMessage').hidden=true;
+ closeModal(projectViewer);
+ if(fromGallery&&reopenGallery&&g8mAdminAllowed())g8mAdminOpen('projects');
+}
+$('g8mViewerFindMessage').addEventListener('click',()=>{
+ const msg=g8mAdminProjectSource;
+ if(!msg||!g8mAdminAllowed())return;
+ g8mCloseSharedProject(false);
+ g8mAdminJumpToMessage(msg);
+});
+// Use the authenticated conversation and verified SAME-student UID group only.
+// For historical shares, the student's project may have moved to a newer UID;
+// never search a different student's Firestore path or copy any stored data.
+async function openSharedProject(studentUid,projectId,options={}){
  if(!user||!studentUid||!projectId)return;
  if(!/^[A-Za-z0-9_-]{1,128}$/.test(projectId)){status('Invalid project reference.',true);return;}
  if(!teacher&&studentUid!==user.uid){status('You can only view your own project.',true);return;}
- const currentUid=openedUid;
+ const message=teacher&&options.fromAdminGallery&&g8mAdminAllowed()?options.message:null;
+ const currentUid=openedUid,openVersion=++g8mProjectOpenVersion;
+ if(message)g8mAdminClose(false);
+ g8mAdminProjectSource=message||null;
  openModal(projectViewer);
+ if(message)projectModalReturnFocus=g8mAdminUI.button;
+ $('g8mViewerFindMessage').hidden=!message;
  $('g8mViewerTitle').textContent='Opening latest saved project…';
- $('g8mViewerMeta').textContent='Loading directly from G8Code…';
+ $('g8mViewerMeta').textContent='Loading the actual project output…';
  $('g8mViewerError').hidden=true;
  $('g8mViewerWorkspace').hidden=true;
  $('g8mViewerLoading').hidden=false;
+ const valid=()=>openVersion===g8mProjectOpenVersion&&!projectViewer.hidden&&openedUid===currentUid;
  try{
   await ensureProjectFirestore();
-  const path=[window.MCS_FIREBASE_COLLECTION||'webCodeEditor',window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1','students',studentUid,'projects',projectId];
-  const snapshot=await getDocFromServer(doc(firestore,...path));
-  if(projectViewer.hidden||openedUid!==currentUid)return;
-  if(!snapshot.exists())throw new Error('This saved project was deleted or is no longer available.');
+  if(!valid())return;
+  const verified=message?g8mAdminVerifiedUids(currentUid):[];
+  const candidateUids=message?[...new Set([studentUid,...verified])].slice(0,8):[studentUid];
+  let snapshot=null,actualUid=studentUid,lastError=null;
+  for(const candidate of candidateUids){
+   if(!valid())return;
+   if(message&&!verified.includes(candidate)&&candidate!==studentUid)continue;
+   try{
+    const path=[window.MCS_FIREBASE_COLLECTION||'webCodeEditor',window.MCS_FIREBASE_DOCUMENT_ID||'grade8-mcsian-blank-v1','students',candidate,'projects',projectId];
+    const result=await getDocFromServer(doc(firestore,...path));
+    if(!valid())return;
+    if(result.exists()){snapshot=result;actualUid=candidate;break;}
+   }catch(error){lastError=error;}
+  }
+  if(!snapshot)throw lastError||new Error('This saved project was deleted or is no longer available.');
   const project=snapshot.data()||{};
-  $('g8mViewerTitle').textContent=short(project.name||'G8Code Project',120);
-  $('g8mViewerMeta').textContent=`${teacher?person(studentUid).name:'My Project'} · Last saved ${stampLabel(project.updatedAt)} · Read-only`;
+  $('g8mViewerTitle').textContent=short(project.name||message?.projectName||'G8Code Project',120);
+  $('g8mViewerMeta').textContent=`${teacher?person(actualUid).name:'My Project'} · Last saved ${stampLabel(project.updatedAt)} · Read-only`;
   projectViewerFiles=normalizeViewerProject(project);
   viewerHeight=800;viewerZoom='fit';viewerView='output';viewerPreviewReady=false;
-  $('g8mViewerZoom').value='fit';setViewerMode(window.matchMedia('(min-width:1050px)').matches?'split':'output');
+  $('g8mViewerZoom').value='fit';
+  // Project card in Shared Projects opens the actual rendered output FIRST.
+  setViewerMode(message?'output':window.matchMedia('(min-width:1050px)').matches?'split':'output');
   populateViewerPages();populateViewerSource();
   $('g8mViewerWorkspace').hidden=false;
   $('g8mViewerLoading').hidden=true;
@@ -3759,9 +3833,10 @@ async function openSharedProject(studentUid,projectId){
   renderViewerPreview();
   requestAnimationFrame(sizeDesktopProjectPreview);
  }catch(error){
+  if(!valid())return;
   $('g8mViewerLoading').hidden=true;
   $('g8mViewerError').hidden=false;
-  $('g8mViewerError').textContent='Could not open the latest saved version: '+friendlyError(error);
+  $('g8mViewerError').textContent='Could not open this saved project: '+friendlyError(error);
  }
 }
 function projectMap(src,key,extension,legacy){
@@ -4269,7 +4344,9 @@ function g8mAdminRender(){
   if(!projects.length){target.append(notice(loading?'Looking for shared projects…':'No projects have been shared in this conversation.'));return;}
   for(const msg of projects){
    const b=g8mAdminResultButton(msg,short(msg.projectName||'G8Code Project',120),'⌘');
-   b.addEventListener('click',()=>{if(g8mAdminAllowed())void openSharedProject(msg.__threadUid||openedUid,String(msg.projectId));});
+   b.title='Open actual project output';
+   b.setAttribute('aria-label',`Open read-only output: ${short(msg.projectName||'G8Code Project',120)}`);
+   b.addEventListener('click',()=>{if(g8mAdminAllowed())void openSharedProject(msg.__threadUid||openedUid,String(msg.projectId),{fromAdminGallery:true,message:msg});});
    const jump=g8mAdminMakeItem('button','g8m-admin-inline-jump','View in Chat');jump.type='button';
    jump.addEventListener('click',()=>g8mAdminJumpToMessage(msg));
    const line=g8mAdminMakeItem('div','g8m-admin-project-row','');line.append(b,jump);target.append(line);
