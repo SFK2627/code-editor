@@ -1,4 +1,4 @@
-/* G8Code Messages V4C-15 — bounded read-only history reconciliation, no premature completion notice; preserves photo cache. */
+/* G8Code Messages V4C-16 — smooth multi-photo carousel and clean chat status; preserves V4C-15 reconciliation and photo cache. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -90,18 +90,14 @@ function g8mHistoryMessageCount(){
 }
 function g8mUpdateLoadedStatus(){
  if(!openedUid)return;
- const pending=g8mHistoryCheckRunning||[...g8mLinkedHistories.values()].some(entry=>!entry.ready && !entry.error);
+ // Keep the complete V4C-15 reconciliation and earlier-message paging,
+ // but do not expose implementation counts, thread IDs, or audit text in chat.
  const failed=[...g8mLinkedHistories.values()].some(entry=>entry.error);
- const count=g8mHistoryMessageCount();
- // This is the number currently retrieved, NOT the total number stored in RTDB.
- // Never imply that the most recent 100/150 messages are the full history.
- const state=failed?'Some previous-account history could not load · Tap ↻ to retry':
-  g8mEarlierLoadError?`${count} loaded · Older messages unavailable; tap ↑ Load earlier messages to retry`:
-  pending?`${count} loaded · Verifying conversation history…`:
-  g8mHasMoreHistory()?`${count} displayed · Older messages available · Scroll up for more`:
-  `${count} loaded · No additional records found in checked threads`;
- updateChatFeedState(state,failed||!!g8mEarlierLoadError);
+ if(failed||g8mEarlierLoadError){
+  updateChatFeedState('Couldn’t load older messages. Tap refresh to try again.',true);
+ }else updateChatFeedState('');
 }
+
 let imageCache = new Map(), imageCacheFileIds = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
 // V5.12: Keep authenticated private Drive photos in bounded IndexedDB storage
 // across reloads. Never expose an old account's images after an account change.
@@ -283,7 +279,7 @@ function pinMessage(id){
 
 function updateChatFeedState(message,failed=false){
  const el=$('g8mFeedState');if(!el)return;
- el.textContent=message;el.classList.toggle('error',failed);
+ el.textContent=message;el.hidden=!String(message||'').trim();el.classList.toggle('error',failed);
 }
 function rememberConversation(uid){
  const trimmed=olderMessages.length>G8M_WARM_OLDER_MAX;
@@ -359,7 +355,7 @@ async function refreshConversation(manual=false){
   if(manual)status('Conversation refreshed ✓');
  }catch(error){
   if(uid!==openedUid)return;
-  updateChatFeedState('Could not retrieve chat · Tap ↻ to retry',true);
+  updateChatFeedState('Couldn’t open this conversation. Tap refresh to try again.',true);
   status(`Messages could not load: ${friendlyError(error)}`,true);
  }
 }
@@ -862,13 +858,13 @@ function openChat(uid){
    markSeen(uid).catch(err=>console.warn('Seen sync:',err));
   }catch(error){
    console.error('Messages render error:',error);
-   updateChatFeedState('Chat display error · Tap ↻ to retry',true);
+   updateChatFeedState('Couldn’t show these messages. Tap refresh to try again.',true);
    status('A chat message could not be displayed. Try Refresh Chat.',true);
   }
  },err=>{
   if(uid!==openedUid)return;
   console.error('Messages listener failed:',err);
-  updateChatFeedState('Live listener unavailable · Tap ↻ to retry',true);
+  updateChatFeedState('Messages aren’t loading. Tap refresh to try again.',true);
   status(`Live messages unavailable: ${friendlyError(err)}`,true);
   // A one-time read can still work when a realtime listener is interrupted.
   refreshConversation(false);
@@ -2312,10 +2308,11 @@ function cachePhotoUrl(path,url,driveFileId=''){
  if(imageCache.size>PHOTO_CACHE_MAX_ITEMS){
   const live=new Set([...document.querySelectorAll('.g8m-image-ready[data-photo-path]')].map(el=>el.dataset.photoPath));
   const displayed=$('g8mImageLarge')?.src||'';
+  const galleryURLs=new Set(['g8mImagePreviousPreview','g8mImageNextPreview'].map(id=>$(id)?.src).filter(Boolean));
   for(const [key,old] of imageCache){
    if(imageCache.size<=PHOTO_CACHE_MAX_ITEMS)break;
    if(key===path||live.has(key)||
-      (key.endsWith(G8M_IK_THUMB_SUFFIX)&&live.has(key.slice(0,-G8M_IK_THUMB_SUFFIX.length)))||old===displayed)continue;
+      (key.endsWith(G8M_IK_THUMB_SUFFIX)&&live.has(key.slice(0,-G8M_IK_THUMB_SUFFIX.length)))||old===displayed||galleryURLs.has(old))continue;
    imageCache.delete(key);imageCacheFileIds.delete(key);URL.revokeObjectURL(old);
   }
  }
@@ -2689,28 +2686,77 @@ function imageKitPrivatePhotoURL(att,priority=10,variant='full'){
 // V5.4 grouped gallery: no extra RTDB or Drive reads until a photo is opened.
 // A gallery item is either an already-local sender preview or a private Drive attachment.
 let photoGallery=[],photoGalleryIndex=0,photoGalleryToken=0;
+let g8mGallerySliding=false,g8mGallerySlideTimer=0,g8mGallerySlideListener=null;
+const G8M_GALLERY_SLIDE_MS=310;
+const g8mCarouselRail=$('g8mImageTrack');
+const g8mGalleryCenterPanel=$('g8mImageCurrentFrame');
+function g8mGalleryStepSize(){
+ const width=g8mGalleryCenterPanel.getBoundingClientRect().width;
+ const gap=Number.parseFloat(getComputedStyle(g8mCarouselRail).columnGap)||0;
+ return Math.max(1,width+gap);
+}
+function g8mSetGalleryOffset(px,animate=false){
+ g8mCarouselRail.style.transition=animate && !matchMedia('(prefers-reduced-motion: reduce)').matches
+  ?`transform ${G8M_GALLERY_SLIDE_MS}ms cubic-bezier(.2,.82,.24,1)`:'none';
+ g8mCarouselRail.style.setProperty('--g8m-gallery-shift',`${Math.round(px)}px`);
+}
+function g8mMeasureGalleryLayout(){
+ const width=Math.max(1,imageStage.clientWidth);
+ imageStage.style.setProperty('--g8m-gallery-stage-width',width+'px');
+}
+function g8mCancelGalleryAnimation(){
+ clearTimeout(g8mGallerySlideTimer);g8mGallerySlideTimer=0;
+ if(g8mGallerySlideListener){g8mCarouselRail.removeEventListener('transitionend',g8mGallerySlideListener);g8mGallerySlideListener=null;}
+ g8mGallerySliding=false;g8mSetGalleryOffset(0,false);
+}
 function galleryControlState(){
  const hasGroup=photoGallery.length>1;
  $('g8mImagePrev').hidden=!hasGroup;
  $('g8mImageNext').hidden=!hasGroup;
  $('g8mImageCounter').hidden=!hasGroup;
+ imageStage.classList.toggle('has-gallery',hasGroup);
  if(hasGroup){
   $('g8mImageCounter').textContent=`${photoGalleryIndex+1} / ${photoGallery.length}`;
   $('g8mImagePrev').disabled=photoGalleryIndex===0;
   $('g8mImageNext').disabled=photoGalleryIndex===photoGallery.length-1;
  }
 }
+function g8mPrepareGalleryNeighbor(offset,previewId,frameId,token){
+ const index=photoGalleryIndex+offset,photo=photoGallery[index];
+ const preview=$(previewId),frame=$(frameId);
+ frame.classList.toggle('is-empty',!photo);
+ preview.removeAttribute('src');
+ if(!photo)return;
+ // Only fetch direct neighbors. Previously viewed photos resolve from the
+ // private in-memory/IndexedDB cache; signed URLs are never persisted here.
+ const fileId=photo.driveFileId||photo.imagekitFileId;
+ const variant=photo.provider==='imagekit'?'thumb':'full';
+ const cached=photo.localUrl||cachedPhotoUrl(photo.path,fileId,variant);
+ if(cached){preview.src=cached;return;}
+ if(!photo.path)return;
+ void privatePhotoURL(photo,2,variant).then(url=>{
+  if(imageViewer.hidden||token!==photoGalleryToken||photoGallery[photoGalleryIndex+offset]!==photo)return;
+  preview.src=url;
+ }).catch(()=>{}); // A failed neighbor should not interrupt the current image.
+}
+function g8mPrepareGalleryNeighbors(token){
+ g8mMeasureGalleryLayout();
+ g8mPrepareGalleryNeighbor(-1,'g8mImagePreviousPreview','g8mImagePreviousFrame',token);
+ g8mPrepareGalleryNeighbor(1,'g8mImageNextPreview','g8mImageNextFrame',token);
+}
 function openPhotoGallery(photos,index,uid,messageId){
  if(!Array.isArray(photos)||!photos.length)return;
+ g8mCancelGalleryAnimation();
  photoGallery=photos.map(att=>({...att,studentUid:uid,messageId}));
  showPhotoGalleryIndex(index);
 }
 function openLocalPhotoGallery(entries){
  if(!Array.isArray(entries)||!entries.length)return;
+ g8mCancelGalleryAnimation();
  photoGallery=entries.map(entry=>({localUrl:entry.url,name:entry.file?.name||'Photo'}));
  showPhotoGalleryIndex(0);
 }
-function showPhotoGalleryIndex(index){
+function showPhotoGalleryIndex(index,landingPreview=''){
  if(!photoGallery.length||index<0||index>=photoGallery.length)return;
  const isOpening=imageViewer.hidden;
  if(isOpening)imageViewerPreviousFocus=document.activeElement;
@@ -2718,14 +2764,14 @@ function showPhotoGalleryIndex(index){
  const load=++photoGalleryToken,att=photoGallery[index];
  imageViewer.hidden=false;
  galleryControlState();
+ g8mPrepareGalleryNeighbors(load);
  if(att.localUrl){openFullPhoto(att.localUrl,true);return;}
  const fid=att.driveFileId||att.imagekitFileId;
  const localFull=att.provider==='imagekit'?g8mCachedFullLocalBlob(att.path,fid):cachedPhotoUrl(att.path,fid);
  if(localFull){openFullPhoto(localFull,true);return;}
- // Chat already has an optimized thumbnail. Present it instantly and replace
- // with full quality when authorized download / IndexedDB lookup completes.
- // Never mistake that thumbnail for the full-quality gallery image.
- const preview=att.provider==='imagekit'?cachedPhotoUrl(att.path,fid,'thumb'):'';
+ // Show a locally cached thumbnail or the already visible landing slide
+ // immediately, then replace it with the decoded full-resolution image.
+ const preview=landingPreview||cachedPhotoUrl(att.path,fid,att.provider==='imagekit'?'thumb':'full');
  const state=$('g8mImageStageStatus');
  if(preview){
   openFullPhoto(preview,true);
@@ -2734,12 +2780,10 @@ function showPhotoGalleryIndex(index){
   imageLarge.removeAttribute('src');imageViewerFitW=0;
   imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;
   state.classList.remove('is-refining');
-  state.textContent=`Loading photo ${index+1} of ${photoGallery.length}…`;state.hidden=false;
+  state.textContent='Loading photo…';state.hidden=false;
  }
  void privatePhotoURL(att,20).then(photoUrl=>{
   if(load!==photoGalleryToken||imageViewer.hidden)return;
-  // Keep the preview visible until the full-size image is actually decoded.
-  // Otherwise a slow remote CDN fallback would produce a blank photo viewer.
   if(preview)g8mUpgradeFullPhoto(photoUrl);
   else {state.hidden=true;state.classList.remove('is-refining');openFullPhoto(photoUrl,true);}
  }).catch(error=>{
@@ -2749,9 +2793,35 @@ function showPhotoGalleryIndex(index){
   state.hidden=false;
  });
 }
+function g8mGallerySlideTo(nextIndex){
+ if(imageViewer.hidden||g8mGallerySliding||nextIndex<0||nextIndex>=photoGallery.length){
+  g8mSetGalleryOffset(0,true);return;
+ }
+ const direction=Math.sign(nextIndex-photoGalleryIndex);
+ if(Math.abs(nextIndex-photoGalleryIndex)!==1)return;
+ const preview=$(direction>0?'g8mImageNextPreview':'g8mImagePreviousPreview').getAttribute('src')||'';
+ g8mGallerySliding=true;
+ const settle=()=>{
+  clearTimeout(g8mGallerySlideTimer);g8mGallerySlideTimer=0;
+  if(g8mGallerySlideListener){g8mCarouselRail.removeEventListener('transitionend',g8mGallerySlideListener);g8mGallerySlideListener=null;}
+  if(!g8mGallerySliding)return;
+  g8mGallerySliding=false;
+  // Recenter without animation after the outgoing image has slid away.
+  // The arriving neighbor's already-loaded preview becomes the new center.
+  g8mSetGalleryOffset(0,false);
+  showPhotoGalleryIndex(nextIndex,preview);
+ };
+ g8mGallerySlideListener=event=>{
+  if(event.target===g8mCarouselRail&&event.propertyName==='transform')settle();
+ };
+ g8mCarouselRail.addEventListener('transitionend',g8mGallerySlideListener);
+ const duration=matchMedia('(prefers-reduced-motion: reduce)').matches?0:G8M_GALLERY_SLIDE_MS;
+ g8mSetGalleryOffset(-direction*g8mGalleryStepSize(),true);
+ g8mGallerySlideTimer=setTimeout(settle,duration+65);
+}
 function galleryStep(direction){
- if(photoGallery.length<2)return;
- showPhotoGalleryIndex(photoGalleryIndex+direction);
+ if(photoGallery.length<2||g8mGallerySliding)return;
+ g8mGallerySlideTo(photoGalleryIndex+direction);
 }
 const imageViewer = $('g8mImageViewer');
 const imageStage = $('g8mImageStage');
@@ -2766,8 +2836,8 @@ const IMAGE_VIEWER_MIN=1,IMAGE_VIEWER_MAX=6;
 function imageViewerClamp(v,min,max){return Math.max(min,Math.min(max,v));}
 function imageViewerLimits(){
  return {
-  x:Math.max(0,(imageViewerFitW*imageViewerScale-imageStage.clientWidth)/2),
-  y:Math.max(0,(imageViewerFitH*imageViewerScale-imageStage.clientHeight)/2)
+  x:Math.max(0,(imageViewerFitW*imageViewerScale-g8mGalleryCenterPanel.clientWidth)/2),
+  y:Math.max(0,(imageViewerFitH*imageViewerScale-g8mGalleryCenterPanel.clientHeight)/2)
  };
 }
 function imageViewerRender(){
@@ -2786,7 +2856,7 @@ function imageViewerRender(){
 }
 function imageViewerMeasure(keepView=false){
  if(!imageLarge.naturalWidth||!imageLarge.naturalHeight||imageViewer.hidden)return;
- const safeW=Math.max(1,imageStage.clientWidth-8), safeH=Math.max(1,imageStage.clientHeight-8);
+ const safeW=Math.max(1,g8mGalleryCenterPanel.clientWidth-8), safeH=Math.max(1,g8mGalleryCenterPanel.clientHeight-8);
  const factor=Math.min(1,safeW/imageLarge.naturalWidth,safeH/imageLarge.naturalHeight);
  imageViewerFitW=Math.max(1,imageLarge.naturalWidth*factor);
  imageViewerFitH=Math.max(1,imageLarge.naturalHeight*factor);
@@ -2812,6 +2882,7 @@ function closeFullPhoto(){
  if(imageViewer.hidden)return;
  imageViewer.hidden=true;
  imageViewerPointers.clear();imageViewerGesture=null;imageViewerTap=null;
+ g8mCancelGalleryAnimation();
  $('g8mImageStageStatus').classList.remove('is-refining');
  imageViewerLoadToken++;photoGalleryToken++;photoGallery=[];galleryControlState();
  if(imageViewerPreviousFocus&&imageViewerPreviousFocus.isConnected){
@@ -2896,19 +2967,20 @@ function imageViewerPair(){
  return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,distance:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y))};
 }
 imageStage.addEventListener('pointerdown',event=>{
- if(imageViewer.hidden||!imageViewerFitW)return;
+ if(imageViewer.hidden||(!imageViewerFitW&&photoGallery.length<2)||g8mGallerySliding)return;
  if(event.pointerType==='mouse'&&event.button!==0)return;
  event.preventDefault();
  imageStage.setPointerCapture?.(event.pointerId);
  imageViewerPointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
  imageViewerMoved=false;
  if(imageViewerPointers.size>=2){
+  g8mSetGalleryOffset(0,false);
   const pair=imageViewerPair();
   imageViewerGesture={pinch:true,distance:pair.distance,zoom:imageViewerScale,
    x:pair.x,y:pair.y,panX:imageViewerPanX,panY:imageViewerPanY};
  }else{
   imageViewerGesture={pinch:false,x:event.clientX,y:event.clientY,
-   panX:imageViewerPanX,panY:imageViewerPanY};
+   startedAt:performance.now(),panX:imageViewerPanX,panY:imageViewerPanY};
  }
 });
 imageStage.addEventListener('pointermove',event=>{
@@ -2936,6 +3008,10 @@ imageStage.addEventListener('pointermove',event=>{
   if(Math.hypot(dx,dy)>5)imageViewerMoved=true;
   if(imageViewerScale>1.001){
    imageViewerPanX=g.panX+dx;imageViewerPanY=g.panY+dy;imageViewerRender();
+  }else if(photoGallery.length>1 && event.pointerType!=='mouse' && Math.abs(dx)>6 && Math.abs(dx)>Math.abs(dy)*1.08){
+   const canMove=dx<0?photoGalleryIndex<photoGallery.length-1:photoGalleryIndex>0;
+   // Rubber-band at first/last photo; let the carousel follow the finger.
+   g8mSetGalleryOffset(canMove?dx:dx*.2,false);
   }
  }
 });
@@ -2945,9 +3021,24 @@ function imageViewerEndPointer(event){
  const wasMulti=gesture?.pinch;
  const swipeX=!wasMulti&&gesture?event.clientX-gesture.x:0;
  const swipeY=!wasMulti&&gesture?event.clientY-gesture.y:0;
- const navigateSwipe=event.type==='pointerup'&&event.pointerType!=='mouse'&&imageViewerPointers.size===1&&imageViewerScale<=1.01&&photoGallery.length>1&&Math.abs(swipeX)>55&&Math.abs(swipeX)>Math.abs(swipeY)*1.2;
+ const canSwipe=event.type==='pointerup'&&event.pointerType!=='mouse'&&
+  imageViewerPointers.size===1&&imageViewerScale<=1.01&&photoGallery.length>1&&!wasMulti;
  imageViewerPointers.delete(event.pointerId);
- if(navigateSwipe){imageViewerGesture=null;imageViewerTap=null;galleryStep(swipeX<0?1:-1);return;}
+ if(event.type==='pointercancel'&&imageViewerScale<=1.01){g8mSetGalleryOffset(0,true);}
+ if(canSwipe){
+  const elapsed=Math.max(1,performance.now()-(gesture.startedAt||performance.now()));
+  const velocity=Math.abs(swipeX)/elapsed;
+  const threshold=Math.min(75,g8mGalleryStepSize()*.20);
+  const horizontal=Math.abs(swipeX)>Math.abs(swipeY)*1.12;
+  const direction=swipeX<0?1:-1;
+  const isAllowed=direction>0?photoGalleryIndex<photoGallery.length-1:photoGalleryIndex>0;
+  if(horizontal&&isAllowed&&(Math.abs(swipeX)>threshold||(Math.abs(swipeX)>24&&velocity>.47))){
+   imageViewerGesture=null;imageViewerTap=null;
+   g8mGallerySlideTo(photoGalleryIndex+direction);return;
+  }
+  // Small gestures settle back smoothly rather than snapping suddenly.
+  g8mSetGalleryOffset(0,true);
+ }
  if(!wasMulti&&!imageViewerMoved&&event.type==='pointerup'&&event.pointerType!=='mouse'){
   const when=performance.now();
   const prev=imageViewerTap;
@@ -2958,7 +3049,7 @@ function imageViewerEndPointer(event){
  }else if(wasMulti) imageViewerTap=null;
  if(imageViewerPointers.size===1){
   const p=[...imageViewerPointers.values()][0];
-  imageViewerGesture={pinch:false,x:p.x,y:p.y,panX:imageViewerPanX,panY:imageViewerPanY};
+  imageViewerGesture={pinch:false,x:p.x,y:p.y,startedAt:performance.now(),panX:imageViewerPanX,panY:imageViewerPanY};
  }else imageViewerGesture=null;
 }
 imageStage.addEventListener('pointerup',imageViewerEndPointer);
@@ -2985,8 +3076,8 @@ document.addEventListener('keydown',event=>{
  }
 });
 if('ResizeObserver' in window){
- new ResizeObserver(()=>{if(!imageViewer.hidden&&imageViewerFitW)imageViewerMeasure(true);}).observe(imageStage);
-}else window.addEventListener('resize',()=>imageViewerMeasure(true));
+ new ResizeObserver(()=>{if(!imageViewer.hidden){g8mMeasureGalleryLayout();if(imageViewerFitW)imageViewerMeasure(true);}}).observe(imageStage);
+}else window.addEventListener('resize',()=>{g8mMeasureGalleryLayout();imageViewerMeasure(true);});
 // Shared mobile chat-image sizing: local optimistic previews and confirmed
 // Drive thumbnails must use identical bounds so the bubble never jumps from
 // a giant portrait to a compact image after upload. Desktop retains V5.4 sizing.

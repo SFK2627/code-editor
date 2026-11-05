@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=519-project-acknowledgments" />
+<link rel="stylesheet" href="messages.css?v=520-smooth-carousel" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js?v=ik-default-20261105"></script>
 <style>
@@ -55,7 +55,7 @@
     </aside>
     <main class="g8m-conversation" id="g8mConversation" aria-label="Conversation">
       <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatPresence" class="g8m-presence-line" aria-live="polite">Checking activity…</small><small id="g8mChatMeta" class="g8m-chat-extra">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" class="g8m-chat-theme" id="g8mChatTheme" title="Toggle light or dark theme" aria-label="Toggle light or dark theme">☼</button><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
-      <div class="g8m-feed-state" id="g8mFeedState" role="status" aria-live="polite">Connecting to chat…</div><div class="g8m-messages" id="g8mMessages" role="log" aria-live="polite" aria-relevant="additions text"><div class="g8m-empty">Select a conversation to begin.</div></div>
+      <div class="g8m-feed-state" id="g8mFeedState" role="status" aria-live="polite" hidden></div><div class="g8m-messages" id="g8mMessages" role="log" aria-live="polite" aria-relevant="additions text"><div class="g8m-empty">Select a conversation to begin.</div></div>
       <div id="g8mTypingIndicator" class="g8m-typing-indicator" hidden aria-live="polite"><span class="g8m-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="g8mTypingText">Typing…</span></div>
       <div id="g8mReply" class="g8m-reply" hidden><div><strong>Replying to</strong><span id="g8mReplyText"></span></div><button id="g8mReplyCancel" type="button" aria-label="Cancel reply">×</button></div>
       <div id="g8mAttachments" class="g8m-attachments" hidden></div><div id="g8mProjectSelected" class="g8m-project-selected" hidden></div>
@@ -154,10 +154,14 @@
     <button id="g8mImageClose" type="button" class="g8m-image-control g8m-image-close" aria-label="Close image" title="Close image">×</button>
   </div>
   <div id="g8mImageStage" class="g8m-image-stage" aria-label="Zoomable photo. Use pinch gestures or zoom controls.">
-    <img id="g8mImageLarge" alt="Full-size student attachment" draggable="false" />
+    <div id="g8mImageTrack" class="g8m-image-track">
+      <div id="g8mImagePreviousFrame" class="g8m-image-frame g8m-image-neighbor is-empty" aria-hidden="true"><img id="g8mImagePreviousPreview" alt="" draggable="false" /></div>
+      <div id="g8mImageCurrentFrame" class="g8m-image-frame g8m-image-current"><img id="g8mImageLarge" alt="Full-size student attachment" draggable="false" /></div>
+      <div id="g8mImageNextFrame" class="g8m-image-frame g8m-image-neighbor is-empty" aria-hidden="true"><img id="g8mImageNextPreview" alt="" draggable="false" /></div>
+    </div>
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=history-reconcile-v4c15-20261105"></script>
+<script defer src="messages.js?v=gallery-v4c16-20261105"></script>
 </body>
 </html>
