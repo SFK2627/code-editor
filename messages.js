@@ -1,4 +1,4 @@
-/* G8Code Messages V4C-18 — admin-only history search, photo/project gallery; preserves V4C-17 swipe and V4C-15 history. */
+/* G8Code Messages V4C-20 — unified chat/gallery project viewer with correct zoom and two-axis scrolling. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -3823,8 +3823,12 @@ async function openSharedProject(studentUid,projectId,options={}){
   projectViewerFiles=normalizeViewerProject(project);
   viewerHeight=800;viewerZoom='fit';viewerView='output';viewerPreviewReady=false;
   $('g8mViewerZoom').value='fit';
-  // Project card in Shared Projects opens the actual rendered output FIRST.
-  setViewerMode(message?'output':window.matchMedia('(min-width:1050px)').matches?'split':'output');
+  // V4C-20: Gallery and Chat MUST invoke the same preview layout and
+  // rendering path. Gallery used to force Output while Chat used Split on
+  // desktop, changing the Fit scale and making identical sites look different.
+  // Both entry points show the actual output immediately, using identical
+  // toolbar, canvas width, and source panel (desktop only).
+  setViewerMode(window.matchMedia('(min-width:1050px)').matches?'split':'output');
   populateViewerPages();populateViewerSource();
   $('g8mViewerWorkspace').hidden=false;
   $('g8mViewerLoading').hidden=true;
@@ -3972,17 +3976,39 @@ function viewerBridgeScript(page,allPages,token){
  // The iframe grows to the entire project document height. In an opaque iframe
  // wheel/touch input does not reliably scroll the embedding container, so relay
  // only gestures that are not consumed by an inner overflow-scrolling element.
- function innerScrollable(target,delta){for(let el=target;el&&el!==document.documentElement;el=el.parentElement){
-   const st=getComputedStyle(el);if(!/(auto|scroll)/.test(st.overflowY))continue;
-   if(el.scrollHeight>el.clientHeight+2&&((delta>0&&el.scrollTop+el.clientHeight<el.scrollHeight-2)||(delta<0&&el.scrollTop>2)))return true;
- }return false;}
- document.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey||innerScrollable(e.target,e.deltaY))return;
-   e.preventDefault();notify({scrollY:e.deltaY,scrollX:e.deltaX});},{passive:false});
+ function axisCanScroll(el,axis,delta){
+  if(!delta)return false;
+  const st=getComputedStyle(el),isX=axis==='x';
+  const overflow=isX?st.overflowX:st.overflowY;
+  if(!/(auto|scroll)/.test(overflow))return false;
+  const pos=isX?el.scrollLeft:el.scrollTop;
+  const distance=(isX?el.scrollWidth-el.clientWidth:el.scrollHeight-el.clientHeight);
+  return distance>2&&((delta>0&&pos<distance-2)||(delta<0&&pos>2));
+ }
+ function innerScrollable(target,dx,dy){
+  for(let el=target;el&&el!==document.documentElement;el=el.parentElement){
+   if(axisCanScroll(el,'x',dx)||axisCanScroll(el,'y',dy))return true;
+  }
+  return false;
+ }
+ document.addEventListener('wheel',e=>{
+  if(e.ctrlKey||e.metaKey||innerScrollable(e.target,e.deltaX,e.deltaY))return;
+  e.preventDefault();notify({scrollY:e.deltaY,scrollX:e.deltaX,scrollSource:'wheel',deltaMode:e.deltaMode});
+ },{passive:false});
  let touch=null;
- document.addEventListener('touchstart',e=>{if(e.touches.length===1)touch={x:e.touches[0].clientX,y:e.touches[0].clientY};else touch=null;},{passive:true});
- document.addEventListener('touchmove',e=>{if(!touch||e.touches.length!==1)return;const next={x:e.touches[0].clientX,y:e.touches[0].clientY};const dy=touch.y-next.y,dx=touch.x-next.x;
-   touch=next;if(innerScrollable(e.target,dy))return;e.preventDefault();notify({scrollY:dy,scrollX:dx});},{passive:false});
+ document.addEventListener('touchstart',e=>{
+  if(e.touches.length===1)touch={x:e.touches[0].clientX,y:e.touches[0].clientY};else touch=null;
+ },{passive:true});
+ document.addEventListener('touchmove',e=>{
+  if(!touch||e.touches.length!==1)return;
+  const next={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  const dy=touch.y-next.y,dx=touch.x-next.x;
+  touch=next;
+  if(innerScrollable(e.target,dx,dy))return;
+  e.preventDefault();notify({scrollY:dy,scrollX:dx,scrollSource:'touch'});
+ },{passive:false});
  document.addEventListener('touchend',()=>touch=null,{passive:true});
+ document.addEventListener('touchcancel',()=>touch=null,{passive:true});
  addEventListener('error',e=>{if(e.message)notify({warning:'JavaScript: '+String(e.message).slice(0,150)});},true);
  addEventListener('message',e=>{if(e.source!==parent||!e.data?.g8mViewerParent||e.data.token!==TOKEN)return;
   if(e.data.anchor!==undefined){if(!anchorScroll(e.data.anchor))requestAnimationFrame(()=>anchorScroll(e.data.anchor));}},false);
@@ -4069,17 +4095,23 @@ function sizeDesktopProjectPreview(){
  const host=$('g8mViewerPreviewHost'),frame=$('g8mViewerPreview'),stage=$('g8mViewerPreviewStage');
  if(!host||!frame||!stage||projectViewer.hidden||!projectViewerFiles||viewerView==='source')return;
  const width=host.clientWidth;if(width<20)return;
- const scale=viewerZoom==='fit'?Math.min(1,width/PROJECT_DESKTOP_WIDTH):Number(viewerZoom);
+ const specified=viewerZoom==='fit'?Math.min(1,width/PROJECT_DESKTOP_WIDTH):Number(viewerZoom);
+ const scale=Number.isFinite(specified)&&specified>=.1&&specified<=1.5?specified:1;
  const previousScale=Number(stage.dataset.scale)||scale;
- // Preserve the student's scroll position when changing zoom.
- const oldX=host.scrollLeft/previousScale,oldY=host.scrollTop/previousScale;
+ // Represent the transformed iframe's FULL width and document height in the
+ // host scroll size; a CSS transform alone leaves clipped/unreachable edges.
+ const previousX=host.scrollLeft/previousScale,previousY=host.scrollTop/previousScale;
  stage.style.width=Math.ceil(PROJECT_DESKTOP_WIDTH*scale)+'px';
- stage.style.height=Math.ceil(viewerHeight*scale)+'px';
+ stage.style.height=Math.ceil(Math.max(800,viewerHeight)*scale)+'px';
  stage.dataset.scale=String(scale);
- frame.style.width=PROJECT_DESKTOP_WIDTH+'px';frame.style.height=viewerHeight+'px';
+ frame.style.width=PROJECT_DESKTOP_WIDTH+'px';
+ frame.style.height=Math.max(800,viewerHeight)+'px';
  frame.style.transform='scale('+scale+')';
  $('g8mViewerViewportNote').textContent=`Desktop 1280px · ${Math.round(scale*100)}% · scroll ↕ ↔`;
- if(Math.abs(scale-previousScale)>.001){host.scrollLeft=oldX*scale;host.scrollTop=oldY*scale;}
+ if(Math.abs(scale-previousScale)>.001){
+  host.scrollLeft=Math.max(0,previousX*scale);
+  host.scrollTop=Math.max(0,previousY*scale);
+ }
 }
 function renderViewerPreview(pendingAnchor=''){
  if(!projectViewerFiles)return;
@@ -4106,7 +4138,14 @@ window.addEventListener('message',event=>{
  if(data.ready){viewerPreviewReady=true;setViewerStatus('Output ready · interactive · full page scroll available');
   if(viewerAnchorPending){const anchor=viewerAnchorPending;viewerAnchorPending='';frame.contentWindow.postMessage({g8mViewerParent:true,token:viewerPreviewToken,anchor},'*');}}
  if(data.anchorY!==undefined){const n=Number(data.anchorY);if(Number.isFinite(n))host.scrollTop=Math.max(0,n*scale);}
- if(data.scrollY!==undefined){const y=Number(data.scrollY)||0,x=Number(data.scrollX)||0;host.scrollBy(x,y);}
+ if(data.scrollY!==undefined||data.scrollX!==undefined){
+  // Transform scale changes the physical drag distance. Wheel deltas already
+  // describe screen pixels; line/page-mode wheels need pixel conversion.
+  const mode=data.scrollSource==='wheel'?Number(data.deltaMode)||0:0;
+  const multiplier= data.scrollSource==='touch'?scale:(mode===1?16:mode===2?host.clientHeight:1);
+  const dx=(Number(data.scrollX)||0)*multiplier,dy=(Number(data.scrollY)||0)*multiplier;
+  if(Number.isFinite(dx)&&Number.isFinite(dy))host.scrollBy({left:dx,top:dy,behavior:'instant'});
+ }
  if(data.navigate){const name=String(data.navigate);if(projectViewerFiles?.html[name]!==undefined){$('g8mViewerPage').value=name;renderViewerPreview(String(data.hash||''));}
   else setViewerStatus('Page not available in saved project: '+name,true);}
  if(data.warning)setViewerStatus(String(data.warning),true);

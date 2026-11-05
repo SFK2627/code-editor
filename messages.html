@@ -7,7 +7,7 @@
 <meta name="description" content="Private G8Code student and teacher messages" />
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
-<link rel="stylesheet" href="messages.css?v=523-project-gallery-smooth-v4c19" />
+<link rel="stylesheet" href="messages.css?v=524-unified-project-zoom-scroll-v4c20" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js?v=ik-default-20261105"></script>
 <style>
@@ -82,7 +82,7 @@
           </div>
           <label>Page <select id="g8mViewerPage" aria-label="Preview HTML page"></select></label>
           <label class="g8m-source-choice">File <select id="g8mViewerSourceFile" aria-label="Source code file"></select></label>
-          <label class="g8m-zoom-control">Zoom <select id="g8mViewerZoom" aria-label="Output zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label>
+          <label class="g8m-zoom-control">Zoom <select id="g8mViewerZoom" aria-label="Output zoom"><option value="fit">Fit</option><option value="0.1">10%</option><option value="0.2">20%</option><option value="0.3">30%</option><option value="0.4">40%</option><option value="0.5">50%</option><option value="0.6">60%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label>
           <button type="button" class="g8m-viewer-reload" id="g8mViewerReload" title="Restart the student's output">↻ Rerun</button>
           <label id="g8mViewerDeviceLabel" hidden>Device <select id="g8mViewerDevice"><option value="desktop">Desktop</option><option value="phone">Phone</option></select></label>
           <span class="g8m-viewer-lock">🔒 Read only</span>
@@ -90,7 +90,7 @@
         <p id="g8mViewerWireframeNotice" class="g8m-viewer-error" hidden></p>
         <div class="g8m-viewer-columns" id="g8mViewerColumns" data-view="output">
           <section class="g8m-viewer-output-pane" id="g8mViewerOutputPane"><h3>Desktop Output <small id="g8mViewerViewportNote">1280px · full-page scrolling</small></h3>
-            <div class="g8m-preview-host" id="g8mViewerPreviewHost"><div class="g8m-preview-stage" id="g8mViewerPreviewStage"><iframe id="g8mViewerPreview" title="Read-only interactive desktop project output" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" scrolling="no"></iframe></div></div>
+            <div class="g8m-preview-host" id="g8mViewerPreviewHost" tabindex="0" role="region" aria-label="Scrollable project output; pan horizontally and vertically to explore the zoomed webpage"><div class="g8m-preview-stage" id="g8mViewerPreviewStage"><iframe id="g8mViewerPreview" title="Read-only interactive desktop project output" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" scrolling="no"></iframe></div></div>
             <p class="g8m-viewer-status" id="g8mViewerStatus" role="status" aria-live="polite">Preparing preview…</p>
           </section>
           <section class="g8m-viewer-source-pane" id="g8mViewerSourcePane"><h3>Source Code <span class="g8m-source-tools"><button type="button" id="g8mViewerWrap" class="g8m-viewer-copy" aria-pressed="true">Wrap: On</button><button type="button" id="g8mViewerCopy" class="g8m-viewer-copy">Copy code</button></span></h3>
@@ -180,6 +180,6 @@
  <div class="g8m-admin-tools-results" id="g8mAdminToolsResults" tabindex="0"></div>
  <footer class="g8m-admin-tools-footer"><span id="g8mAdminToolsCount"></span><button type="button" id="g8mAdminToolsRetry" hidden>Try Again</button></footer>
 </section>
-<script defer src="messages.js?v=admin-project-gallery-v4c19-20261105"></script>
+<script defer src="messages.js?v=unified-project-zoom-scroll-v4c20-20261105"></script>
 </body>
 </html>

@@ -960,3 +960,22 @@ html,body{overflow:hidden;overscroll-behavior:none}
  .g8m-project-view-dialog>header .g8m-project-view-chat{min-width:89px;padding:0 7px;font-size:11px;}
  .g8m-project-view-dialog>header>div h2,.g8m-project-view-dialog>header>div p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 }
+
+/* V4C-20 — unified responsive project output scrolling. */
+.g8m-project-view-dialog .g8m-preview-host{
+ overflow-x:auto!important;
+ overflow-y:auto!important;
+ overscroll-behavior:contain;
+ touch-action:pan-x pan-y;
+ -webkit-overflow-scrolling:touch;
+ scroll-behavior:auto;
+ scroll-padding:0;
+ scrollbar-width:thin;
+ background:#fff;
+}
+.g8m-project-view-dialog .g8m-preview-stage{display:block;max-width:none;min-width:0;min-height:0;overflow:visible}
+.g8m-project-view-dialog .g8m-preview-stage iframe{max-width:none;transform-origin:left top;will-change:transform}
+.g8m-project-view-dialog .g8m-preview-host:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.g8m-project-view-dialog .g8m-preview-host::-webkit-scrollbar{height:8px;width:8px}
+.g8m-project-view-dialog .g8m-preview-host::-webkit-scrollbar-thumb{background:#9aa9bd;border-radius:99px;border:2px solid #fff}
+.g8m-project-view-dialog .g8m-preview-host::-webkit-scrollbar-track{background:#eff3f8}
