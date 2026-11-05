@@ -64205,6 +64205,30 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   let adminExplorerInitPromise = null;
   let adminExplorerDirectoryPromise = null;
   let adminExplorerFilterTimer = null;
+  // Search must never rebuild hundreds of students' course progress for each keystroke.
+  // Invalidate only when roster/profile/XP data changes, not when a filter changes.
+  let adminExplorerRecordsVersion = 0;
+  const adminExplorerRecordsCache = { source: null, version: -1, records: null };
+  function invalidateAdminExplorerRecords() {
+    adminExplorerRecordsVersion += 1;
+    adminExplorerRecordsCache.records = null;
+  }
+  function getAdminExplorerRecords() {
+    const source = adminStudentsCache.length ? adminStudentsCache : adminExplorerState.students;
+    if (adminExplorerRecordsCache.records
+        && adminExplorerRecordsCache.source === source
+        && adminExplorerRecordsCache.version === adminExplorerRecordsVersion) {
+      return adminExplorerRecordsCache.records;
+    }
+    const records = getAdminExplorerStudents().map(student => ({
+      ...adminExplorerRecord(student), loaded: adminExplorerProgressIsLoaded(student)
+    }));
+    adminExplorerRecordsCache.source = source;
+    adminExplorerRecordsCache.version = adminExplorerRecordsVersion;
+    adminExplorerRecordsCache.records = records;
+    populateCodeExplorerAdminSections(records);
+    return records;
+  }
   const adminLeaderboardXpOverlay = new Map();
 
   function adminLeaderboardOverlayKeys(student = {}) {
@@ -64220,6 +64244,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
 
   function setAdminLeaderboardXpOverlay(rows = []) {
     adminLeaderboardXpOverlay.clear();
+    invalidateAdminExplorerRecords();
     (Array.isArray(rows) ? rows : []).forEach(row => {
       const xp = Math.max(0, Number(row?.xp || 0));
       adminLeaderboardOverlayKeys(row).forEach(key => {
@@ -64331,6 +64356,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const docs = Array.from(snapshot?.docs || []);
     const rows = docs.map(docSnapshot => ({ uid: docSnapshot.id, isRosterOnly: false, sourceType: 'studentProfile', ...snapshotData(docSnapshot) }));
     rows.forEach(row => adminExplorerState.profiles.set(row.uid, { value: row, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS }));
+    invalidateAdminExplorerRecords();
     adminExplorerState.students = mergeAdminStudentList([...adminExplorerState.students, ...rows]);
     if (docs.length) adminExplorerState.cursor = docs[docs.length - 1];
     adminExplorerState.hasMore = docs.length === ADMIN_EXPLORER_PAGE_SIZE;
@@ -64351,6 +64377,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const identities = Array.isArray(entries[2]?.value) ? entries[2].value.flatMap(row => Array.isArray(row.sourceRecords) ? row.sourceRecords : [row]) : [];
         adminExplorerState.students = mergeAdminStudentList([...identities, ...profiles, ...roster]);
         profiles.forEach(row => adminExplorerState.profiles.set(String(row.uid || row.authUid || ''), { value: row, expiresAt: Number(entries[0]?.expiresAt || 0) }));
+        invalidateAdminExplorerRecords();
         return;
       }
       const directory = entries[2];
@@ -64389,6 +64416,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
     const persisted = SELECTIVE_FIRESTORE_CACHE.get(profileCacheKey) || readSelectiveSessionCache(profileCacheKey);
     if (options.force !== true && persisted?.expiresAt > Date.now() && persisted.value) {
       adminExplorerState.profiles.set(key, { value: persisted.value, expiresAt: Number(persisted.expiresAt) });
+      invalidateAdminExplorerRecords();
       return;
     }
     if (options.force !== true && cached && cached.expiresAt > Date.now()) return;
@@ -64398,6 +64426,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const shared = sharedEntry?.expiresAt > Date.now() && Date.now() - Number(sharedEntry.savedAt || 0) < ADMIN_EXPLORER_PROFILE_TTL_MS ? sharedEntry.value : null;
         if (shared) {
           adminExplorerState.profiles.set(key, { value: { ...shared, uid: key, isRosterOnly: false, sourceType: 'studentProfile' }, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS });
+          invalidateAdminExplorerRecords();
           return;
         }
       }
@@ -64406,6 +64435,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       const snapshot = await withTimeout(firebaseSync.modules.getDoc(getStudentDocRef(key)), APP_NETWORK_TIMEOUT_MS, 'Some page progress could not be refreshed. Press Refresh Progress to retry.');
       const value = snapshotExists(snapshot) ? { ...snapshotData(snapshot), uid: key, isRosterOnly: false, sourceType: 'studentProfile' } : null;
       adminExplorerState.profiles.set(key, { value, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS });
+      invalidateAdminExplorerRecords();
       if (value) {
         setSelectiveFirestoreCache(profileCacheKey, value, ADMIN_EXPLORER_PROFILE_TTL_MS);
       }
@@ -64415,8 +64445,9 @@ window.MCS_PHONE_MENU_STATUS = () => ({
   }
 
   function getAdminExplorerFilteredRecords() {
-    const records = getAdminExplorerStudents().map(student => ({ ...adminExplorerRecord(student), loaded: adminExplorerProgressIsLoaded(student) }));
-    populateCodeExplorerAdminSections(records);
+    // Name/ID filtering runs instantly against a memoized in-memory snapshot;
+    // Firestore progress for newly visible rows loads independently after typing settles.
+    const records = getAdminExplorerRecords();
     const search = String(dom.adminSearch?.value || '').trim().toLowerCase();
     const section = String(dom.adminSection?.value || 'all');
     const status = String(dom.adminStatusFilter?.value || 'all');
@@ -64721,6 +64752,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       // v507: affected cached profiles were patched in-place. Avoid a full
       // post-repair student collection scan; 8 PM is the next full snapshot.
       adminExplorerState.profiles.clear();
+      invalidateAdminExplorerRecords();
       clearSelectiveFirestoreCache('admin:explorerProfile:');
       adminStudentsCache = mergeAdminStudentList(adminStudentsCache);
       renderAdminExplorerProgress();
@@ -65150,6 +65182,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
         const entry = SELECTIVE_FIRESTORE_CACHE.get('admin:studentProfiles') || readSelectiveSessionCache('admin:studentProfiles', { allowExpired: true });
         adminStudentsCache.flatMap(student => Array.isArray(student.sourceRecords) ? student.sourceRecords : [student]).filter(row => !row.isRosterOnly).forEach(row => {
           adminExplorerState.profiles.set(String(row.uid || row.authUid || ''), { value: row, expiresAt: Number(entry?.expiresAt || 0) });
+          invalidateAdminExplorerRecords();
         });
       }
       adminExplorerState.loaded = true;
@@ -65257,6 +65290,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       progress.updatedAt = nowIso;
       const updatedProfile = { ...profile, uid: targetUid, isRosterOnly: false, sourceType: 'studentProfile', codeExplorerProgress: normalizeProgress(progress), codeExplorerUpdatedAt: nowIso };
       adminExplorerState.profiles.set(targetUid, { value: updatedProfile, expiresAt: Date.now() + ADMIN_EXPLORER_PROFILE_TTL_MS });
+      invalidateAdminExplorerRecords();
       setSelectiveFirestoreCache(`admin:explorerProfile:${targetUid}`, updatedProfile, ADMIN_EXPLORER_PROFILE_TTL_MS);
       upsertCachedAdminProfileRecord(targetUid, updatedProfile);
       clearSelectiveFirestoreCache(`studentProfile:${targetUid}`);
@@ -65441,7 +65475,7 @@ window.MCS_PHONE_MENU_STATUS = () => ({
       adminExplorerState.page = 1;
       renderAdminExplorerProgress();
       window.clearTimeout(adminExplorerFilterTimer);
-      adminExplorerFilterTimer = window.setTimeout(() => { void loadAdminExplorerVisiblePage(); }, control?.tagName === 'INPUT' ? 250 : 0);
+      adminExplorerFilterTimer = window.setTimeout(() => { void loadAdminExplorerVisiblePage(); }, control?.tagName === 'INPUT' ? 160 : 0);
     });
   });
   dom.adminTableBody?.addEventListener('click', event => {
