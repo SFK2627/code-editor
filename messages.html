@@ -10,6 +10,14 @@
 <link rel="stylesheet" href="messages.css?v=519-project-acknowledgments" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js?v=ik-default-20261105"></script>
+<style>
+/* V4C-12: subtle, nonblocking full-resolution indicator over an immediate cached preview. */
+#g8mImageStageStatus.is-refining{
+ top:auto;bottom:18px;left:50%;transform:translateX(-50%);
+ font-size:12px;line-height:1.35;padding:7px 11px;max-width:85%;
+ background:rgba(20,28,45,.88);border-radius:999px;pointer-events:none;
+}
+</style>
 </head>
 <body>
 <div class="g8m-app" id="g8mApp" data-mode="loading">
@@ -150,6 +158,6 @@
     <div id="g8mImageStageStatus" class="g8m-image-stage-status" role="status" aria-live="polite" hidden></div>
   </div>
 </div>
-<script defer src="messages.js?v=unified-chat-history-v4c11-20261105"></script>
+<script defer src="messages.js?v=persistent-full-photo-cache-v4c12-20261105"></script>
 </body>
 </html>

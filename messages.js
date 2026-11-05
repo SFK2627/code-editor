@@ -1,4 +1,4 @@
-/* G8Code Messages V5.12 — private, account-scoped persistent photo cache. No grade/submission writes. */
+/* G8Code Messages V4C-12 — account-scoped full-photo + thumbnail disk cache, progressive viewer. No grade/submission writes. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -97,10 +97,10 @@ let imageCache = new Map(), imageCacheFileIds = new Map(), photoQueue = new Map(
 // across reloads. Never expose an old account's images after an account change.
 const PHOTO_DB_NAME = 'g8code-private-messages-photos-v1';
 const PHOTO_DB_STORE = 'photos';
-const PHOTO_DISK_MAX_ITEMS = 48;
-const PHOTO_DISK_MAX_BYTES = 48 * 1024 * 1024;
+const PHOTO_DISK_MAX_ITEMS = 120;
+const PHOTO_DISK_MAX_BYTES = 96 * 1024 * 1024;
 const PHOTO_DISK_SINGLE_MAX = 5 * 1024 * 1024;
-const PHOTO_DISK_TTL = 3 * 24 * 60 * 60 * 1000;
+const PHOTO_DISK_TTL = 21 * 24 * 60 * 60 * 1000;
 let photoDbPromise = null, photoCacheOwnerUid = '', photoAuthEpoch = 0;
 let photoCacheOwnerInitialized = false, photoDiskWriteCount = 0;
 let photoVisibilityObserver = null;
@@ -128,6 +128,9 @@ const G8M_IK_THUMB_SUFFIX='::g8m-thumb';
 const G8M_IK_MAX_SIGN_BATCH=6;
 const g8mIkSignPending=[];
 let g8mIkSignBatchActive=false,g8mIkSignBatchTimer=null;
+// In some browser/CDN combinations private <img> works but cross-origin fetch
+// cannot read bytes. Avoid retrying a blocked Blob fetch for every photo.
+let g8mIkCorsBlobAllowed=null;
 
 // ImageKit is the default for NEW Messenger photos from signed-in teachers
 // AND students. Each message records its actual provider, so existing Drive
@@ -437,6 +440,7 @@ async function boot(){
     photoCacheOwnerUid=nextPhotoOwner;
     photoAuthEpoch++;
     clearMemoryPhotoCache();
+    g8mIkCorsBlobAllowed=null;
     void prunePhotoDiskCache(nextPhotoOwner);
    }
    conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};
@@ -759,7 +763,14 @@ function showRelatedAccountThreads(uid){
   // the user backreads. This avoids fetching an entire long chat at startup.
   entry.unsubs.push(onValue(recentMessageQuery(id),snap=>{
    if(!stillHere())return;
-   entry.recent=normalizeMessageSnapshot(snap).map(msg=>({...msg,__threadUid:id,__historical:true}));
+   const nextRecent=normalizeMessageSnapshot(snap).map(msg=>({...msg,__threadUid:id,__historical:true}));
+   for(const incoming of nextRecent){
+    if(!isDeletedMessage(incoming))continue;
+    const previous=[...entry.recent,...entry.older].find(msg=>msg.id===incoming.id&&!isDeletedMessage(msg));
+    if(previous)g8mRemoveDeletedPhotoCache(previous);
+   }
+   entry.recent=nextRecent;
+   g8mPurgeHiddenPhotoCache(id,entry.hidden,entry);
    entry.ready=true;entry.error=false;
    if(!entry.exhausted && entry.recent.length>=G8M_RECENT_MESSAGES)entry.hasOlder=true;
    renderMessages();g8mUpdateLoadedStatus();
@@ -781,7 +792,8 @@ function showRelatedAccountThreads(uid){
   // Honor teacher's per-thread "Delete for Me" preferences in historic chats.
   entry.unsubs.push(onValue(ref(rtdb,`${BASE}/hiddenFor/${user.uid}/${id}`),snap=>{
    if(!stillHere())return;
-   entry.hidden=snap.val()||{};renderMessages();
+   entry.hidden=snap.val()||{};
+   g8mPurgeHiddenPhotoCache(id,entry.hidden,entry);renderMessages();
   },error=>console.warn('Prior account hidden messages:',error)));
  }
  if(changed){renderMessages();g8mUpdateLoadedStatus();}
@@ -843,7 +855,8 @@ function openChat(uid){
  },err=>console.warn('Deleted index listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,`${BASE}/hiddenFor/${user.uid}/${uid}`),snap=>{
   if(uid!==openedUid)return;
-  hiddenMessageIds=snap.val()||{};renderMessages();
+  hiddenMessageIds=snap.val()||{};
+  g8mPurgeHiddenPhotoCache(uid,hiddenMessageIds);renderMessages();
  },err=>console.warn('Hidden message listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/reactions`),snap=>{if(uid!==openedUid)return;activeReactions=snap.val()||{};updateReactionBadges();updateDetails();},err=>console.warn('Reactions listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/readReceipts`),snap=>{if(uid!==openedUid)return;activeReadReceipts=snap.val()||{};receiptCacheReady=true;refreshSeenLabels();updateDetails();},err=>console.warn('Read receipt listener:',err)));
@@ -1433,6 +1446,17 @@ function openDeleteDialog(id){
  deleteOverlay.hidden=false;$('g8mDeleteClose').focus();
 }
 function closeDeleteDialog(){if(deleteMessageBusy)return;deleteOverlay.hidden=true;deleteMessageTarget=null;}
+function g8mPurgeHiddenPhotoCache(threadUid,hidden,historyEntry=null){
+ // A remote Delete-for-Me must also evict already cached private bytes.
+ // Previous account messages are never moved from their original RTDB path.
+ if(!hidden||typeof hidden!=='object')return;
+ const messages=historyEntry?[...historyEntry.recent,...historyEntry.older]:[...activeMessages,...olderMessages];
+ for(const msg of messages){
+  if(!hidden[msg.id]||(msg.__threadUid||openedUid)!==threadUid)continue;
+  const atts=Array.isArray(msg.attachments)?msg.attachments:Object.values(msg.attachments||{});
+  for(const att of atts)if(att?.path)deleteCachedPhoto(att.path,att.driveFileId||att.imagekitFileId);
+ }
+}
 function g8mRemoveDeletedPhotoCache(previous){
  const attachments=Array.isArray(previous?.attachments)?previous.attachments:Object.values(previous?.attachments||{});
  for(const att of attachments)if(att?.path)deleteCachedPhoto(att.path,att.driveFileId||att.imagekitFileId);
@@ -1449,7 +1473,12 @@ async function deleteMessageForMe(){
   // Save per-account hidden markers in RTDB (across devices). This does NOT
   // change what the other participant can see.
   await set(ref(rtdb,`${BASE}/hiddenFor/${target.by}/${target.uid}/${target.id}`),true);
-  if(target.uid===openedUid){hiddenMessageIds[target.id]=true;renderMessages();}
+  if(target.uid===openedUid){
+   hiddenMessageIds[target.id]=true;
+   const hiddenMsg=[...activeMessages,...olderMessages].find(m=>m.id===target.id);
+   if(hiddenMsg)g8mRemoveDeletedPhotoCache(hiddenMsg);
+   renderMessages();
+  }
   status('Message removed from your view ✓');
   deleteOverlay.hidden=true;deleteMessageTarget=null;
  }catch(error){status(`Delete for you failed: ${friendlyError(error)}`,true);}
@@ -2041,6 +2070,11 @@ function g8mCachedUrlExact(path,driveFileId=''){
  const url=imageCache.get(path);imageCache.delete(path);imageCache.set(path,url);
  return url;
 }
+function g8mCachedFullLocalBlob(path,fileId){
+ if(!imageCache.has(path)||imageCacheFileIds.get(path)!==String(fileId||''))return '';
+ const url=g8mCachedUrlExact(path,fileId);
+ return url.startsWith('blob:')?url:'';
+}
 function cachedPhotoUrl(path,driveFileId='',variant='full'){
  if(variant!=='thumb')return g8mCachedUrlExact(path,driveFileId);
  // An already-local FULL sender copy is best. A merely signed FULL CDN URL
@@ -2339,6 +2373,7 @@ async function g8mFetchSmallPrivateThumbnail(url,att,cachePath,owner,epoch){
   const blob=await response.blob();
   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
   if(!allowedTypes.has(blob.type) || blob.size<1 || blob.size>PHOTO_DISK_SINGLE_MAX)return url;
+  g8mIkCorsBlobAllowed=true;
   const existing=g8mCachedUrlExact(cachePath,att.imagekitFileId);
   if(existing && existing.startsWith('blob:'))return existing;
   const local=URL.createObjectURL(blob);
@@ -2347,8 +2382,42 @@ async function g8mFetchSmallPrivateThumbnail(url,att,cachePath,owner,epoch){
   return local;
  }catch(error){
   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  if(error instanceof TypeError && navigator.onLine!==false)g8mIkCorsBlobAllowed=false;
   // CORS/network hiccups should not break a valid private signed <img> URL.
   return url;
+ }
+}
+async function g8mFetchPrivateFullForCache(signedUrl,att,cachePath,owner,epoch,priority){
+ // ImageKit full photos are already compressed on upload. Download ONCE,
+ // retain a bounded local Blob, and never persist expiring signed URLs.
+ if(g8mIkCorsBlobAllowed===false)return signedUrl;
+ try{
+  const blob=await withPhotoReadSlot(async()=>{
+   const response=await fetch(signedUrl,{
+    method:'GET',mode:'cors',credentials:'omit',cache:'default'
+   });
+   if(!response.ok)throw new Error('Full photo CDN returned '+response.status);
+   const contentLength=Number(response.headers.get('content-length')||0);
+   if(contentLength>PHOTO_DISK_SINGLE_MAX)return null;
+   return response.blob();
+  },priority);
+  if(!blob)return signedUrl;
+  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  if(!allowedTypes.has(blob.type)||blob.size<1||blob.size>PHOTO_DISK_SINGLE_MAX)return signedUrl;
+  g8mIkCorsBlobAllowed=true;
+  const existing=g8mCachedFullLocalBlob(cachePath,att.imagekitFileId);
+  if(existing)return existing;
+  const local=URL.createObjectURL(blob);
+  cachePhotoUrl(cachePath,local,att.imagekitFileId);
+  // Browser quota can reject this, but the in-memory Blob still works.
+  void savePhotoToDisk(att,owner,epoch,blob);
+  return local;
+ }catch(error){
+  if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
+  if(error instanceof TypeError && navigator.onLine!==false)g8mIkCorsBlobAllowed=false;
+  // A valid private signed URL still displays via <img> when CORS is blocked.
+  // Do not store signed URLs as permanent browser cache entries.
+  return signedUrl;
  }
 }
 function imageKitPrivatePhotoURL(att,priority=10,variant='full'){
@@ -2358,7 +2427,9 @@ function imageKitPrivatePhotoURL(att,priority=10,variant='full'){
  if(!/^g8Messages\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+$/.test(path) || !/^[A-Za-z0-9_-]{12,128}$/.test(fid))
   return Promise.reject(new Error('Private photo information is incomplete.'));
  const isThumb=variant==='thumb',cachePath=isThumb?path+G8M_IK_THUMB_SUFFIX:path;
- const cached=cachedPhotoUrl(path,fid,variant);
+ // A temporary signed FULL URL is not a reusable local copy.
+ // Always consult IndexedDB before returning that link to the viewer.
+ const cached=isThumb?cachedPhotoUrl(path,fid,variant):g8mCachedFullLocalBlob(path,fid);
  if(cached)return Promise.resolve(cached);
  const item={...att,path:cachePath};
  const key=photoDiskKey(item,owner);
@@ -2375,14 +2446,19 @@ function imageKitPrivatePhotoURL(att,priority=10,variant='full'){
    cachePhotoUrl(cachePath,local,fid);
    return local;
   }
-  const nowCached=cachedPhotoUrl(path,fid,variant);
+  const nowCached=isThumb?cachedPhotoUrl(path,fid,variant):g8mCachedFullLocalBlob(path,fid);
   if(nowCached)return nowCached;
   const uid=att.studentUid||path.split('/')[1],messageId=att.messageId||path.split('/')[2];
-  const signed=await g8mQueueImageKitSignature(uid,messageId,fid,isThumb?'thumb':'full',owner,epoch,priority);
+  // The thumbnail signer also returns an independently signed full URL.
+  // Reuse it if still valid: no second Apps Script authorization roundtrip.
+  const signedMemory=g8mIkSignedLinks.get(cachePath);
+  const signed=(signedMemory && signedMemory.expiresAt>Date.now()+20000)
+   ?signedMemory
+   :await g8mQueueImageKitSignature(uid,messageId,fid,isThumb?'thumb':'full',owner,epoch,priority);
   if(!photoOwnerStillValid(owner,epoch))throw new Error('Photo access changed. Sign in again.');
   g8mIkSignedLinks.set(cachePath,{url:signed.url,expiresAt:signed.expiresAt});
   if(isThumb && signed.full)g8mIkSignedLinks.set(path,signed.full);
-  if(!isThumb)return signed.url; // Full viewer: direct CDN, no extra client fetch.
+  if(!isThumb)return g8mFetchPrivateFullForCache(signed.url,att,cachePath,owner,epoch,priority);
   return g8mFetchSmallPrivateThumbnail(signed.url,att,cachePath,owner,epoch);
  })().finally(()=>photoQueue.delete(key));
  photoQueue.set(key,job);
@@ -2425,17 +2501,34 @@ function showPhotoGalleryIndex(index){
  imageViewer.hidden=false;
  galleryControlState();
  if(att.localUrl){openFullPhoto(att.localUrl,true);return;}
- const url=cachedPhotoUrl(att.path,att.driveFileId||att.imagekitFileId);
- if(url){openFullPhoto(url,true);return;}
- imageLarge.removeAttribute('src');imageViewerFitW=0;
- imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;
- const state=$('g8mImageStageStatus');state.textContent=`Loading photo ${index+1} of ${photoGallery.length}…`;state.hidden=false;
+ const fid=att.driveFileId||att.imagekitFileId;
+ const localFull=att.provider==='imagekit'?g8mCachedFullLocalBlob(att.path,fid):cachedPhotoUrl(att.path,fid);
+ if(localFull){openFullPhoto(localFull,true);return;}
+ // Chat already has an optimized thumbnail. Present it instantly and replace
+ // with full quality when authorized download / IndexedDB lookup completes.
+ // Never mistake that thumbnail for the full-quality gallery image.
+ const preview=att.provider==='imagekit'?cachedPhotoUrl(att.path,fid,'thumb'):'';
+ const state=$('g8mImageStageStatus');
+ if(preview){
+  openFullPhoto(preview,true);
+  state.textContent='Loading full quality…';state.classList.add('is-refining');state.hidden=false;
+ }else{
+  imageLarge.removeAttribute('src');imageViewerFitW=0;
+  imageViewerScale=1;imageViewerPanX=0;imageViewerPanY=0;
+  state.classList.remove('is-refining');
+  state.textContent=`Loading photo ${index+1} of ${photoGallery.length}…`;state.hidden=false;
+ }
  void privatePhotoURL(att,20).then(photoUrl=>{
   if(load!==photoGalleryToken||imageViewer.hidden)return;
-  openFullPhoto(photoUrl,true);
+  // Keep the preview visible until the full-size image is actually decoded.
+  // Otherwise a slow remote CDN fallback would produce a blank photo viewer.
+  if(preview)g8mUpgradeFullPhoto(photoUrl);
+  else {state.hidden=true;state.classList.remove('is-refining');openFullPhoto(photoUrl,true);}
  }).catch(error=>{
   if(load!==photoGalleryToken||imageViewer.hidden)return;
-  state.textContent=`Could not load this photo: ${friendlyError(error)}`;state.hidden=false;
+  state.classList.toggle('is-refining',!!preview);
+  state.textContent=preview?'Full quality unavailable · Showing preview':`Could not load this photo: ${friendlyError(error)}`;
+  state.hidden=false;
  });
 }
 function galleryStep(direction){
@@ -2501,10 +2594,41 @@ function closeFullPhoto(){
  if(imageViewer.hidden)return;
  imageViewer.hidden=true;
  imageViewerPointers.clear();imageViewerGesture=null;imageViewerTap=null;
+ $('g8mImageStageStatus').classList.remove('is-refining');
  imageViewerLoadToken++;photoGalleryToken++;photoGallery=[];galleryControlState();
  if(imageViewerPreviousFocus&&imageViewerPreviousFocus.isConnected){
   try{imageViewerPreviousFocus.focus({preventScroll:true});}catch(_){}}
  imageViewerPreviousFocus=null;
+}
+function g8mUpgradeFullPhoto(url){
+ const photoUrl=String(url||'');if(!photoUrl||imageViewer.hidden)return;
+ const loadToken=++imageViewerLoadToken;
+ // Preload/decode off-screen. Keep the cached thumbnail onscreen the entire
+ // time, including when the CDN permits <img> but disallows CORS fetch().
+ const incoming=new Image();incoming.decoding='async';
+ const showDecoded=()=>{
+  if(imageViewer.hidden||loadToken!==imageViewerLoadToken)return;
+  const state=$('g8mImageStageStatus');
+  if(!incoming.naturalWidth){
+   state.textContent='Full image could not be displayed · Showing preview';
+   state.hidden=false;return;
+  }
+  imageLarge.src=photoUrl;
+  state.hidden=true;state.classList.remove('is-refining');
+  const measure=()=>requestAnimationFrame(()=>{
+   if(loadToken===imageViewerLoadToken&&!imageViewer.hidden)imageViewerMeasure(true);
+  });
+  if(imageLarge.complete&&imageLarge.naturalWidth)measure();
+  else imageLarge.addEventListener('load',measure,{once:true});
+ };
+ incoming.onload=showDecoded;
+ incoming.onerror=()=>{
+  if(imageViewer.hidden||loadToken!==imageViewerLoadToken)return;
+  const state=$('g8mImageStageStatus');
+  state.textContent='Full quality unavailable · Showing preview';state.hidden=false;
+ };
+ incoming.src=photoUrl;
+ if(incoming.complete&&incoming.naturalWidth)showDecoded();
 }
 function openFullPhoto(url,preserveFocus=false){
  const photoUrl=String(url||'');if(!photoUrl)return;
@@ -2518,6 +2642,7 @@ function openFullPhoto(url,preserveFocus=false){
  imageLarge.style.removeProperty('--g8m-pan-x');
  imageLarge.style.removeProperty('--g8m-pan-y');
  $('g8mImageStageStatus').hidden=true;
+ $('g8mImageStageStatus').classList.remove('is-refining');
  const loadToken=++imageViewerLoadToken;
  imageLarge.src=photoUrl;
  const ready=()=>{
