@@ -8,7 +8,7 @@
 <script src="announcements-photo-cache.js?v=529" defer></script>
 <script defer src="g8code-push-config.js?v=2"></script>
 <script defer src="g8code-push.js?v=736-announcement-engagement"></script>
-<script src="announcements.js?v=800-engagement-insights" defer></script>
+<script src="announcements.js?v=801-latest-first" defer></script>
 </head>
 <body>
 <div class="ga-app" id="gaApp">
@@ -19,7 +19,7 @@
  <main class="ga-main"><div class="ga-main-head"><div><small class="ga-overline" id="gaGreeting">SCHOOL BULLETIN</small><h1 id="gaTitle">Class announcements</h1><p id="gaSubtitle">Your latest updates and resources appear here.</p></div><button id="gaNew" type="button" class="ga-primary ga-teacher-only" hidden>＋ New post</button></div><div class="ga-feed-tools"><label class="ga-search">⌕ <input id="gaSearch" type="search" placeholder="Search announcements" aria-label="Search announcements"></label><button id="gaRefresh" type="button" title="Refresh announcements" aria-label="Refresh announcements">↻</button><span id="gaFeedStatus" role="status">Loading…</span></div><div class="ga-engagement-filters ga-teacher-only" hidden aria-label="Filter admin announcements by audience">
  <label>Audience <select id="gaAudienceTypeFilter" aria-label="Filter announcements by audience"><option value="all">All audiences</option><option value="everyone">For all sections</option><option value="sections">Selected sections</option><option value="students">Selected students</option></select></label>
  <label id="gaAudienceSectionWrap" hidden>Section <select id="gaAudienceSectionFilter" aria-label="Filter by target section"><option value="all">All selected sections</option></select></label>
- <label>Sort <select id="gaOrderFilter" aria-label="Sort announcements by date"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+ 
  </div><div id="gaFeed" class="ga-feed" aria-live="polite"></div><p id="gaFeedMore" class="ga-footnote">Only announcements meant for your account are shown.</p></main>
 </div>
 <div class="ga-modal" id="gaComposerModal" role="dialog" aria-modal="true" aria-labelledby="gaComposeTitle" hidden><div class="ga-modal-backdrop" data-ga-close="composer"></div><section class="ga-compose-dialog"><header class="ga-dialog-header"><div><small>TEACHER POST CREATOR</small><h2 id="gaComposeTitle">Create announcement</h2></div><button type="button" id="gaComposeClose" aria-label="Close announcement editor">×</button></header><div class="ga-compose-scroll"><div class="ga-compose-content">
