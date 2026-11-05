@@ -3626,6 +3626,7 @@ async function processPhotoJob(job){
   // A previous attempt may have saved successfully just before its
   // confirmation timed out. Never overwrite that message on Retry.
   let confirmed=await get(messageRef);
+  let photoMessageWasJustCreated=false;
   if(!confirmed.exists()){
    const payload={
     text:short(job.caption,3000),type:'image',senderUid:job.senderUid,
@@ -3634,10 +3635,12 @@ async function processPhotoJob(job){
     attachments:job.uploaded
    };
    await set(messageRef,payload);
+   photoMessageWasJustCreated=true;
    confirmed=await get(messageRef);
   }
   if(!confirmed.exists()||confirmed.val()?.senderUid!==job.senderUid)
    throw new Error('Photo uploaded, but the chat message could not be confirmed. Retry safely.');
+  if(photoMessageWasJustCreated&&job.senderRole==='teacher')void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:job.id,targetUid:job.uid});
   // Reuse the LOCAL preview as a temporary sender-side Drive thumbnail.
   // There is no unnecessary second Drive download after a verified send.
   for(let i=0;i<job.uploaded.length;i++){
@@ -3709,6 +3712,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   await set(messageRef,payload);
   const confirmed=await get(messageRef);
   if(!confirmed.exists()||confirmed.val()?.senderUid!==user.uid)throw new Error('Message write could not be verified. Please retry.');
+  if(senderRole==='teacher')void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:key,targetUid:uid});
   // Render the verified message immediately. The onValue listener will reconcile
   // it with the other participant's updates. This also protects against UI
   // stalls when the live listener is delayed, interrupted, or showing a stale page.

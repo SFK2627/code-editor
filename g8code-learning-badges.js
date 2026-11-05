@@ -102,6 +102,8 @@
   try{
    if(type==='activities'&&record.published!==true){await state.sdk.remove(path);return {ok:true};}
    await state.sdk.set(path,{active:true,version:stamp(),term:String(record.term||'term1').slice(0,20),audienceSection:type==='lessons'?'all':String(record.audienceSection||'all').slice(0,100)});
+   // Only after confirmed class publish. No notification failure can roll back Firestore.
+   void window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection:type==='lessons'?'all':String(record.audienceSection||'all')});
    return {ok:true};
   }catch(err){return {ok:false,error:err?.message||'RTDB notification write failed'};}
  }

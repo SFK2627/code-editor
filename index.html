@@ -511,7 +511,7 @@
 </style>
 <link rel="stylesheet" href="messages-bridge.css?v=2" />
 <link rel="stylesheet" href="announcements-bridge.css?v=1" />
-<link rel="stylesheet" href="g8code-learning-badges.css?v=1" />
+<link rel="stylesheet" href="g8code-learning-badges.css?v=1" /><link rel="stylesheet" href="g8code-push.css?v=2" />
 <link rel="stylesheet" href="student-home-compact.css?v=529" />
 <link rel="stylesheet" href="student-modal-compact.css?v=532" />
 </head>
@@ -852,7 +852,12 @@
         </div>
         <p class="sh-settings-help">Your name, section and Student ID are managed by your teacher.</p>
         <div class="sh-settings-reminder-pref"><div><strong>Student Status Reminder</strong><p>Show your grade and requirements reminder each time you open Student Home. It will not appear on My Projects.</p></div><label class="sh-settings-reminder-control"><input type="checkbox" id="shSettingsReminderEveryVisit"><span>Show every visit</span></label></div>
-        <div class="sh-settings-security">
+        <div class="g8push-pref">
+ <div><strong>Phone Notifications</strong><p>Receive privacy-safe alerts for messages, announcements, lessons and activities, even when G8Code is closed (supported phones only).</p></div>
+ <button type="button" id="g8pushToggle" class="sh-settings-secondary">Enable Phone Notifications</button>
+ <small id="g8pushStatus" role="status" aria-live="polite">Checking notification support…</small>
+</div>
+<div class="sh-settings-security">
           <div class="sh-settings-security-head"><div><span class="sh-settings-kicker">ACCOUNT SECURITY</span><h3>Password</h3><p>Update your password without losing saved projects or progress.</p></div><span aria-hidden="true">🔒</span></div>
           <button type="button" id="shSettingsChangeButton" class="sh-settings-secondary" aria-expanded="false" aria-controls="shSettingsPasswordForm">Change Password <span aria-hidden="true">⌄</span></button>
           <form id="shSettingsPasswordForm" class="sh-settings-password-form hidden" autocomplete="off" novalidate>
@@ -6046,5 +6051,7 @@ https://example.com/song3.mp3"></textarea>
 <script defer src="messages-bridge.js?v=2"></script>
 <script defer src="announcements-bridge.js?v=529"></script>
 <script defer src="g8code-learning-badges.js?v=1"></script>
+<script defer src="g8code-push-config.js?v=2"></script>
+<script defer src="g8code-push.js?v=2"></script>
 </body>
 </html>

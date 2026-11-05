@@ -1,0 +1,8 @@
+/* Student Account Settings — opt-in phone notifications. */
+.g8push-pref{display:flex;flex-direction:column;gap:10px;border:1px solid var(--sh-border,rgba(125,145,170,.22));border-radius:14px;padding:15px;margin:12px 0;background:var(--sh-card,transparent)}
+.g8push-pref strong{font-size:14px;line-height:1.35}
+.g8push-pref p{font-size:12px;line-height:1.55;opacity:.75;margin:4px 0 0}
+.g8push-pref #g8pushToggle{max-width:310px;min-height:40px;align-self:flex-start;cursor:pointer}
+.g8push-pref #g8pushToggle:disabled{opacity:.55;cursor:not-allowed}
+.g8push-pref #g8pushStatus{display:block;opacity:.78;font-size:11px;line-height:1.55}
+@media(max-width:480px){.g8push-pref{padding:13px}.g8push-pref #g8pushToggle{width:100%;max-width:none}}
