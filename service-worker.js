@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v676-welcome-student-theme-choice';
+const CACHE_NAME = 'ict8-connect-v677-learning-badges-push-ready';
 const APP_SHELL = [
   './',
   './index.html',
@@ -89,4 +89,41 @@ self.addEventListener('fetch', event => {
   const isVersionedGameCode = url.pathname.includes('/games/') && ['js','css'].includes(extension) && url.searchParams.has('v');
   if (isVersionedGameCode) { event.respondWith(networkFirstStatic(request)); return; }
   if (cacheable) event.respondWith(cacheFirstStatic(request));
+});
+
+
+/* Phone push receiver foundation (inactive until a secured sender/subscription
+ * has been configured). Incoming payloads are untrusted: never place chat
+ * message text or student names into lock-screen previews by default. */
+self.addEventListener('push', event => {
+  let data = {};
+  try { data = event.data?.json() || {}; } catch (_) { data = {}; }
+  const type = String(data.data?.type || data.type || '').toLowerCase();
+  const allowed = ['messages','announcements','lessons','activities'];
+  if (!allowed.includes(type)) return;
+  const title = 'G8Code';
+  const labels = {messages:'You have a new private message.',announcements:'A new announcement is available.',lessons:'A new lesson is available.',activities:'A new activity is available.'};
+  const itemId=String(data.data?.itemId||data.itemId||'');
+  const validItem=/^[A-Za-z0-9_-]{1,128}$/.test(itemId);
+  const destination = type === 'messages' ? './messages.html?from=student'
+    : type === 'announcements' ? './announcements.html?from=student'
+    : validItem ? `./index.html?gaOpen=${type==='lessons'?'lesson':'activity'}&gaItem=${encodeURIComponent(itemId)}`
+    : './index.html';
+  event.waitUntil(self.registration.showNotification(title,{
+    body: labels[type], icon:'./icons/icon-192.png', badge:'./icons/icon-192.png',
+    tag:`g8code-${type}-${String(data.data?.eventId||data.eventId||'latest').slice(0,64)}`,
+    renotify:false, data:{destination,type}
+  }));
+});
+self.addEventListener('notificationclick',event=>{
+  event.notification.close();
+  event.waitUntil((async()=>{
+    const data=event.notification.data||{};
+    const url=new URL(data.destination||'./index.html',self.registration.scope);
+    if(url.origin!==self.location.origin)return;
+    const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+    const match=windows.find(client=>{try{return new URL(client.url).pathname===url.pathname;}catch(_){return false;}});
+    if(match){await match.focus(); if(match.url!==url.href) await match.navigate(url.href);return;}
+    await self.clients.openWindow(url.href);
+  })());
 });

@@ -1,0 +1,11 @@
+/* G8Code Student Learning Badges V1 — matches existing Messenger unread treatment. */
+.g8n-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#e33355!important;color:#fff!important;font:800 11px/1 system-ui,sans-serif!important;box-shadow:0 2px 8px #0003;letter-spacing:0;white-space:nowrap;pointer-events:none}
+.g8n-badge[hidden]{display:none!important}
+.sh-quick-card{position:relative}
+.sh-quick-card>.g8n-badge{position:absolute;top:11px;right:11px;z-index:2}
+.sh-bottom-tab,.learning-bottom-tab{position:relative}
+.sh-bottom-tab>.g8n-badge,.learning-bottom-tab>.g8n-badge{position:absolute;top:1px;left:calc(50% + 10px);min-width:17px;height:17px;font-size:10px;z-index:3}
+.lesson-library-card,.given-activity-card{position:relative}
+.g8n-card-new{position:absolute;z-index:2;top:8px;right:8px;padding:5px 10px;border-radius:999px;background:#d92c55;color:white;font:800 10px/1.1 system-ui,sans-serif;letter-spacing:.07em;box-shadow:0 3px 13px #0002;pointer-events:none}
+.g8n-card-new[hidden]{display:none!important}
+@media(max-width:450px){.g8n-badge{min-width:18px;height:18px;padding:0 4px;font-size:10px}.sh-quick-card>.g8n-badge{right:7px;top:7px}.g8n-card-new{top:7px;right:7px;font-size:9px;padding:5px 8px}}

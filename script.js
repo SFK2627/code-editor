@@ -14174,8 +14174,9 @@ async function resetQuizAttempt(uid) {
 }
 
 function openGivenActivityEntry(activityId = '') {
-  const item = givenActivityState.items.find(entry => entry.id === String(activityId || '') && entry.published);
+  const item = givenActivityState.items.find(entry => entry.id === String(activityId || '') && entry.published && givenActivityMatchesAudience(entry));
   if (!item) return;
+  window.G8CodeLearningBadges?.markViewed?.('activities', item.id);
   if (item.isQuiz) openQuizStartNotice(item.id);
   else if (item.isPeta) openPetaActionChoice(item.id);
   else openGivenActivityViewer(item.id);
@@ -23572,7 +23573,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js?v=665-grade-popup', {
+    navigator.serviceWorker.register('./service-worker.js?v=677-learning-notifications', {
       updateViaCache: 'none'
     }).then(registration => {
       let lastCheckedAt = 0;
@@ -27422,6 +27423,7 @@ function openLessonPdfViewer(lessonId = '') {
     appAlert('This lesson has no valid PDF link yet.', { title: 'Lesson unavailable', danger: true });
     return;
   }
+  window.G8CodeLearningBadges?.markViewed?.('lessons', lesson.id);
   const currentProgress = getLessonProgress(lesson.id);
   updateLessonProgress(lesson.id, {
     startedAt: currentProgress.startedAt || Date.now(),
@@ -27853,11 +27855,13 @@ async function publishLessonFromAdmin() {
     else lessonLibraryState.lessons.push(record);
     setLessonAdminStatus('Publishing lesson list...', 'loading');
     await saveLessonLibraryToCloud();
+    const lessonBadgeResult = await window.G8CodeLearningBadges?.publish?.('lessons', record);
+    if (lessonBadgeResult && !lessonBadgeResult.ok) console.warn('Lesson notification index was not updated:', lessonBadgeResult.error);
     if (existing?.fileId && newlyUploadedFileId && existing.fileId !== newlyUploadedFileId) {
       deleteLessonDriveFile(existing.fileId).catch(error => console.warn('Old Drive lesson file was not deleted.', error));
     }
     resetLessonAdminEditor({ keepTerm: true });
-    setLessonAdminStatus(existing ? 'Lesson updated successfully.' : 'Lesson published successfully.', 'success');
+    setLessonAdminStatus(lessonBadgeResult && !lessonBadgeResult.ok ? 'Lesson saved. Notification badge could not sync; check RTDB notification rules.' : (existing ? 'Lesson updated successfully.' : 'Lesson published successfully.'), lessonBadgeResult && !lessonBadgeResult.ok ? 'warning' : 'success');
     setStatus(existing ? 'Lesson updated' : 'Lesson published');
   } catch (error) {
     console.error('Could not publish lesson.', error);
@@ -27907,6 +27911,7 @@ async function deleteLessonFromAdmin(lessonId = '') {
   try {
     setLessonAdminStatus('Deleting lesson...', 'loading');
     await saveLessonLibraryToCloud();
+    void window.G8CodeLearningBadges?.remove?.('lessons', lessonId);
     let driveMessage = '';
     if (lesson.fileId && lessonLibraryState.driveAccessToken) {
       try {
@@ -28725,7 +28730,8 @@ function setGivenActivityViewerInstructionsOpen(open = false) {
 
 function openGivenActivityViewer(activityId = '') {
   const item = givenActivityState.items.find(entry => entry.id === activityId && entry.published);
-  if (!item || !givenActivityViewerOverlay || !givenActivityViewerBody) return;
+  if (!item || !givenActivityMatchesAudience(item) || !givenActivityViewerOverlay || !givenActivityViewerBody) return;
+  window.G8CodeLearningBadges?.markViewed?.('activities', item.id);
   givenActivityState.viewerActivityId = item.id;
   givenActivityState.viewerAttachmentIndex = 0;
   const currentEngagement = getGivenActivityEngagement(item.id);
@@ -29338,9 +29344,11 @@ async function publishGivenActivityFromAdmin() {
     else givenActivityState.items.push(record);
     setGivenActivityAdminStatus('Publishing activity list...', 'loading');
     await saveGivenActivitiesToCloud();
+    const activityBadgeResult = await window.G8CodeLearningBadges?.publish?.('activities', record);
+    if (activityBadgeResult && !activityBadgeResult.ok) console.warn('Activity notification index was not updated:', activityBadgeResult.error);
     resetGivenActivityAdminEditor({ keepTerm: true });
     renderAdminGivenActivityList();
-    setGivenActivityAdminStatus(`${record.title} saved ${record.published ? 'and published' : 'as a draft'}.`, 'success');
+    setGivenActivityAdminStatus(activityBadgeResult && !activityBadgeResult.ok ? `${record.title} saved, but notification badge could not sync. Check RTDB rules.` : `${record.title} saved ${record.published ? 'and published' : 'as a draft'}.`, activityBadgeResult && !activityBadgeResult.ok ? 'warning' : 'success');
   } catch (error) {
     console.warn('Could not save Activity Given.', error);
     setGivenActivityAdminStatus(error?.message || 'Could not save the activity.', 'error');
@@ -29361,6 +29369,7 @@ async function deleteGivenActivityFromAdmin(activityId = '') {
   givenActivityState.items = previous.filter(entry => entry.id !== activityId);
   try {
     await saveGivenActivitiesToCloud();
+    void window.G8CodeLearningBadges?.remove?.('activities', activityId);
     if (givenActivityState.editingId === activityId) resetGivenActivityAdminEditor({ keepTerm: true });
     if (item.fileId && lessonLibraryState.driveAccessToken) {
       deleteLessonDriveFile(item.fileId).catch(error => console.warn('Activity file remained in Drive.', error));
@@ -29406,6 +29415,7 @@ async function toggleGivenActivityPublished(activityId = '') {
   item.updatedAt = new Date().toISOString();
   try {
     await saveGivenActivitiesToCloud();
+    void window.G8CodeLearningBadges?.publish?.('activities', item);
     setGivenActivityAdminStatus(`${item.title} is now ${item.published ? 'published' : 'a draft'}.`, 'success');
   } catch (error) {
     item.visibility = previous;
