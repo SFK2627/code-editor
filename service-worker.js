@@ -205,7 +205,13 @@ self.addEventListener('push',event=>{
   const studentName=recipientRole==='teacher'
    ?String(data.studentName||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
      .replace(/\s+/g,' ').trim().slice(0,72):'';
-  const adviserBody=studentName?`New message from ${studentName}`:'A student sent you a private message.';
+  const studentSection=recipientRole==='teacher'
+   ?String(data.studentSection||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+     .replace(/\s+/g,' ').trim().slice(0,100):'';
+  const adviserBody=studentName
+   ?`New message from ${studentName}${studentSection?' • '+studentSection:''}`
+   :studentSection?`New message • ${studentSection}`
+   :'A student sent you a private message.';
   try{
   await self.registration.showNotification(recipientRole==='teacher'?'G8Code Messages':'G8Code',{
    body:recipientRole==='teacher'?adviserBody:pushLabels[type],icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
