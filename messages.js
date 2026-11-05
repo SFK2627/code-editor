@@ -1,4 +1,4 @@
-/* G8Code Messages V4C-16 — smooth multi-photo carousel and clean chat status; preserves V4C-15 reconciliation and photo cache. */
+/* G8Code Messages V4C-17 — immersive full-slide swipe and clean chat status; preserves V4C-15 reconciliation and photo cache. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -2725,6 +2725,9 @@ function g8mPrepareGalleryNeighbor(offset,previewId,frameId,token){
  const index=photoGalleryIndex+offset,photo=photoGallery[index];
  const preview=$(previewId),frame=$(frameId);
  frame.classList.toggle('is-empty',!photo);
+ frame.classList.toggle('is-loading',!!photo);
+ preview.onload=()=>{if(preview.getAttribute('src'))frame.classList.remove('is-loading');};
+ preview.onerror=()=>frame.classList.remove('is-loading');
  preview.removeAttribute('src');
  if(!photo)return;
  // Only fetch direct neighbors. Previously viewed photos resolve from the
@@ -2815,6 +2818,8 @@ function g8mGallerySlideTo(nextIndex){
   if(event.target===g8mCarouselRail&&event.propertyName==='transform')settle();
  };
  g8mCarouselRail.addEventListener('transitionend',g8mGallerySlideListener);
+ // Flush the current dragged position before enabling the settle transition.
+ void g8mCarouselRail.getBoundingClientRect().left;
  const duration=matchMedia('(prefers-reduced-motion: reduce)').matches?0:G8M_GALLERY_SLIDE_MS;
  g8mSetGalleryOffset(-direction*g8mGalleryStepSize(),true);
  g8mGallerySlideTimer=setTimeout(settle,duration+65);
@@ -3008,7 +3013,7 @@ imageStage.addEventListener('pointermove',event=>{
   if(Math.hypot(dx,dy)>5)imageViewerMoved=true;
   if(imageViewerScale>1.001){
    imageViewerPanX=g.panX+dx;imageViewerPanY=g.panY+dy;imageViewerRender();
-  }else if(photoGallery.length>1 && event.pointerType!=='mouse' && Math.abs(dx)>6 && Math.abs(dx)>Math.abs(dy)*1.08){
+  }else if(photoGallery.length>1 && Math.abs(dx)>6 && Math.abs(dx)>Math.abs(dy)*1.08){
    const canMove=dx<0?photoGalleryIndex<photoGallery.length-1:photoGalleryIndex>0;
    // Rubber-band at first/last photo; let the carousel follow the finger.
    g8mSetGalleryOffset(canMove?dx:dx*.2,false);
@@ -3021,7 +3026,7 @@ function imageViewerEndPointer(event){
  const wasMulti=gesture?.pinch;
  const swipeX=!wasMulti&&gesture?event.clientX-gesture.x:0;
  const swipeY=!wasMulti&&gesture?event.clientY-gesture.y:0;
- const canSwipe=event.type==='pointerup'&&event.pointerType!=='mouse'&&
+ const canSwipe=event.type==='pointerup'&&
   imageViewerPointers.size===1&&imageViewerScale<=1.01&&photoGallery.length>1&&!wasMulti;
  imageViewerPointers.delete(event.pointerId);
  if(event.type==='pointercancel'&&imageViewerScale<=1.01){g8mSetGalleryOffset(0,true);}

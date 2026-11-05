@@ -1,4 +1,4 @@
-/* G8Code Announcements V1.1. Private persistent image cache; RTDB-only posts, feeds, reactions, replies and reads.
+/* G8Code Announcements V2.1: immersive photo gallery + friendly loading, persistent image cache; RTDB-only posts, feeds, reactions, replies and reads.
  * Private Workspace Drive transfer uses the existing Apps Script deployment.
  * No Firestore import, read, or write occurs in this file. */
 (()=>{'use strict';
@@ -367,8 +367,13 @@ function renderFiles(p,card){
   const gallery=node('div','ga-images ga-images--'+n);gallery.setAttribute('aria-label',`${images.length} announcement photo${images.length===1?'':'s'}`);
   preview.forEach((file,i)=>{
    const btn=node('button','ga-image');btn.type='button';btn.setAttribute('aria-label',`Open photo ${i+1} of ${images.length}`);
-   const img=node('img');img.alt=txt(file.name||`Image ${i+1}`,120);img.loading='lazy';btn.append(img);
+   const img=node('img','ga-feed-photo');img.alt='';img.loading='lazy';img.decoding='async';
+   const pending=node('span','ga-image-placeholder');pending.setAttribute('aria-hidden','true');
+   pending.append(node('span','ga-image-placeholder-icon','▧'),node('span','ga-image-placeholder-caption','Loading photo…'));
+   const retry=node('span','ga-image-retry');retry.hidden=true;retry.setAttribute('role','button');retry.setAttribute('tabindex','0');retry.textContent='↻ Retry photo';
+   btn.append(img,pending,retry);
    if(i===4&&images.length>5)btn.append(node('span','ga-more-images','+'+(images.length-5)));
+   img.__gaRetry=()=>loadImage(p,file,img);
    btn.addEventListener('click',()=>openFile(p,file));gallery.append(btn);
    const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){observer.disconnect();loadImage(p,file,img);}}, {rootMargin:'500px'});observer.observe(btn);
   });host.append(gallery);
@@ -616,78 +621,275 @@ async function getFileData(p,f,variant='full'){
  },()=>attachmentAccessible(p,f));
 }
 async function loadImage(p,f,img){
- try{const url=await withPreviewTurn(()=>{if(!img.isConnected)return '';return getFileData(p,f,'thumb');});
-  if(img.isConnected&&attachmentAccessible(p,f)){img.loading='eager';img.decoding='async';img.src=url;}
- }catch(e){if(img.isConnected){img.alt='Image unavailable: '+e.message;img.style.objectFit='contain';}}
+ const btn=img.closest('.ga-image');if(!btn)return;
+ const retry=btn.querySelector('.ga-image-retry');
+ if(btn.dataset.gaLoading==='true')return;
+ btn.dataset.gaLoading='true';btn.classList.remove('ga-image-failed','ga-image-ready');retry.hidden=true;
+ const token=String(Number(btn.dataset.gaImageToken||0)+1);btn.dataset.gaImageToken=token;
+ try{
+  const url=await withPreviewTurn(()=>img.isConnected?getFileData(p,f,'thumb'):'');
+  if(!url||!img.isConnected||btn.dataset.gaImageToken!==token||!attachmentAccessible(p,f))return;
+  await new Promise((resolve,reject)=>{
+   img.onload=resolve;img.onerror=()=>reject(Error('Could not display photo'));
+   img.src=url;
+   if(img.complete){if(img.naturalWidth>0)resolve();else reject(Error('Could not display photo'));}
+  });
+  if(btn.dataset.gaImageToken===token)btn.classList.add('ga-image-ready');
+ }catch(_){if(img.isConnected&&btn.dataset.gaImageToken===token)btn.classList.add('ga-image-failed');}
+ finally{if(btn.dataset.gaImageToken===token)btn.dataset.gaLoading='false';}
+}
+// Keep the post tappable while a photo downloads, but show a friendly retry
+// after a *real* failure. Never expose Drive filenames or raw transport errors.
+document.addEventListener('click',event=>{
+ const retry=event.target.closest('.ga-image-retry');if(!retry)return;
+ event.stopPropagation();event.preventDefault();
+ const img=retry.closest('.ga-image')?.querySelector('.ga-feed-photo');
+ if(img&&typeof img.__gaRetry==='function')img.__gaRetry();
+},true);
+document.addEventListener('keydown',event=>{
+ if((event.key==='Enter'||event.key===' ')&&event.target.closest('.ga-image-retry')){
+  event.preventDefault();event.target.click();
+ }
+});
+
+// Three real photo panels ensure the next picture follows the finger instead
+// of replacing an <img> abruptly. IndexedDB remains the image byte source.
+let gaGalleryUI=null,gaGalleryGesture=null,gaGalleryAnimating=false;
+let gaGalleryTimer=0,gaGalleryEndHandler=null;
+const GA_SLIDE_MS=310;
+function gaReducedMotion(){return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;}
+function gaViewerActive(){return !$('gaViewerModal').hidden&&!!state.viewerPost&&state.viewerGallery.length>0;}
+function gaGalleryMeasure(){
+ if(!gaGalleryUI)return;
+ gaGalleryUI.stage.style.setProperty('--ga-gallery-stage-width',Math.max(1,gaGalleryUI.stage.clientWidth)+'px');
+}
+function gaGalleryStep(){
+ if(!gaGalleryUI)return 1;
+ const frame=gaGalleryUI.frames[1].el;
+ return Math.max(1,frame.getBoundingClientRect().width+(parseFloat(getComputedStyle(gaGalleryUI.track).columnGap)||0));
+}
+function gaGalleryOffset(px,animate=false){
+ if(!gaGalleryUI)return;
+ const track=gaGalleryUI.track;
+ track.style.transition=animate&&!gaReducedMotion()?`transform ${GA_SLIDE_MS}ms cubic-bezier(.2,.82,.24,1)`:'none';
+ track.style.setProperty('--ga-gallery-shift',Math.round(px)+'px');
+}
+function gaGalleryCancelAnimation(){
+ clearTimeout(gaGalleryTimer);gaGalleryTimer=0;
+ if(gaGalleryEndHandler&&gaGalleryUI)gaGalleryUI.track.removeEventListener('transitionend',gaGalleryEndHandler);
+ gaGalleryEndHandler=null;gaGalleryAnimating=false;gaGalleryGesture=null;gaGalleryOffset(0,false);
+}
+function gaGalleryFrame(){
+ const frame=node('div','ga-photo-frame');
+ const img=node('img','ga-photo-full');img.alt='';img.draggable=false;img.decoding='async';
+ const loading=node('div','ga-photo-loading');loading.setAttribute('aria-live','off');
+ const icon=node('div','ga-photo-loading-icon','▧');icon.setAttribute('aria-hidden','true');
+ const spin=node('span','ga-photo-spinner');spin.setAttribute('aria-hidden','true');
+ const message=node('span','ga-photo-loading-message','Loading photo…');
+ const retry=node('button','ga-photo-try-again','↻ Try again');retry.type='button';retry.hidden=true;
+ loading.append(icon,spin,message,retry);frame.append(img,loading);
+ return {el:frame,img,loading,message,spin,retry};
+}
+function gaGalleryBuild(){
+ const body=$('gaViewerBody');body.replaceChildren();
+ const stage=node('div','ga-photo-stage');stage.setAttribute('aria-label','Announcement photo gallery');
+ const track=node('div','ga-photo-track');
+ const frames=[gaGalleryFrame(),gaGalleryFrame(),gaGalleryFrame()];
+ frames.forEach(f=>track.append(f.el));stage.append(track);
+ const count=node('span','ga-photo-counter');count.setAttribute('aria-live','polite');
+ const prev=node('button','ga-photo-arrow ga-photo-prev','‹');const next=node('button','ga-photo-arrow ga-photo-next','›');
+ for(const [b,label] of [[prev,'Previous photo'],[next,'Next photo']]){
+  b.type='button';b.setAttribute('aria-label',label);
+ }
+ prev.addEventListener('click',()=>changeGallery(-1));next.addEventListener('click',()=>changeGallery(1));
+ stage.append(prev,next,count);body.append(stage);
+ gaGalleryUI={stage,track,frames,count,prev,next};
+ gaGalleryMeasure();
+ stage.addEventListener('pointerdown',gaGalleryPointerDown);
+ stage.addEventListener('pointermove',gaGalleryPointerMove);
+ stage.addEventListener('pointerup',gaGalleryPointerUp);
+ stage.addEventListener('pointercancel',gaGalleryPointerCancel);
+ stage.addEventListener('lostpointercapture',gaGalleryPointerCancel);
+ return gaGalleryUI;
+}
+function gaGalleryControls(){
+ if(!gaGalleryUI)return;
+ const n=state.viewerGallery.length,i=state.viewerIndex;
+ gaGalleryUI.stage.classList.toggle('has-gallery',n>1);
+ gaGalleryUI.count.textContent=`${i+1} / ${n}`;
+ gaGalleryUI.count.hidden=n<2;
+ gaGalleryUI.prev.hidden=gaGalleryUI.next.hidden=n<2;
+ gaGalleryUI.prev.disabled=i===0;
+ gaGalleryUI.next.disabled=i===n-1;
+ // Photo viewer header contains a friendly label, not the raw filename.
+ $('gaViewerTitle').textContent=n>1?`Photo ${i+1} of ${n}`:'Photo';
+ $('gaViewerError').textContent='';
+}
+function gaPhotoApplyImage(frame,url,token){
+ if(!url||frame.el.dataset.gaToken!==String(token))return Promise.resolve(false);
+ // Decode into a detached Image first. If the frame already displays a cached
+ // thumbnail, retain it visibly until the sharper file is fully ready.
+ return new Promise(resolve=>{
+  const test=new Image();test.decoding='async';
+  let done=false;
+  const finish=ok=>{
+   if(done)return;done=true;test.onload=null;test.onerror=null;
+   if(frame.el.dataset.gaToken!==String(token)){resolve(false);return;}
+   if(ok){frame.img.src=url;frame.el.classList.add('is-ready');frame.el.classList.remove('is-error');frame.retry.hidden=true;}
+   resolve(ok);
+  };
+  test.onload=()=>{if(test.decode)test.decode().then(()=>finish(true),()=>finish(test.naturalWidth>0));else finish(true);};
+  test.onerror=()=>finish(false);
+  test.src=url;
+  if(test.complete){if(test.naturalWidth>0)test.onload();else finish(false);}
+ });
+}
+function gaPhotoError(frame,retryAction,token){
+ if(frame.el.dataset.gaToken!==String(token))return;
+ frame.el.classList.add('is-error');frame.el.classList.remove('is-ready');
+ frame.message.textContent="Couldn't load photo";
+ frame.spin.hidden=true;frame.retry.hidden=false;
+ frame.retry.onclick=event=>{event.stopPropagation();retryAction();};
+}
+async function gaGalleryLoadFrame(slot,index,token,preview=''){
+ const ui=gaGalleryUI;if(!ui)return;
+ const frame=ui.frames[slot];const p=state.viewerPost,f=state.viewerGallery[index];
+ frame.el.dataset.gaToken=String(token);
+ frame.el.classList.remove('is-ready','is-error','is-empty');
+ frame.img.removeAttribute('src');frame.message.textContent='Loading photo…';frame.spin.hidden=false;frame.retry.hidden=true;
+ frame.retry.onclick=null;
+ if(!f){frame.el.classList.add('is-empty');frame.loading.hidden=true;return;}
+ frame.loading.hidden=false;
+ const relevant=()=>gaViewerActive()&&gaGalleryUI===ui&&frame.el.dataset.gaToken===String(token)&&state.viewerPost===p;
+ if(preview&&slot===1){
+  // The arriving neighbor was already decoded on screen. Reuse its URL
+  // synchronously as the newly centered image so the recenter cannot paint
+  // a blank frame before the full-quality replacement finishes loading.
+  frame.img.src=preview;
+  frame.el.classList.add('is-ready');
+ }else if(preview){void gaPhotoApplyImage(frame,preview,token);}
+ try{
+  // Center receives full-resolution; side panels use locally optimized thumbs.
+  const url=slot===1?await getFileData(p,f,'full'):await withPreviewTurn(()=>getFileData(p,f,'thumb'));
+  if(!relevant())return;
+  const good=await gaPhotoApplyImage(frame,url,token);
+  if(!relevant())return;
+  if(!good)throw Error('Image decode failed');
+  if(slot===1){
+   state.viewerFile={url,name:f.name||`Photo ${index+1}.jpg`};
+   $('gaViewerDownload').disabled=false;
+  }
+ }catch(_){
+  if(relevant()&&!frame.el.classList.contains('is-ready'))gaPhotoError(frame,()=>gaGalleryLoadFrame(slot,index,Number(frame.el.dataset.gaToken)+1),token);
+  // If a preview is already showing, keep it instead of flashing an error.
+ }
+}
+function gaGalleryRender(preview=''){
+ if(!gaViewerActive())return;
+ if(!gaGalleryUI)gaGalleryBuild();
+ const ui=gaGalleryUI,index=state.viewerIndex,n=state.viewerGallery.length;
+ gaGalleryControls();gaGalleryMeasure();gaGalleryOffset(0,false);
+ state.viewerFile=null;$('gaViewerDownload').disabled=true;
+ const token=++state.viewerRequest;
+ const indexes=[index-1,index,index+1];
+ indexes.forEach((value,slot)=>{
+  // No wrap-around: reaching the first/last photo gives a gentle edge resistance.
+  gaGalleryLoadFrame(slot,value<0||value>=n?-1:value,token,slot===1?preview:'');
+ });
 }
 function closeViewer(){
- state.viewerRequest++;state.viewerGallery=[];state.viewerPost=null;state.viewerIndex=0;state.viewerFile=null;
+ state.viewerRequest++;gaGalleryCancelAnimation();gaGalleryUI=null;
+ state.viewerGallery=[];state.viewerPost=null;state.viewerIndex=0;state.viewerFile=null;
  if(state.viewerUrl){URL.revokeObjectURL(state.viewerUrl);state.viewerUrl='';}
  $('gaViewerBody').replaceChildren();$('gaViewerModal').hidden=true;
 }
 $('gaViewerClose').addEventListener('click',closeViewer);
 document.querySelectorAll('[data-ga-close="viewer"]').forEach(el=>el.addEventListener('click',closeViewer));
-async function displayGalleryImage(direction=0){
- const files=state.viewerGallery,p=state.viewerPost;
- if(!files.length||!p)return;
- const current=state.viewerIndex,file=files[current],request=++state.viewerRequest;
- $('gaViewerTitle').textContent=txt(file.name||`Photo ${current+1}`,140);
- $('gaViewerError').textContent='Loading photo…';$('gaViewerDownload').disabled=true;
- const body=$('gaViewerBody');body.replaceChildren();
- const stage=node('div','ga-photo-stage');stage.setAttribute('aria-label',`Photo ${current+1} of ${files.length}`);
- const image=node('img','ga-photo-full');image.alt=txt(file.name||`Photo ${current+1}`,140);
- if(direction)image.dataset.direction=direction>0?'next':'previous';
- const counter=node('span','ga-photo-counter',`${current+1} / ${files.length}`);
- stage.append(image,counter);
- if(files.length>1){
-  const prev=node('button','ga-photo-arrow ga-photo-prev','‹'),next=node('button','ga-photo-arrow ga-photo-next','›');
-  prev.type=next.type='button';prev.title='Previous photo';next.title='Next photo';
-  prev.setAttribute('aria-label','Previous photo');next.setAttribute('aria-label','Next photo');
-  prev.addEventListener('click',()=>changeGallery(-1));next.addEventListener('click',()=>changeGallery(1));
-  stage.append(prev,next);
- }
- body.append(stage);
- try{
-  const url=await getFileData(p,file);
-  if(request!==state.viewerRequest||$('gaViewerModal').hidden)return;
-  image.src=url;state.viewerFile={url,name:file.name};$('gaViewerDownload').disabled=false;
-  $('gaViewerError').textContent='';
-  // Warm one neighboring photo for faster Next/Swipe, without downloading the full gallery.
-  if(files.length>1){const next=files[(current+1)%files.length];if(next?.driveFileId)withPreviewTurn(()=>getFileData(p,next)).catch(()=>{});}
- }catch(e){if(request===state.viewerRequest)$('gaViewerError').textContent='Photo unavailable: '+e.message;}
+function gaGallerySlideTo(next){
+ if(!gaViewerActive()||!gaGalleryUI||gaGalleryAnimating)return;
+ const delta=next-state.viewerIndex;
+ if(Math.abs(delta)!==1||next<0||next>=state.viewerGallery.length){gaGalleryOffset(0,true);return;}
+ const ui=gaGalleryUI;gaGalleryAnimating=true;
+ const landing=ui.frames[delta>0?2:0].img;
+ const preview=landing.complete&&landing.naturalWidth>0?landing.src:'';
+ const finish=()=>{
+  if(!gaGalleryAnimating||gaGalleryUI!==ui)return;
+  clearTimeout(gaGalleryTimer);gaGalleryTimer=0;
+  if(gaGalleryEndHandler)ui.track.removeEventListener('transitionend',gaGalleryEndHandler);
+  gaGalleryEndHandler=null;gaGalleryAnimating=false;
+  state.viewerIndex=next;
+  // Recenter only after the incoming panel has fully arrived.
+  gaGalleryOffset(0,false);gaGalleryRender(preview);
+ };
+ gaGalleryEndHandler=e=>{if(e.target===ui.track&&e.propertyName==='transform')finish();};
+ ui.track.addEventListener('transitionend',gaGalleryEndHandler);
+ // Commit the live drag position before the remaining slide animates.
+ void ui.track.getBoundingClientRect().left;
+ gaGalleryOffset(-delta*gaGalleryStep(),true);
+ gaGalleryTimer=setTimeout(finish,(gaReducedMotion()?0:GA_SLIDE_MS)+80);
 }
 function changeGallery(delta){
- if($('gaViewerModal').hidden||state.viewerGallery.length<2)return;
- state.viewerIndex=(state.viewerIndex+delta+state.viewerGallery.length)%state.viewerGallery.length;
- displayGalleryImage(delta);
+ if(!gaViewerActive()||state.viewerGallery.length<2||gaGalleryAnimating)return;
+ gaGallerySlideTo(state.viewerIndex+delta);
+}
+function gaGalleryPointerDown(event){
+ if(!gaViewerActive()||gaGalleryAnimating||state.viewerGallery.length<2||event.button!==0||event.target.closest('button'))return;
+ if(gaGalleryGesture)return; // Multi-touch must not accidentally change the gallery.
+ gaGalleryGesture={pointer:event.pointerId,x:event.clientX,y:event.clientY,dx:0,axis:'',at:performance.now()};
+ try{gaGalleryUI.stage.setPointerCapture(event.pointerId);}catch(_){ }
+}
+function gaGalleryPointerMove(event){
+ const g=gaGalleryGesture;if(!g||g.pointer!==event.pointerId||!gaGalleryUI||gaGalleryAnimating)return;
+ const dx=event.clientX-g.x,dy=event.clientY-g.y;
+ if(!g.axis&&Math.max(Math.abs(dx),Math.abs(dy))>9)g.axis=Math.abs(dx)>Math.abs(dy)*1.05?'x':'y';
+ if(g.axis!=='x')return;
+ g.dx=dx;
+ const blocked=dx>0?state.viewerIndex===0:state.viewerIndex===state.viewerGallery.length-1;
+ gaGalleryOffset(blocked?dx*.22:dx,false);
+}
+function gaGalleryPointerUp(event){
+ const g=gaGalleryGesture;if(!g||g.pointer!==event.pointerId)return;
+ gaGalleryGesture=null;
+ if(!gaGalleryUI||gaGalleryAnimating)return;
+ const dx=event.clientX-g.x,dy=event.clientY-g.y;
+ if(g.axis==='x'&&Math.abs(dx)>Math.abs(dy)*1.05){
+  const elapsed=Math.max(1,performance.now()-g.at);
+  const delta=dx<0?1:-1;
+  const canMove=delta>0?state.viewerIndex<state.viewerGallery.length-1:state.viewerIndex>0;
+  if(canMove&&(Math.abs(dx)>Math.min(75,gaGalleryStep()*.21)||(Math.abs(dx)>28&&Math.abs(dx)/elapsed>.48))){
+   gaGallerySlideTo(state.viewerIndex+delta);return;
+  }
+ }
+ gaGalleryOffset(0,true);
+}
+function gaGalleryPointerCancel(event){
+ if(!gaGalleryGesture||gaGalleryGesture.pointer!==event.pointerId)return;
+ gaGalleryGesture=null;if(!gaGalleryAnimating)gaGalleryOffset(0,true);
 }
 async function openFile(p,f){
  $('gaViewerModal').hidden=false;state.viewerRequest++;
- $('gaViewerTitle').textContent=f.name;$('gaViewerError').textContent='Loading private Drive attachment…';
- $('gaViewerBody').replaceChildren();$('gaViewerDownload').disabled=true;state.viewerFile=null;
+ $('gaViewerError').textContent='';$('gaViewerDownload').disabled=true;state.viewerFile=null;
  if(f.type==='image'){
+  gaGalleryCancelAnimation();gaGalleryUI=null;
   state.viewerPost=p;state.viewerGallery=(p.attachments||[]).filter(x=>x.type==='image');
   state.viewerIndex=Math.max(0,state.viewerGallery.findIndex(x=>x.driveFileId===f.driveFileId));
-  await displayGalleryImage();return;
+  gaGalleryBuild();gaGalleryRender();return;
  }
- state.viewerGallery=[];state.viewerPost=null;
+ gaGalleryCancelAnimation();gaGalleryUI=null;state.viewerGallery=[];state.viewerPost=null;
+ $('gaViewerTitle').textContent=txt(f.name||'Attachment',120);
+ const body=$('gaViewerBody');body.replaceChildren();
  const request=++state.viewerRequest;
+ const status=node('div','ga-file-loading');
+ const spinner=node('span','ga-photo-spinner');spinner.setAttribute('aria-hidden','true');
+ status.append(spinner,node('span','', 'Opening attachment…'));body.append(status);
  try{
   const url=await getFileData(p,f);
   if(request!==state.viewerRequest||$('gaViewerModal').hidden)return;
-  const frame=node('iframe');frame.src=url;frame.title=f.name;$('gaViewerBody').append(frame);
+  const frame=node('iframe');frame.src=url;frame.title=txt(f.name||'Attachment');body.replaceChildren(frame);
   $('gaViewerError').textContent='';$('gaViewerDownload').disabled=false;state.viewerFile={url,name:f.name};
- }catch(e){if(request===state.viewerRequest)$('gaViewerError').textContent='File unavailable: '+e.message;}
+ }catch(_){if(request===state.viewerRequest){status.replaceChildren(node('span','','Could not open attachment. Please try again.'));}}
 }
-// Swipe only on horizontal gestures so vertical movement stays natural on phones.
-let gaTouchStart=null;
-$('gaViewerBody').addEventListener('touchstart',e=>{if(!state.viewerGallery.length||e.touches.length!==1)return;gaTouchStart={x:e.touches[0].clientX,y:e.touches[0].clientY};},{passive:true});
-$('gaViewerBody').addEventListener('touchend',e=>{
- if(!gaTouchStart||!state.viewerGallery.length||e.changedTouches.length!==1)return;
- const dx=e.changedTouches[0].clientX-gaTouchStart.x,dy=e.changedTouches[0].clientY-gaTouchStart.y;gaTouchStart=null;
- if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.35)changeGallery(dx<0?1:-1);
-},{passive:true});
-$('gaViewerBody').addEventListener('touchcancel',()=>{gaTouchStart=null;},{passive:true});
+window.addEventListener('resize',()=>{if(gaGalleryUI){gaGalleryMeasure();if(!gaGalleryAnimating)gaGalleryOffset(0,false);}});
 $('gaViewerDownload').addEventListener('click',()=>{if(!state.viewerFile)return;const a=node('a');a.href=state.viewerFile.url;a.download=state.viewerFile.name;a.click();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaResourcePicker').hidden)closeResourcePicker();else if(!$('gaComposerModal').hidden)closeComposer();}else if(!$('gaViewerModal').hidden&&state.viewerGallery.length>1){if(e.key==='ArrowRight')changeGallery(1);else if(e.key==='ArrowLeft')changeGallery(-1);}});
 void boot();

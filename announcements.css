@@ -136,3 +136,72 @@ body{margin:0;background:var(--ga-bg);color:var(--ga-ink);font-size:14px}body.ga
 .ga-post-totals .ga-reply-total:hover,.ga-post-totals .ga-reply-total[aria-expanded="true"]{color:var(--ga-ink);text-decoration:underline}
 .ga-comments[hidden]{display:none!important}
 .ga-hide-comments{align-self:flex-start}
+
+/* G8Code Announcements V2 — persistent-cache friendly placeholders + fluid photo carousel.
+   The viewer keeps previous/current/next rendered simultaneously so swipes
+   physically move the photos rather than abruptly swapping an image URL. */
+.ga-images .ga-image{isolation:isolate;cursor:zoom-in}
+.ga-images .ga-feed-photo{opacity:0;transition:opacity .28s ease,transform .25s ease}
+.ga-images .ga-image.ga-image-ready .ga-feed-photo{opacity:1}
+.ga-image-placeholder{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--ga-muted);pointer-events:none;overflow:hidden;
+ background:linear-gradient(100deg,#d8deeb 5%,#edf0f8 22%,#d8deeb 43%);background-size:250% 100%;animation:gaPhotoSkeleton 1.55s ease-in-out infinite}
+.ga-dark .ga-image-placeholder{background:linear-gradient(100deg,#293448 5%,#3a4660 22%,#293448 43%);background-size:250% 100%}
+.ga-image-placeholder-icon{display:grid;place-items:center;width:46px;height:46px;border:2px solid currentColor;border-radius:12px;font-size:25px;opacity:.33}
+.ga-image-placeholder-caption{font-size:11px;font-weight:600;letter-spacing:.01em;opacity:.65}
+.ga-image.ga-image-ready .ga-image-placeholder{opacity:0;animation:none;transition:opacity .2s ease}
+.ga-image-retry{position:absolute;inset:0;display:grid;place-items:center;z-index:2;background:var(--ga-raised);color:var(--ga-ink);font-size:12px;font-weight:700;cursor:pointer}
+.ga-image.ga-image-failed .ga-image-placeholder{display:none}
+.ga-image.ga-image-failed .ga-feed-photo{opacity:0}
+@keyframes gaPhotoSkeleton{0%{background-position:130% 0}100%{background-position:-130% 0}}
+#gaViewerBody{position:relative;background:#05060b;overflow:hidden;touch-action:pan-y;overscroll-behavior:contain}
+#gaViewerBody .ga-photo-stage{
+ --ga-gallery-stage-width:100vw;--ga-gallery-peek:0px;--ga-gallery-gap:0px;
+ position:relative;display:block;width:100%;height:100%;min-height:0;flex:1;
+ overflow:hidden;isolation:isolate;background:#05060b;touch-action:pan-y;user-select:none;
+}
+#gaViewerBody .ga-photo-stage.has-gallery{--ga-gallery-peek:clamp(38px,9vw,80px);--ga-gallery-gap:12px}
+.ga-photo-track{position:absolute;left:50%;top:0;height:100%;width:max-content;display:flex;align-items:stretch;gap:var(--ga-gallery-gap);
+ transform:translate3d(calc(-50% + var(--ga-gallery-shift,0px)),0,0);will-change:transform;pointer-events:none}
+.ga-photo-frame{height:100%;width:calc(var(--ga-gallery-stage-width) - 2 * var(--ga-gallery-peek));flex:none;
+ min-width:1px;position:relative;display:grid;place-items:center;overflow:hidden;background:#080a10;border-radius:12px;isolation:isolate}
+.ga-photo-frame.is-empty{background:transparent}
+#gaViewerBody .ga-photo-frame .ga-photo-full{display:block;width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;object-position:center;
+ opacity:0;transition:opacity .28s ease;pointer-events:none;user-select:none;-webkit-user-drag:none}
+#gaViewerBody .ga-photo-frame.is-ready .ga-photo-full{opacity:1}
+.ga-photo-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:13px;color:#d5d9e4;
+ font-size:12px;text-align:center;z-index:1;pointer-events:auto;background:linear-gradient(110deg,#0b1019 8%,#171e2b 21%,#0b1019 40%);background-size:220% 100%;animation:gaPhotoSkeleton 1.75s linear infinite}
+.ga-photo-loading-icon{display:grid;place-items:center;width:65px;height:65px;border-radius:17px;border:1.5px solid #647084;color:#8c9aaf;font-size:34px;opacity:.8}
+.ga-photo-spinner{display:inline-block;width:20px;height:20px;border-radius:50%;border:2px solid #76819780;border-top-color:#e5eaff;animation:gaPhotoSpin .9s linear infinite}
+.ga-photo-loading-message{font-weight:550;letter-spacing:.02em}
+.ga-photo-frame.is-ready .ga-photo-loading,.ga-photo-frame.is-empty .ga-photo-loading{display:none}
+.ga-photo-frame.is-error .ga-photo-loading{animation:none;background:#0d1019}
+.ga-photo-frame.is-error .ga-photo-loading-icon{opacity:.4}
+.ga-photo-try-again{background:#313c58;color:#fff;border:1px solid #607092;border-radius:99px;padding:10px 16px;font-size:12px;cursor:pointer}
+@keyframes gaPhotoSpin{to{transform:rotate(360deg)}}
+.ga-photo-frame:not(:nth-child(2)){opacity:.82}
+#gaViewerBody .ga-photo-arrow{z-index:4;box-shadow:0 4px 14px #0006;backdrop-filter:blur(9px)}
+#gaViewerBody .ga-photo-counter{z-index:4;bottom:clamp(14px,3vh,30px);font-variant-numeric:tabular-nums;padding:7px 14px}
+.ga-file-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;width:100%;height:100%;color:#d8dfee;font-size:13px}
+.ga-file-loading .ga-photo-spinner{width:30px;height:30px}
+@media(max-width:690px){
+ #gaViewerBody .ga-photo-stage.has-gallery{--ga-gallery-peek:clamp(36px,11vw,54px);--ga-gallery-gap:9px}
+ .ga-photo-frame{border-radius:12px}
+ #gaViewerBody .ga-photo-arrow{display:none}
+ .ga-photo-loading-icon{width:54px;height:54px;font-size:26px}
+}
+@media(prefers-reduced-motion:reduce){
+ .ga-photo-loading,.ga-image-placeholder,.ga-photo-spinner{animation:none!important}
+ .ga-photo-frame .ga-photo-full,.ga-images .ga-feed-photo{transition:none!important}
+}
+
+
+/* G8Code Announcements V2.1: one centered full-width photo at rest.
+   The previous and next equal-sized panels are only exposed by dragging. */
+#gaViewerBody .ga-photo-stage.has-gallery{--ga-gallery-peek:0px;--ga-gallery-gap:0px}
+#gaViewerBody .ga-photo-frame{
+ width:var(--ga-gallery-stage-width);
+ border-radius:0;
+ background:#05060b;
+}
+#gaViewerBody .ga-photo-frame:not(:nth-child(2)){opacity:1}
+@media(max-width:690px){#gaViewerBody .ga-photo-stage.has-gallery{--ga-gallery-peek:0px;--ga-gallery-gap:0px}#gaViewerBody .ga-photo-frame{border-radius:0}}

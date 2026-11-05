@@ -860,3 +860,35 @@ html,body{overflow:hidden;overscroll-behavior:none}
  .g8m-image-neighbor{opacity:.82}
 }
 @media(prefers-reduced-motion:reduce){.g8m-image-neighbor{transition:none}}
+
+
+/* V4C-17: true full-width immersive swipe — all three slides are the
+   exact same viewport width. Neighbors are OFF SCREEN at rest; they
+   become visible only as the user drags or the transition progresses. */
+.g8m-image-stage.has-gallery{--g8m-gallery-peek:0px;--g8m-gallery-gap:0px}
+.g8m-image-frame{
+ width:var(--g8m-gallery-stage-width);
+ background:#020308;
+ border-radius:0;
+}
+.g8m-image-neighbor,.g8m-image-stage.has-gallery .g8m-image-neighbor{opacity:1}
+.g8m-image-viewer .g8m-image-stage .g8m-image-neighbor img{
+ filter:none;border-radius:0;
+}
+.g8m-image-stage .g8m-image-frame.is-loading::before{
+ content:'';position:absolute;left:50%;top:50%;width:24px;height:24px;
+ border:2px solid #ffffff30;border-top-color:#ffffffc0;border-radius:50%;
+ transform:translate(-50%,-50%);animation:g8m-gallery-spin .85s linear infinite;
+}
+@keyframes g8m-gallery-spin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+@media(max-width:700px){.g8m-image-stage.has-gallery{--g8m-gallery-peek:0px;--g8m-gallery-gap:0px}}
+@media(prefers-reduced-motion:reduce){.g8m-image-stage .g8m-image-frame.is-loading::before{animation:none}}
+/* Override legacy fullscreen img coordinates on neighbor slides. Without
+   this, `top:50%;left:50%` inherited from the old single-image viewer pushes
+   the next/previous photo out of sight while swiping. */
+.g8m-image-viewer .g8m-image-stage .g8m-image-neighbor img{
+ position:static;left:auto;top:auto;
+ width:calc(100% - 8px);height:calc(100% - 8px);
+ max-width:calc(100% - 8px);max-height:calc(100% - 8px);
+ object-fit:contain;object-position:center;
+}
