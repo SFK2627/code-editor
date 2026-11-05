@@ -8237,7 +8237,14 @@ try {
   exitLink.title='Return to original G8Code';exitLink.setAttribute('aria-label','Exit Admin V2');
   exitLink.innerHTML=ico('x',19);
   const identity=el('span','adm-user-chip');identity.innerHTML=ico('unlock',15)+'<span>Teacher</span>';
-  topActions.append(mobileSearch,themeWrap,identity,exitLink);
+  const adviserPushBtn=el('button','adm-icon-btn');
+  adviserPushBtn.type='button';adviserPushBtn.hidden=true;
+  adviserPushBtn.dataset.g8pushTeacherToggle='';
+  adviserPushBtn.title='Receive student messages on this phone, even while closed';
+  adviserPushBtn.textContent='🔕 Enable Adviser Alerts';
+  adviserPushBtn.style.cssText='width:auto;min-width:0;max-width:192px;padding:7px 10px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+  topActions.append(mobileSearch,themeWrap,adviserPushBtn,identity,exitLink);
+  window.G8CodePush?.refresh?.();
   bar.append(menuBtn,crumb,globalSearch,topActions);
   const workspace=el('div','adm-workspace');
   const stage=el('main','adm-content');stage.id='admV2Content';
@@ -9408,6 +9415,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script defer src="announcements-admin-attach.js?v=521"></script>
 <script defer src="g8code-learning-badges.js?v=1"></script>
 <script defer src="g8code-push-config.js?v=2"></script>
-<script defer src="g8code-push.js?v=701-immediate-v3"></script>
+<script defer src="g8code-push.js?v=711-twoway-v31"></script>
 </body>
 </html>

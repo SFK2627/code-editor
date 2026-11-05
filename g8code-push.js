@@ -1,4 +1,4 @@
-/* G8Code Push V3 — shared Service Worker, no registration race; opt-in, student-only Firebase Installation ID push registration.
+/* G8Code Push V3 — shared Service Worker, no registration race; opt-in, role-scoped student and adviser FID push registration.
  * Zero credentials are embedded: PUBLIC VAPID key is loaded from g8code-push-config.js.
  * The private server credential belongs exclusively in Google Apps Script Properties.
  */
@@ -41,7 +41,8 @@ const safeSection=v=>String(v||'').trim().slice(0,100);
 const safeGet=k=>{try{return localStorage.getItem(k);}catch(_){return null;}};
 const safePut=(k,v)=>{try{localStorage.setItem(k,v);}catch(_){}};
 const safeRemove=k=>{try{localStorage.removeItem(k);}catch(_){}};
-const optKey=uid=>'g8push.student.optin.'+uid;
+const optKey=(uid,teacher=state.teacher)=>(teacher?'g8push.teacher.optin.':'g8push.student.optin.')+uid;
+const devicePath=(uid,teacher=state.teacher)=>`${ROOT}/${teacher?'teacherDevices':'devices'}/${uid}`;
 function getDeviceId(){
  let key=safeGet('g8push.device.id.v2');
  if(!key||!/^[a-f0-9]{32}$/.test(key)){
@@ -59,14 +60,25 @@ function support(){
 }
 function showStatus(msg){const el=$('g8pushStatus');if(el)el.textContent=msg||'';}
 function render(){
- const btn=$('g8pushToggle');if(!btn)return;
- const opted=Boolean(state.uid&&safeGet(optKey(state.uid))==='yes');
+ const uid=state.uid, opted=Boolean(uid&&safeGet(optKey(uid))==='yes');
  const problem=support();
- btn.disabled=!state.uid||state.teacher||state.registering||(!opted&&!!problem);
- btn.textContent=state.registering?'Please wait…':opted?'Disable Phone Notifications':'Enable Phone Notifications';
- const msg=state.lastError||(!state.uid?'Sign in as a student to manage notifications.':state.teacher?'Student accounts only.':problem||(
-  opted?(state.registered?'Enabled for this device.':'Syncing device registration…'):'Get alerts for private messages, announcements, lessons and activities.'));
- showStatus(msg);
+ const studentBtn=$('g8pushToggle');
+ if(studentBtn){
+  studentBtn.disabled=!uid||state.teacher||state.registering||(!opted&&!!problem);
+  studentBtn.textContent=state.registering?'Please wait…':opted?'Disable Phone Notifications':'Enable Phone Notifications';
+  showStatus(state.lastError||(!uid?'Sign in as a student to manage notifications.':state.teacher?'Student account settings only.':problem||(opted?(state.registered?'Enabled for this device.':'Syncing device registration…'):'Get alerts for private messages, announcements, lessons and activities.')));
+ }
+ // Adviser controls can be created by the dynamic Admin V2 shell after init.
+ document.querySelectorAll('[data-g8push-teacher-toggle]').forEach(btn=>{
+  btn.hidden=!state.teacher;
+  btn.disabled=!uid||!state.teacher||state.registering||(!opted&&!!problem);
+  btn.textContent=state.registering?'Setting up…':opted?'🔔 Adviser Alerts: On':'🔕 Enable Adviser Alerts';
+  btn.title=state.lastError||(opted?(state.registered?'Adviser phone notifications enabled':'Syncing adviser phone registration'):(problem||'Receive student messages even while G8Code is closed'));
+ });
+ document.querySelectorAll('[data-g8push-teacher-status]').forEach(el=>{
+  el.hidden=!state.teacher;
+  el.textContent=state.lastError||(opted?(state.registered?'Adviser phone alerts are enabled.':'Syncing adviser phone…'):'Enable to receive student messages when G8Code is closed.');
+ });
 }
 // Persist the active account BEFORE relying on closed-tab push delivery.
 // An acknowledgement ensures that a new worker has finished writing IndexedDB.
@@ -109,14 +121,14 @@ async function checkBackground(){
   const result=await workerRequest({type:'G8PUSH_INSPECT',uid:state.uid});
   const subscription=await reg.pushManager.getSubscription();
   const allowed=window.Notification?.permission==='granted';
-  const sameAccount=Boolean(state.uid&&!state.teacher&&safeGet(optKey(state.uid))==='yes'&&result?.hasIdentity&&result?.identityMatchesUid===true);
+  const sameAccount=Boolean(state.uid&&safeGet(optKey(state.uid))==='yes'&&result?.hasIdentity&&result?.identityMatchesUid===true);
   const last=result?.lastPush;
   if(!subscription||!allowed||!sameAccount){
    el.textContent='Background status: Not ready. '+(!allowed?'Allow browser notifications. ':!subscription?'Enable Phone Notifications again. ':'Reopen Account Settings and re-enable Phone Notifications to sync this account. ');
    return;
   }
   const lastText=last?.atMs?` Last push event: ${readablePushTime(last.receivedAtMs||last.atMs)}. Result: ${last.status||'received'}.`:' No background push event recorded on this browser yet.';
-  el.textContent='Background status: Registered and linked to this student.'+lastText;
+  el.textContent='Background status: Registered and linked to this '+(state.teacher?'adviser.':'student.')+lastText;
  }catch(err){el.textContent='Background check unavailable: '+(err?.message||err);}
 }
 
@@ -140,16 +152,17 @@ async function sdk(){
 }
 async function saveInstallation(installationId){
  const uid=state.uid,deviceId=state.deviceId;
- if(!uid||state.teacher||safeGet(optKey(uid))!=='yes'||!validId(installationId)||!deviceId)return;
- const section=await loadSection(uid);
- if(uid!==state.uid||safeGet(optKey(uid))!=='yes')return;
- await state.database.set(state.database.ref(state.db,`${ROOT}/devices/${uid}/${deviceId}`),{
+ if(!uid||safeGet(optKey(uid))!=='yes'||!validId(installationId)||!deviceId)return;
+ const wasTeacher=state.teacher;
+ const section=wasTeacher?'':await loadSection(uid);
+ if(uid!==state.uid||wasTeacher!==state.teacher||safeGet(optKey(uid))!=='yes')return;
+ await state.database.set(state.database.ref(state.db,`${devicePath(uid,wasTeacher)}/${deviceId}`),{
   installationId,deviceId,section,enabled:true,updatedAtMs:Date.now()
  });
  state.registered=true;state.lastError='';render();
 }
 async function registerDevice(uid){
- if(!uid||state.teacher||state.registering||state.registered)return;
+ if(!uid||state.registering||state.registered)return;
  const problem=support();if(problem){state.lastError=problem;render();return;}
  state.registering=true;state.lastError='';render();
  try{
@@ -168,8 +181,8 @@ async function registerDevice(uid){
   // script URL for the same scope can trigger a controllerchange/reload loop.
   let reg=await navigator.serviceWorker.getRegistration('./');
   if(!reg)reg=await navigator.serviceWorker.register('./service-worker.js?v=680-background-check',{scope:'./',updateViaCache:'none'});
-  state.reg=reg;await navigator.serviceWorker.ready;
-  if(!await identityToWorker(uid))throw Error('Background worker could not save this student account. Please retry.');
+  state.reg=reg;await reg.update().catch(()=>{});await navigator.serviceWorker.ready;
+  if(!await identityToWorker(uid))throw Error('Background worker could not save this account. Please retry.');
   state.deviceId=getDeviceId();if(!state.deviceId)throw Error('Secure device registration is unavailable.');
   const messaging=m.getMessaging(pushApp);state.messaging=messaging;
   // Current FCM API: FID, not the deprecated getToken flow.
@@ -186,7 +199,7 @@ async function registerDevice(uid){
  finally{state.registering=false;render();}
 }
 async function enable(){
- if(!state.uid||state.teacher)return;
+ if(!state.uid)return;
  state.lastError='';const problem=support();if(problem){state.lastError=problem;render();return;}
  try{
   const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();
@@ -195,16 +208,38 @@ async function enable(){
  }catch(err){state.lastError=String(err?.message||err);render();}
 }
 async function disable(){
- if(!state.uid||state.teacher)return;
- const uid=state.uid,deviceId=state.deviceId||getDeviceId();
+ if(!state.uid)return;
+ const uid=state.uid,wasTeacher=state.teacher,deviceId=state.deviceId||getDeviceId();
  safeRemove(optKey(uid));state.registered=false;state.lastError='';state.registering=true;render();
  // Deactivate the local privacy gate immediately, before any cloud operation.
  await identityToWorker('');
  try{
-  if(state.database&&state.db&&deviceId)await state.database.remove(state.database.ref(state.db,`${ROOT}/devices/${uid}/${deviceId}`));
+  if(state.database&&state.db&&deviceId)await state.database.remove(state.database.ref(state.db,`${devicePath(uid,wasTeacher)}/${deviceId}`));
   if(state.module&&state.messaging)await state.module.unregister(state.messaging);
  }catch(err){state.lastError='Local alerts disabled; remote cleanup may need retry: '+(err.message||err);}
  finally{state.registering=false;render();}
+}
+// Student-to-adviser: exactly one event per verified saved message.
+// The database rules bind this event ID to the auth UID and message ID, so a
+// student cannot invent recipients, alter an event, or replay a prior message.
+async function queueStudentMessage(event){
+ try{
+  await (state.ready||init());
+  const account=state.auth?.currentUser;
+  if(!account||state.teacher||!publicKey())return false;
+  const itemId=String(event?.itemId||''),chatUid=String(event?.chatUid||'');
+  if(!validId(itemId)||!validId(chatUid)||chatUid!==account.uid)return false;
+  const eventId=`s2t_${account.uid}_${itemId}`;
+  if(!validId(eventId))return false;
+  const record={type:'messages',itemId,chatUid,createdByUid:account.uid,
+   audience:'teacher',createdAtMs:Date.now(),status:'pending'};
+  await state.database.set(state.database.ref(state.db,`${ROOT}/outbox/${eventId}`),record);
+  void nudgeImmediateSender(account,eventId);
+  return true;
+ }catch(err){
+  console.info('Adviser alert not queued; chat message remains safely saved.');
+  return false;
+ }
 }
 async function queueTeacherEvent(event){
  try{
@@ -249,23 +284,27 @@ async function init(){
    state.uid=uid;state.user=account;state.teacher=teacher;state.registered=false;state.lastError='';
    if('serviceWorker'in navigator&&location.protocol==='https:'){
     // Never display notifications for a previous account after account switch/logout.
-    void identityToWorker(!teacher&&safeGet(optKey(uid))==='yes'?uid:'');
+    void identityToWorker(safeGet(optKey(uid,teacher))==='yes'?uid:'');
    }
    render();
-   if(uid&&!teacher&&safeGet(optKey(uid))==='yes'&&window.Notification?.permission==='granted')void registerDevice(uid);
+   if(uid&&safeGet(optKey(uid,teacher))==='yes'&&window.Notification?.permission==='granted')void registerDevice(uid);
   });
   if('serviceWorker'in navigator){
    navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    const active=state.uid&&!state.teacher&&safeGet(optKey(state.uid))==='yes'?state.uid:'';
+    const active=state.uid&&safeGet(optKey(state.uid))==='yes'?state.uid:'';
     void identityToWorker(active);
    });
   }
   const check=$('g8pushCheck');if(check)check.addEventListener('click',()=>{void checkBackground();});
-  const btn=$('g8pushToggle');if(btn)btn.addEventListener('click',()=>{void (safeGet(optKey(state.uid))==='yes'?disable():enable());});
+  const btn=$('g8pushToggle');if(btn)btn.addEventListener('click',()=>{if(!state.teacher)void (safeGet(optKey(state.uid))==='yes'?disable():enable());});
+  document.addEventListener('click',event=>{
+   if(event.target?.closest?.('[data-g8push-teacher-toggle]')&&state.teacher)void (safeGet(optKey(state.uid))==='yes'?disable():enable());
+   if(event.target?.closest?.('[data-g8push-teacher-check]')&&state.teacher)void checkBackground();
+  });
   render();
  })().catch(err=>{state.lastError=err?.message||'Push setup unavailable';render();});
  return state.ready;
 }
-window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,refresh:render});
+window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,refresh:render});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{void init();},{once:true});else void init();
 })();
