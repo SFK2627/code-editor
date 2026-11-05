@@ -1,4 +1,4 @@
-/* G8Code Messages V4C-14 — stable keyed chat DOM, smooth preserved viewport, clearer history status; preserves V4C-12 photo cache. */
+/* G8Code Messages V4C-15 — bounded read-only history reconciliation, no premature completion notice; preserves photo cache. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -68,6 +68,8 @@ let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], a
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
 let olderMessages=[], hasOlder=false, olderLoading=false, historyExhausted=false;
 let g8mEarlierLoadError=''; // Do not disguise history-query failures as an empty history.
+let g8mHistoryCheckRunning=false;
+const G8M_HISTORY_RECONCILE_LIMIT=250; // Only inspect a bounded tail; never download an unlimited chat.
 // V4C-11: Admin-only unified timeline for prior account UIDs verified by the
 // existing student-ID inbox grouping. Original messages stay at their RTDB
 // paths; their snapshots are merged only for display and chronological paging.
@@ -88,16 +90,16 @@ function g8mHistoryMessageCount(){
 }
 function g8mUpdateLoadedStatus(){
  if(!openedUid)return;
- const pending=[...g8mLinkedHistories.values()].some(entry=>!entry.ready && !entry.error);
+ const pending=g8mHistoryCheckRunning||[...g8mLinkedHistories.values()].some(entry=>!entry.ready && !entry.error);
  const failed=[...g8mLinkedHistories.values()].some(entry=>entry.error);
  const count=g8mHistoryMessageCount();
  // This is the number currently retrieved, NOT the total number stored in RTDB.
  // Never imply that the most recent 100/150 messages are the full history.
  const state=failed?'Some previous-account history could not load · Tap ↻ to retry':
   g8mEarlierLoadError?`${count} loaded · Older messages unavailable; tap ↑ Load earlier messages to retry`:
-  pending?`${count} loaded · Checking previous-account history…`:
+  pending?`${count} loaded · Verifying conversation history…`:
   g8mHasMoreHistory()?`${count} displayed · Older messages available · Scroll up for more`:
-  `${count} displayed · No earlier records found in linked chat threads`;
+  `${count} loaded · No additional records found in checked threads`;
  updateChatFeedState(state,failed||!!g8mEarlierLoadError);
 }
 let imageCache = new Map(), imageCacheFileIds = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
@@ -221,6 +223,9 @@ function clearUnsubs(list){while(list.length){try{list.pop()();}catch(_){}}}
 // The existing RTDB rules index createdAtMs under chats/$studentUid/messages.
 // Keep the live window and the older-page cursor on the SAME ordering field.
 const G8M_RECENT_MESSAGES=100, G8M_HISTORY_PAGE_SIZE=50, G8M_WARM_OLDER_MAX=350;
+// Audit a bounded tail after a pagination cursor reports the end. This repairs
+// legacy timestamp/order gaps without copying or modifying RTDB records.
+const g8mReconcileQuery = uid => query(ref(rtdb,`${studentPath(uid)}/messages`),orderByChild('createdAtMs'),limitToLast(G8M_HISTORY_RECONCILE_LIMIT));
 const recentMessageQuery = uid => query(ref(rtdb,`${studentPath(uid)}/messages`),orderByChild('createdAtMs'),limitToLast(G8M_RECENT_MESSAGES));
 // Push IDs can be out of chronological order when different devices have different clocks.
 // Use the server-resolved creation time as the primary conversation order.
@@ -835,7 +840,7 @@ function openChat(uid){
   rememberConversation(openedUid);
  }
  selectedMobileMetaMessageId='';
- g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;g8mEarlierLoadError='';
+ g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;g8mEarlierLoadError='';g8mHistoryCheckRunning=false;
  g8mAwaitingFirstSnapshotUid=uid;
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
  clearUnsubs(activeUnsubs);g8mClearLinkedHistories();openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
@@ -2144,6 +2149,50 @@ function renderMessages(){
 
 }
 
+// A short cursor page is not sufficient proof that all older messages were
+// loaded. For small/medium threads re-read a bounded tail and merge by RTDB
+// key. The audit reported 169 records while the UI claimed completion at 149;
+// this independent read finds records skipped by a legacy pagination cursor.
+async function g8mVerifyFinishedHistory(uid){
+ if(uid!==openedUid)return;
+ const targets=[];
+ if(!hasOlder && !g8mEarlierLoadError && [...activeMessages,...olderMessages].length<G8M_HISTORY_RECONCILE_LIMIT){
+  targets.push({threadUid:uid,entry:null});
+ }
+ for(const [threadUid,entry] of g8mLinkedHistories){
+  if(entry.ready && !entry.error && !entry.hasOlder && [...entry.recent,...entry.older].length<G8M_HISTORY_RECONCILE_LIMIT){
+   targets.push({threadUid,entry});
+  }
+ }
+ if(!targets.length)return;
+ g8mHistoryCheckRunning=true;g8mUpdateLoadedStatus();
+ try{
+  const checks=await Promise.allSettled(targets.map(async ({threadUid,entry})=>{
+   const snap=await get(g8mReconcileQuery(threadUid));
+   if(uid!==openedUid || (entry && g8mLinkedHistories.get(threadUid)!==entry))return;
+   const found=normalizeMessageSnapshot(snap).map(msg=>entry?({...msg,__threadUid:threadUid,__historical:true}):msg);
+   if(entry){
+    const seen=new Set(entry.recent.map(msg=>msg.id));
+    entry.older=[...new Map([...entry.older,...found.filter(msg=>!seen.has(msg.id))].map(msg=>[msg.id,msg])).values()].sort(compareMessages);
+    // A full bounded tail cannot prove there are no earlier records.
+    if(found.length===G8M_HISTORY_RECONCILE_LIMIT){entry.hasOlder=true;entry.exhausted=false;}
+   }else{
+    const seen=new Set(activeMessages.map(msg=>msg.id));
+    olderMessages=[...new Map([...olderMessages,...found.filter(msg=>!seen.has(msg.id))].map(msg=>[msg.id,msg])).values()].sort(compareMessages);
+    if(found.length===G8M_HISTORY_RECONCILE_LIMIT){hasOlder=true;historyExhausted=false;}
+    rememberConversation(uid);
+   }
+  }));
+  const failure=checks.find(result=>result.status==='rejected');
+  if(failure && uid===openedUid){
+   g8mEarlierLoadError=friendlyError(failure.reason);
+   status(`History verification failed: ${g8mEarlierLoadError}. Refresh Chat to retry.`,true);
+  }
+ }finally{
+  if(uid===openedUid){g8mHistoryCheckRunning=false;renderMessages();g8mUpdateLoadedStatus();}
+ }
+}
+
 // Chronological pagination for CURRENT + previous student accounts. Each UID
 // has its own Firebase cursor; page them together and merge by createdAtMs.
 // This prevents skipped pages when old/new account timelines overlap.
@@ -2196,6 +2245,7 @@ async function loadOlder(){
   if(uid===openedUid){
    g8mEarlierLoadError=failed.length?friendlyError(failed[0].reason):'';
    if(failed.length)status(`Earlier messages could not load: ${g8mEarlierLoadError}. Tap Load earlier messages to retry.`,true);
+   else await g8mVerifyFinishedHistory(uid);
   }
  }finally{
   if(uid===openedUid){olderLoading=false;renderMessages();g8mUpdateLoadedStatus();}
