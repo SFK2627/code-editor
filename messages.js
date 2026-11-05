@@ -1,4 +1,4 @@
-/* G8Code Messages V4C-13 — unlimited on-demand history pagination, reliable upward infinite-scroll; preserves V4C-12 image cache. */
+/* G8Code Messages V4C-14 — stable keyed chat DOM, smooth preserved viewport, clearer history status; preserves V4C-12 photo cache. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -96,8 +96,8 @@ function g8mUpdateLoadedStatus(){
  const state=failed?'Some previous-account history could not load · Tap ↻ to retry':
   g8mEarlierLoadError?`${count} loaded · Older messages unavailable; tap ↑ Load earlier messages to retry`:
   pending?`${count} loaded · Checking previous-account history…`:
-  g8mHasMoreHistory()?`${count} loaded · Scroll up to load earlier messages`:
-  `${count} loaded · Earliest available history reached`;
+  g8mHasMoreHistory()?`${count} displayed · Older messages available · Scroll up for more`:
+  `${count} displayed · No earlier records found in linked chat threads`;
  updateChatFeedState(state,failed||!!g8mEarlierLoadError);
 }
 let imageCache = new Map(), imageCacheFileIds = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
@@ -881,7 +881,7 @@ function openChat(uid){
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/readReceipts`),snap=>{if(uid!==openedUid)return;activeReadReceipts=snap.val()||{};receiptCacheReady=true;refreshSeenLabels();updateDetails();},err=>console.warn('Read receipt listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/typing/${teacher?'student':'teacher'}`),snap=>{if(uid!==openedUid)return;peerTyping=snap.val();updateTypingIndicator();},err=>console.warn('Typing listener:',err)));
  activeUnsubs.push(onValue(ref(rtdb,teacher?`${BASE}/presence/students/${uid}`:`${BASE}/presence/teacher`),snap=>{if(uid!==openedUid)return;peerPresence=snap.val();updatePresenceLine();},err=>console.warn('Presence listener:',err)));
- activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/acks`),snap=>{if(uid!==openedUid)return;activeAcks=snap.val()||{};renderMessages();},err=>status(friendlyError(err),true)));
+ activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/acks`),snap=>{if(uid!==openedUid)return;const next=snap.val()||{};if(JSON.stringify(next)!==JSON.stringify(activeAcks)){activeAcks=next;renderMessages();}},err=>status(friendlyError(err),true)));
  activeUnsubs.push(onValue(ref(rtdb,`${studentPath(uid)}/seen/${teacher?'student':'teacher'}`),snap=>{seenAt=Number(snap.val()||0);refreshSeenLabels();updateDetails();}));
 }
 async function markSeen(uid){
@@ -1191,14 +1191,64 @@ $('g8mScrollLatest').addEventListener('click',()=>g8mJumpLatest({smooth:true}));
 // scrollbar thumb, keyboard, touchscreen, or an accessibility scroll action.
 // The FOLLOW-LATEST flag prevents eager loading on initial opening at scrollTop=0.
 let g8mOlderAutoloadQueued=false;
+let g8mAdjustingScroll=false;
+function g8mSetPreservedScroll(feed,next){
+ if(!feed || !Number.isFinite(next))return;
+ const position=Math.max(0,Math.min(next,Math.max(0,feed.scrollHeight-feed.clientHeight)));
+ if(Math.abs(feed.scrollTop-position)<0.75)return;
+ g8mAdjustingScroll=true;
+ feed.scrollTop=position;
+ // A browser scroll event may run in another task after a programmatic correction.
+ requestAnimationFrame(()=>{g8mAdjustingScroll=false;});
+}
+// Track only actual *photo-driven* changes above the viewport. If a thumbnail
+// changes intrinsic aspect ratio, preserve the message at the reader's position.
+const g8mImageRowHeights=new WeakMap();
+const g8mObservedPhotoRows=new Set();
+let g8mPhotoSizeObserver=null;
+function g8mWatchPhotoRows(){
+ if(typeof ResizeObserver!=='function')return;
+ if(!g8mPhotoSizeObserver){
+  g8mPhotoSizeObserver=new ResizeObserver(entries=>{
+   if(!openedUid)return;
+   const feed=$('g8mMessages'),bounds=feed.getBoundingClientRect();
+   const preserve=!g8mFollowLatest&&!olderLoading&&!g8mAdjustingScroll;
+   let delta=0;
+   for(const entry of entries){
+    const el=entry.target;
+    const current=el.getBoundingClientRect().height;
+    const previous=g8mImageRowHeights.get(el);
+    // Always update the baseline, even during our own scroll correction.
+    // Otherwise one skipped ResizeObserver delivery can be counted twice.
+    g8mImageRowHeights.set(el,current);
+    if(preserve && previous!==undefined && el.isConnected && el.getBoundingClientRect().bottom<=bounds.top+3){
+     delta+=current-previous;
+    }
+   }
+   if(Math.abs(delta)>0.75)g8mSetPreservedScroll(feed,feed.scrollTop+delta);
+  });
+ }
+ // Keep subscriptions stable across ordinary metadata changes. Re-observing
+ // every photo on every ack used to trigger needless layout measurements.
+ for(const row of [...g8mObservedPhotoRows]){
+  if(row.isConnected)continue;
+  g8mPhotoSizeObserver.unobserve(row);g8mObservedPhotoRows.delete(row);
+ }
+ for(const row of $('g8mMessages').querySelectorAll('.g8m-message:has(.g8m-photo-grid,.g8m-local-photo-grid)')){
+  if(g8mObservedPhotoRows.has(row))continue;
+  g8mImageRowHeights.set(row,row.getBoundingClientRect().height);
+  g8mObservedPhotoRows.add(row);g8mPhotoSizeObserver.observe(row);
+ }
+}
+
 function g8mMaybeAutoloadOlder(){
  if(g8mOlderAutoloadQueued||!openedUid||!g8mHadLiveSnapshot||g8mFollowLatest||olderLoading||!g8mHasMoreHistory())return;
- if(g8mEarlierLoadError || g8mScrollFeed.scrollTop>220 || g8mScrollFeed.clientHeight<1)return;
+ if(g8mEarlierLoadError || g8mScrollFeed.scrollTop>140 || g8mScrollFeed.clientHeight<1 || g8mAdjustingScroll)return;
  const uid=openedUid;
  g8mOlderAutoloadQueued=true;
  queueMicrotask(()=>{
   g8mOlderAutoloadQueued=false;
-  if(uid===openedUid&&g8mHadLiveSnapshot&&!g8mFollowLatest&&!olderLoading&&g8mHasMoreHistory()&&g8mScrollFeed.scrollTop<=220){
+  if(uid===openedUid&&g8mHadLiveSnapshot&&!g8mFollowLatest&&!olderLoading&&!g8mAdjustingScroll&&g8mHasMoreHistory()&&g8mScrollFeed.scrollTop<=140){
    void loadOlder();
   }
  });
@@ -1211,7 +1261,9 @@ g8mScrollFeed.addEventListener('scroll',()=>{
   // A lazy image or flex layout update can fire a scroll event with a large
   // temporary bottom gap. Only explicit wheel/touch/keyboard/pointer gestures
   // may turn follow-latest OFF; this event may turn it back ON at the bottom.
-  if(g8mBottomGap()<=G8M_LATEST_THRESHOLD){g8mFollowLatest=true;g8mNewIncomingWhileAway=0;}
+  // Programmatic position changes must never switch the reader back to
+  // follow-latest while they are browsing old messages.
+  if(g8mFollowLatest&&g8mBottomGap()<=G8M_LATEST_THRESHOLD)g8mNewIncomingWhileAway=0;
  }
  // Older history is not limited to 100/150 messages; keep paging as the
  // reader backscrolls. No gesture-only gate that fails on scrollbar dragging.
@@ -1686,6 +1738,69 @@ function g8mScrollAfterOwnSend(render){
  // Reflow after the send must not forcibly reset an ongoing smooth animation.
  if(!wasFollowing)g8mUpdateScrollLatest();
 }
+// Stable DOM update: keep unchanged bubbles and decoded images connected to the
+// real scroll container. A full replaceChildren() used to reset scroll state,
+// layout, and image loading even for a trivial Seen/ack change.
+function g8mReconcileChatRows(feed,fragment){
+ const existing=new Map();
+ for(const node of feed.children)if(node.dataset?.chatKey)existing.set(node.dataset.chatKey,node);
+ const desired=[];
+ for(const candidate of [...fragment.children]){
+  if(candidate.classList.contains('g8m-reuse-marker')){
+   const stable=existing.get(candidate.dataset.chatKey);
+   if(stable){desired.push(stable);continue;}
+  }
+  if(candidate.dataset?.chatKey){
+   const stable=existing.get(candidate.dataset.chatKey);
+   if(stable?.dataset?.renderRevision===candidate.dataset.renderRevision){desired.push(stable);continue;}
+  }
+  desired.push(candidate);
+ }
+ const keep=new Set(desired);
+ for(const child of [...feed.children])if(!keep.has(child))child.remove();
+ let next=null;
+ for(let i=desired.length-1;i>=0;i--){
+  const item=desired[i];
+  if(item.parentNode!==feed || item.nextSibling!==next)feed.insertBefore(item,next);
+  next=item;
+ }
+}
+function g8mRowRevision(msg,group){
+ const uid=msg.__threadUid||openedUid;
+ const deleted=isDeletedMessage(msg);
+ // Include only fields which can change the shape of the bubble. Seen/reactions
+ // are updated in place by existing handlers; do not rebuild photo rows for them.
+ return JSON.stringify([uid,msg.id,msg.senderUid,msg.senderRole,msg.type,msg.text,
+  msg.createdAtMs,msg.replyTo,msg.replyText,msg.projectId,msg.projectName,
+  msg.deletedAtMs,msg.deletedByUid,deleted,msg.__photoPending?.state,msg.__photoPending?.error,
+  msg.__photoPending?.caption, activeAcks[msg.id]?.status||'',
+  msg.attachments,group.joined,group.hasNext,group.last,
+  selectedMobileMetaMessageId===String(msg.id),
+  quoteFocusId===String(msg.id)&&Date.now()<quoteFocusUntil]);
+}
+// A reused bubble may still contain a photo waiting to enter the viewport.
+// A new IntersectionObserver must re-register it when a Seen/ack snapshot
+// replaces the prior observer. Otherwise older images can remain blank forever.
+function g8mCollectWaitingPhotos(row,msg,uid,photosToLoad,stackedPhotosToLoad){
+ const attachments=Array.isArray(msg.attachments)?msg.attachments:Object.values(msg.attachments||{});
+ if(!attachments.length)return;
+ for(const button of row.querySelectorAll('.g8m-photo-grid button[data-photo-path]')){
+  if(['ready','fetching','failed'].includes(button.dataset.photoState))continue;
+  const att=attachments.find(a=>a?.path===button.dataset.photoPath);
+  if(att&&att.path.startsWith(`g8Messages/${uid}/${msg.id}/`)){
+   photosToLoad.push({att:{...att,studentUid:uid,messageId:msg.id},button});
+  }
+ }
+ for(const back of row.querySelectorAll('.g8m-stack-back')){
+  const picture=back.querySelector('img');
+  if(!picture || picture.getAttribute('src'))continue;
+  const n=back.className.match(/g8m-stack-back-(\d+)/),index=n?Number(n[1]):-1;
+  const att=attachments[index];
+  if(att?.path?.startsWith(`g8Messages/${uid}/${msg.id}/`)){
+   stackedPhotosToLoad.push({att:{...att,studentUid:uid,messageId:msg.id},picture,back});
+  }
+ }
+}
 function renderMessages(){
  if(!openedUid)return;
  if(photoVisibilityObserver){photoVisibilityObserver.disconnect();photoVisibilityObserver=null;}
@@ -1698,11 +1813,12 @@ function renderMessages(){
   const box=node.getBoundingClientRect(),viewport=log.getBoundingClientRect();
   return box.bottom>viewport.top+3&&box.top<viewport.bottom-3;
  }):null;
- const readingAnchorId=readingAnchor?.dataset.messageId||'';
+ const readingAnchorKey=readingAnchor?.dataset.chatKey||'';
  const readingAnchorTop=readingAnchor?.getBoundingClientRect().top||0;
  // Reuse the original image elements when other chat metadata changes.
  // Otherwise frequent Seen/reaction/ack updates replace loading thumbnails,
  // leaving them blank even when the Drive request later succeeds.
+ const g8mExistingRows=new Map([...log.querySelectorAll('.g8m-message[data-chat-key]')].map(row=>[row.dataset.chatKey,row]));
  const previousPhotoButtons=new Map();
  log.querySelectorAll('.g8m-photo-grid button[data-photo-path]').forEach(button=>{
   previousPhotoButtons.set(button.dataset.photoPath,button);
@@ -1711,11 +1827,14 @@ function renderMessages(){
  const optimistic = [...pendingPhotoJobs.values()]
   .filter(job=>job.uid===openedUid)
   .map(job=>({id:job.id,senderUid:job.senderUid,createdAtMs:job.createdAtMs,__photoPending:job}));
+ const seenMessageKeys=new Set();
  const shown=[...g8mHistoricMessages(),...olderMessages,...activeMessages,...optimistic]
-  .filter((x,i,arr)=>x&&x.id&&
-   !(x.__historical?g8mLinkedHistories.get(x.__threadUid)?.hidden[x.id]:hiddenMessageIds[x.id])&&
-   arr.findIndex(y=>y&&y.id===x.id&&(y.__threadUid||openedUid)===(x.__threadUid||openedUid))===i)
-  .sort(compareMessages);
+  .filter(x=>{
+   if(!x?.id||(x.__historical?g8mLinkedHistories.get(x.__threadUid)?.hidden[x.id]:hiddenMessageIds[x.id]))return false;
+   const key=`${x.__threadUid||openedUid}/${x.id}`;
+   if(seenMessageKeys.has(key))return false;
+   seenMessageKeys.add(key);return true;
+  }).sort(compareMessages);
  const content=document.createDocumentFragment();
  // Compute group neighbors from the exact rendered order (including local
  // Sending photos), respecting deleted/hidden messages and date boundaries.
@@ -1723,7 +1842,7 @@ function renderMessages(){
  shown.forEach((msg,index)=>{
   const joined=g8mSameVisualGroup(shown[index-1],msg);
   const hasNext=g8mSameVisualGroup(msg,shown[index+1]);
-  g8mGrouping.set(String(msg.id),{joined,hasNext,last:!hasNext});
+  g8mGrouping.set(`${msg.__threadUid||openedUid}/${msg.id}`,{joined,hasNext,last:!hasNext});
  });
  const photosToLoad=[];
  const stackedPhotosToLoad=[];
@@ -1733,7 +1852,7 @@ function renderMessages(){
  }
  if(g8mHasMoreHistory()){
   const load=textEl('button','g8m-load-older',olderLoading?'Loading earlier messages…':'↑ Load earlier messages (keep scrolling for more)');
-  load.disabled=olderLoading;load.type='button';load.addEventListener('click',loadOlder);content.append(load);
+  load.disabled=olderLoading;load.type='button';load.dataset.chatKey='older-loader';load.dataset.renderRevision=String(olderLoading);load.addEventListener('click',loadOlder);content.append(load);
  }
  let currentDay='';
  for(const msg of shown){
@@ -1745,18 +1864,27 @@ function renderMessages(){
     const divider=textEl('div','g8m-date','');
     divider.setAttribute('role','separator');
     divider.setAttribute('aria-label',chatDayDividerLabel(at));
-    divider.append(textEl('span','g8m-date-label',chatDayDividerLabel(at)));
+    divider.append(textEl('span','g8m-date-label',chatDayDividerLabel(at)));divider.dataset.chatKey='day:'+date;divider.dataset.renderRevision=chatDayDividerLabel(at);
     content.append(divider);
    }
    const mine=msg.senderUid===user?.uid;
    const messageUid=msg.__threadUid||openedUid;
    const historic=!!msg.__historical;
-   const group=g8mGrouping.get(String(msg.id))||{joined:false,hasNext:false,last:true};
+   const group=g8mGrouping.get(`${messageUid}/${msg.id}`)||{joined:false,hasNext:false,last:true};
+   const rowKey=`message:${messageUid}:${msg.id}`;
+   const rowRevision=g8mRowRevision(msg,group);
+   const priorRow=g8mExistingRows.get(rowKey);
+   if(priorRow?.dataset.renderRevision===rowRevision){
+    // Keep the existing loaded image and its click listener. Re-arm any
+    // not-yet-visible images after rebuilding the shared lazy-load observer.
+    g8mCollectWaitingPhotos(priorRow,msg,messageUid,photosToLoad,stackedPhotosToLoad);
+    const marker=textEl('span','g8m-reuse-marker','');marker.dataset.chatKey=rowKey;content.append(marker);continue;
+   }
    const item=textEl('article','g8m-message'+(mine?' own':'')+
     (group.joined?' g8m-group-joined':'')+
     (group.hasNext?' g8m-group-has-next':'')+
     (group.last?' g8m-group-last':'') ,'');
-   item.dataset.messageId=String(msg.id);
+   item.dataset.messageId=String(msg.id);item.dataset.chatKey=rowKey;item.dataset.renderRevision=rowRevision;
    if(historic)item.dataset.historical='true';
    if(quoteFocusId===String(msg.id)&&Date.now()<quoteFocusUntil)item.classList.add('g8m-jump-focus');
    if(msg.__photoPending){
@@ -1970,7 +2098,8 @@ function renderMessages(){
   }
  }
  // Commit only after all rows are built. One malformed row cannot blank the chat.
- log.replaceChildren(content);
+ g8mReconcileChatRows(log,content);
+ g8mWatchPhotoRows();
  // Lazy-load private photo bytes only when a message approaches the viewport.
  // This avoids dozens of Drive/RTDB reads on large or older conversations.
  if(typeof IntersectionObserver==='function'){
@@ -1993,19 +2122,21 @@ function renderMessages(){
     }
    }
   },{root:log,rootMargin:'300px 0px'});
-  for(const {button} of photosToLoad)photoVisibilityObserver.observe(button);
-  for(const stack of byStack.keys())photoVisibilityObserver.observe(stack);
+  for(const {button} of photosToLoad)if(button.isConnected)photoVisibilityObserver.observe(button);
+  for(const stack of byStack.keys())if(stack.isConnected)photoVisibilityObserver.observe(stack);
  }else{
-  for(const {att,button} of photosToLoad)void showPhoto(att,button,version);
+  for(const {att,button} of photosToLoad)if(button.isConnected)void showPhoto(att,button,version);
   void g8mFillStackBacks(stackedPhotosToLoad);
  }
  if(!olderLoading && g8mFollowLatest && !g8mSmoothLatest)g8mLandAtBottomAfterRender();
- else if(readingAnchorId){
-  const sameMessage=messageNode(readingAnchorId);
-  if(sameMessage)log.scrollTop+=sameMessage.getBoundingClientRect().top-readingAnchorTop;
-  else log.scrollTop=previousScrollTop;
- }else if(olderLoading)log.scrollTop+=log.scrollHeight-previousHeight;
- else if(!g8mSmoothLatest)log.scrollTop=previousScrollTop;
+ else if(readingAnchorKey){
+  // A previous UID can legitimately have the same Firebase push ID as the
+  // current UID. Anchor by thread+message, never message ID alone.
+  const sameMessage=[...log.children].find(el=>el.dataset?.chatKey===readingAnchorKey);
+  if(sameMessage)g8mSetPreservedScroll(log,log.scrollTop+sameMessage.getBoundingClientRect().top-readingAnchorTop);
+  else g8mSetPreservedScroll(log,previousScrollTop);
+ }else if(olderLoading)g8mSetPreservedScroll(log,previousScrollTop+log.scrollHeight-previousHeight);
+ else if(!g8mSmoothLatest)g8mSetPreservedScroll(log,previousScrollTop);
  g8mUpdateScrollLatest();
  syncMobileMessageMetaVisibility();
  lastSnapshotKey=shown.map(x=>x.id).join(':');
@@ -2020,12 +2151,15 @@ async function loadOlder(){
  if(olderLoading||!g8mHasMoreHistory()||!openedUid)return;
  g8mHistoryGesture=false;g8mCancelAutoScroll();
  const uid=openedUid;
- olderLoading=true;renderMessages();
+ olderLoading=true;
+ const loader=$('g8mMessages').querySelector('.g8m-load-older');
+ if(loader){loader.disabled=true;loader.textContent='Loading earlier messages…';loader.dataset.renderRevision='true';}
+ g8mUpdateLoadedStatus();
  const fetches=[];
  if(hasOlder){
   const oldest=[...olderMessages,...activeMessages].sort(compareMessages)[0];
   if(oldest)fetches.push((async()=>{
-   const cursor=typeof oldest.createdAtMs==='number'?oldest.createdAtMs:null;
+   const cursor=oldest.createdAtMs??null;
    const page=query(ref(rtdb,`${studentPath(uid)}/messages`),orderByChild('createdAtMs'),endBefore(cursor,oldest.id),limitToLast(G8M_HISTORY_PAGE_SIZE));
    const snap=await get(page);if(uid!==openedUid)return;
    const found=normalizeMessageSnapshot(snap),existing=new Set([...olderMessages,...activeMessages].map(m=>m.id));
@@ -2043,7 +2177,7 @@ async function loadOlder(){
   entry.loading=true;
   fetches.push((async()=>{
    try{
-    const cursor=typeof oldest.createdAtMs==='number'?oldest.createdAtMs:null;
+    const cursor=oldest.createdAtMs??null;
     const page=query(ref(rtdb,`${studentPath(threadUid)}/messages`),orderByChild('createdAtMs'),endBefore(cursor,oldest.id),limitToLast(G8M_HISTORY_PAGE_SIZE));
     const snap=await get(page);
     if(uid!==openedUid||g8mLinkedHistories.get(threadUid)!==entry)return;
