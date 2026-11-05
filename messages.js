@@ -1,4 +1,4 @@
-/* G8Code Messages V4C-21 — teacher-only screenshot policy and student watermark; all V4C-20 project fixes retained. */
+/* G8Code Messages V4C-21A — teacher-only screenshot policy with larger watermark-only student view; all V4C-20 project fixes retained. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -419,13 +419,8 @@ function g8mResetScreenshotPolicy(uid=''){
 }
 function g8mPaintScreenshotPolicy(){
  const studentRestricted=!teacher&&Boolean(openedUid)&&!g8mScreenshotPolicy.allowed;
- for(const id of ['g8mStudentScreenshotNotice','g8mChatScreenshotWatermark','g8mImageScreenshotWatermark']){
+ for(const id of ['g8mChatScreenshotWatermark','g8mImageScreenshotWatermark']){
   const el=$(id);if(el)el.hidden=!studentRestricted;
- }
- const notice=$('g8mStudentScreenshotNotice');
- if(notice&&studentRestricted){
-  notice.textContent=g8mScreenshotPolicy.error?'Screenshot permission could not be checked. Please ask your teacher.':
-   '🔒 Your teacher has not permitted screenshots of this conversation. Device screenshots cannot be blocked by a website.';
  }
  const toggle=$('g8mAdminScreenshotToggle'),description=$('g8mAdminScreenshotDescription'),feedback=$('g8mAdminScreenshotFeedback');
  if(!toggle||!description||!feedback)return;
@@ -439,7 +434,7 @@ function g8mPaintScreenshotPolicy(){
  feedback.textContent=g8mScreenshotPolicy.error?g8mScreenshotPolicy.error:
   g8mScreenshotPolicy.saving?'Saving setting…':
   !g8mScreenshotPolicy.ready?'Reading live setting…':
-  `Student permission: ${g8mScreenshotPolicy.allowed?'Allowed':'Not permitted'}. Teacher screenshots: Always permitted.`;
+  `Student permission: ${g8mScreenshotPolicy.allowed?'Allowed':'Not permitted'}. When off, student view shows a prominent watermark. Teacher screenshots: Always permitted.`;
 }
 async function g8mSaveScreenshotPolicy(allowed){
  const uid=openedUid,owner=user?.uid;
