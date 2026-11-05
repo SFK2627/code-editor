@@ -1,4 +1,4 @@
-/* G8Code Messages V4C-12 — account-scoped full-photo + thumbnail disk cache, progressive viewer. No grade/submission writes. */
+/* G8Code Messages V4C-13 — unlimited on-demand history pagination, reliable upward infinite-scroll; preserves V4C-12 image cache. */
 // Classic script entry: works when index.html / admin-v2.html / messages.html
 // are opened directly from disk. Do NOT use <script type="module"> for local pages.
 // Fetch only the Firebase modules from HTTPS, like the existing G8Code login.
@@ -67,6 +67,7 @@ let sections = [], students = new Map(), summaries = {}, openedUid = '', current
 let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], activeAcks = {}, seenAt = 0;
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
 let olderMessages=[], hasOlder=false, olderLoading=false, historyExhausted=false;
+let g8mEarlierLoadError=''; // Do not disguise history-query failures as an empty history.
 // V4C-11: Admin-only unified timeline for prior account UIDs verified by the
 // existing student-ID inbox grouping. Original messages stay at their RTDB
 // paths; their snapshots are merged only for display and chronological paging.
@@ -89,8 +90,15 @@ function g8mUpdateLoadedStatus(){
  if(!openedUid)return;
  const pending=[...g8mLinkedHistories.values()].some(entry=>!entry.ready && !entry.error);
  const failed=[...g8mLinkedHistories.values()].some(entry=>entry.error);
- updateChatFeedState(failed?'Some earlier account messages could not load · Tap ↻ to retry':
-  `${g8mHistoryMessageCount()} messages loaded${pending?' · Loading prior messages…':' · Live chat'}`,failed);
+ const count=g8mHistoryMessageCount();
+ // This is the number currently retrieved, NOT the total number stored in RTDB.
+ // Never imply that the most recent 100/150 messages are the full history.
+ const state=failed?'Some previous-account history could not load · Tap ↻ to retry':
+  g8mEarlierLoadError?`${count} loaded · Older messages unavailable; tap ↑ Load earlier messages to retry`:
+  pending?`${count} loaded · Checking previous-account history…`:
+  g8mHasMoreHistory()?`${count} loaded · Scroll up to load earlier messages`:
+  `${count} loaded · Earliest available history reached`;
+ updateChatFeedState(state,failed||!!g8mEarlierLoadError);
 }
 let imageCache = new Map(), imageCacheFileIds = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
 // V5.12: Keep authenticated private Drive photos in bounded IndexedDB storage
@@ -284,6 +292,7 @@ function rememberConversation(uid){
 }
 function displayMessagesFromSnapshot(snapshot,uid){
  if(uid!==openedUid)return;
+ const hadPreviousLiveSnapshot=g8mHadLiveSnapshot;
  const incoming=normalizeMessageSnapshot(snapshot);
  // Only an actual new peer message arriving WHILE backreading increases the
  // small badge on the centered arrow. Never count the initial history load,
@@ -299,6 +308,16 @@ function displayMessagesFromSnapshot(snapshot,uid){
   if(!isDeletedMessage(fresh))continue;
   const old=[...activeMessages,...olderMessages].find(x=>x.id===fresh.id&&!isDeletedMessage(x));
   if(old)g8mRemoveDeletedPhotoCache(old);
+ }
+ // The realtime window contains only the last 100 records. A new arrival can
+ // push the former oldest record out of the query even though it still exists.
+ // Keep that rollover in the older page cache so previously visible messages
+ // do not disappear from the chat merely because more messages arrived.
+ if(hadPreviousLiveSnapshot && incoming.length>=G8M_RECENT_MESSAGES){
+  const freshIds=new Set(incoming.map(m=>m.id));
+  const oldIds=new Set(olderMessages.map(m=>m.id));
+  const rolledOut=activeMessages.filter(m=>!m.__confirmedLocal&&!freshIds.has(m.id)&&!oldIds.has(m.id));
+  if(rolledOut.length)olderMessages=[...olderMessages,...rolledOut].sort(compareMessages);
  }
  // The live query is authoritative. A confirmed local send is merged below so
  // a slow/stale initial listener does not temporarily erase the just-sent bubble.
@@ -816,7 +835,7 @@ function openChat(uid){
   rememberConversation(openedUid);
  }
  selectedMobileMetaMessageId='';
- g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;
+ g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;g8mEarlierLoadError='';
  g8mAwaitingFirstSnapshotUid=uid;
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
  clearUnsubs(activeUnsubs);g8mClearLinkedHistories();openedUid=uid;lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
@@ -1166,6 +1185,24 @@ function g8mScheduleBottomIfFollowing(){
 }
 const g8mScrollFeed=$('g8mMessages');
 $('g8mScrollLatest').addEventListener('click',()=>g8mJumpLatest({smooth:true}));
+// History is deliberately not downloaded in bulk on open: a conversation can
+// contain thousands of messages and photos. Fetch one indexed page whenever the
+// reader reaches the top, regardless of whether they used a wheel, trackpad,
+// scrollbar thumb, keyboard, touchscreen, or an accessibility scroll action.
+// The FOLLOW-LATEST flag prevents eager loading on initial opening at scrollTop=0.
+let g8mOlderAutoloadQueued=false;
+function g8mMaybeAutoloadOlder(){
+ if(g8mOlderAutoloadQueued||!openedUid||!g8mHadLiveSnapshot||g8mFollowLatest||olderLoading||!g8mHasMoreHistory())return;
+ if(g8mEarlierLoadError || g8mScrollFeed.scrollTop>220 || g8mScrollFeed.clientHeight<1)return;
+ const uid=openedUid;
+ g8mOlderAutoloadQueued=true;
+ queueMicrotask(()=>{
+  g8mOlderAutoloadQueued=false;
+  if(uid===openedUid&&g8mHadLiveSnapshot&&!g8mFollowLatest&&!olderLoading&&g8mHasMoreHistory()&&g8mScrollFeed.scrollTop<=220){
+   void loadOlder();
+  }
+ });
+}
 g8mScrollFeed.addEventListener('scroll',()=>{
  // A programmatic scroll can move upward during smooth scrolling. Never fight it.
  // A DOM replacement can temporarily change scrollHeight and emit a scroll
@@ -1176,16 +1213,13 @@ g8mScrollFeed.addEventListener('scroll',()=>{
   // may turn follow-latest OFF; this event may turn it back ON at the bottom.
   if(g8mBottomGap()<=G8M_LATEST_THRESHOLD){g8mFollowLatest=true;g8mNewIncomingWhileAway=0;}
  }
- // Only load older pages in response to a real upward history gesture.
- // Never auto-paginate an initially empty/hidden chat pane at scrollTop=0.
- if(g8mHistoryGesture&&g8mHadLiveSnapshot&&!g8mFollowLatest&&g8mHasMoreHistory()&&!olderLoading&&g8mScrollFeed.scrollTop<160){
-  const uid=openedUid;g8mHistoryGesture=false;
-  queueMicrotask(()=>{if(uid===openedUid&&g8mHasMoreHistory()&&!olderLoading&&!g8mFollowLatest)void loadOlder();});
- }
+ // Older history is not limited to 100/150 messages; keep paging as the
+ // reader backscrolls. No gesture-only gate that fails on scrollbar dragging.
+ g8mMaybeAutoloadOlder();
  g8mUpdateScrollLatest();
 },{passive:true});
 g8mScrollFeed.addEventListener('wheel',event=>{
- if(Math.abs(event.deltaY)>0){g8mHistoryGesture=event.deltaY<0;g8mCancelAutoScroll();}
+ if(Math.abs(event.deltaY)>0){g8mHistoryGesture=event.deltaY<0;g8mCancelAutoScroll();if(event.deltaY<0)g8mMaybeAutoloadOlder();}
 },{passive:true});
 g8mScrollFeed.addEventListener('touchstart',event=>{
  const t=event.touches?.[0];if(t){g8mTouchStartY=t.clientY;g8mTouchStartX=t.clientX;}
@@ -1193,15 +1227,15 @@ g8mScrollFeed.addEventListener('touchstart',event=>{
 g8mScrollFeed.addEventListener('touchmove',event=>{
  const t=event.touches?.[0];if(!t)return;
  const dy=t.clientY-g8mTouchStartY,dx=t.clientX-g8mTouchStartX;
- if(Math.abs(dy)>8&&Math.abs(dy)>Math.abs(dx)){g8mHistoryGesture=dy>0;g8mCancelAutoScroll();}
+ if(Math.abs(dy)>8&&Math.abs(dy)>Math.abs(dx)){g8mHistoryGesture=dy>0;g8mCancelAutoScroll();if(dy>0)g8mMaybeAutoloadOlder();}
 },{passive:true});
 g8mScrollFeed.addEventListener('keydown',event=>{
  if(['PageUp','PageDown','Home','End','ArrowUp','ArrowDown',' '].includes(event.key)){
-  g8mHistoryGesture=['PageUp','Home','ArrowUp'].includes(event.key);g8mCancelAutoScroll();
+  g8mHistoryGesture=['PageUp','Home','ArrowUp'].includes(event.key);g8mCancelAutoScroll();if(g8mHistoryGesture)g8mMaybeAutoloadOlder();
  }
 });
 g8mScrollFeed.addEventListener('pointerdown',event=>{
- if(event.target===g8mScrollFeed && event.pointerType==='mouse')g8mCancelAutoScroll();
+ if(event.pointerType==='mouse' && event.target===g8mScrollFeed){g8mCancelAutoScroll();g8mMaybeAutoloadOlder();}
 },{passive:true});
 if(typeof ResizeObserver==='function'){
  const feedSizeObserver=new ResizeObserver(()=>{
@@ -1698,7 +1732,7 @@ function renderMessages(){
   g8mUpdateScrollLatest();return;
  }
  if(g8mHasMoreHistory()){
-  const load=textEl('button','g8m-load-older',olderLoading?'Loading earlier messages…':'↑ Load earlier messages');
+  const load=textEl('button','g8m-load-older',olderLoading?'Loading earlier messages…':'↑ Load earlier messages (keep scrolling for more)');
   load.disabled=olderLoading;load.type='button';load.addEventListener('click',loadOlder);content.append(load);
  }
  let currentDay='';
@@ -2025,9 +2059,9 @@ async function loadOlder(){
  try{
   const results=await Promise.allSettled(fetches);
   const failed=results.filter(result=>result.status==='rejected');
-  if(failed.length&&uid===openedUid){
-   const error=failed[0].reason;
-   status(`Earlier messages could not load: ${friendlyError(error)}. Try scrolling up again.`,true);
+  if(uid===openedUid){
+   g8mEarlierLoadError=failed.length?friendlyError(failed[0].reason):'';
+   if(failed.length)status(`Earlier messages could not load: ${g8mEarlierLoadError}. Tap Load earlier messages to retry.`,true);
   }
  }finally{
   if(uid===openedUid){olderLoading=false;renderMessages();g8mUpdateLoadedStatus();}
