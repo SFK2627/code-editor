@@ -205,3 +205,36 @@ body{margin:0;background:var(--ga-bg);color:var(--ga-ink);font-size:14px}body.ga
 }
 #gaViewerBody .ga-photo-frame:not(:nth-child(2)){opacity:1}
 @media(max-width:690px){#gaViewerBody .ga-photo-stage.has-gallery{--ga-gallery-peek:0px;--ga-gallery-gap:0px}#gaViewerBody .ga-photo-frame{border-radius:0}}
+
+/* Announcements V3 — Engagement Insights and Audience Management */
+.ga-engagement-filters{display:flex;align-items:flex-end;flex-wrap:wrap;gap:9px;margin:-4px 0 17px}
+.ga-engagement-filters label{display:flex;flex-direction:column;gap:5px;min-width:140px;flex:1;color:var(--ga-muted);font-size:11px;font-weight:750}
+.ga-engagement-filters select{width:100%;min-width:0;border:1px solid var(--ga-border);background:var(--ga-surface);color:var(--ga-ink);border-radius:12px;min-height:40px;padding:9px 11px;font-size:12px}
+.ga-reaction-totals-admin{gap:5px;min-width:0}
+.ga-react-total-pill{border:1px solid var(--ga-border);background:var(--ga-raised);color:var(--ga-ink);border-radius:999px;padding:5px 9px;min-height:29px;font-size:11px;font-weight:700;white-space:nowrap}
+.ga-react-total-pill:hover{border-color:var(--ga-purple);color:var(--ga-purple)}
+.ga-post-totals:has(.ga-reaction-totals-admin){align-items:flex-start}
+.ga-comment-identity{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 8px}
+.ga-comment-identity strong{overflow-wrap:anywhere}
+.ga-comment-section{color:var(--ga-muted);font-size:10px;font-weight:650;overflow-wrap:anywhere}
+.ga-comment-section::before{content:'· ';}
+.ga-comment-section--unknown{font-style:italic;font-weight:400}
+.ga-reactors-dialog{position:relative;display:flex;flex-direction:column;width:min(540px,100%);max-height:min(740px,calc(100dvh - 40px));background:var(--ga-surface);border:1px solid var(--ga-border);border-radius:20px;overflow:hidden;box-shadow:0 30px 75px #0006}
+.ga-reactors-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:21px;border-bottom:1px solid var(--ga-border)}
+.ga-reactors-header small{font-size:10px;font-weight:850;letter-spacing:.1em;color:var(--ga-purple)}
+.ga-reactors-header h2{font-size:21px;margin:5px 0;color:var(--ga-ink)}
+.ga-reactors-header p{font-size:12px;color:var(--ga-muted);margin:0;overflow-wrap:anywhere}
+#gaReactorsClose{border:1px solid var(--ga-border);background:var(--ga-raised);color:var(--ga-ink);border-radius:10px;width:36px;height:36px;font-size:22px;flex:none}
+.ga-reactors-tabs{display:flex;align-items:center;gap:7px;padding:12px 17px;overflow-x:auto;scrollbar-width:thin}
+.ga-reactors-tab{border:1px solid var(--ga-border);border-radius:999px;color:var(--ga-muted);background:var(--ga-raised);padding:8px 11px;white-space:nowrap;font-size:11px;font-weight:750}
+.ga-reactors-tab.active{background:var(--ga-primary);color:#fff;border-color:var(--ga-primary)}
+.ga-reactors-search{display:flex;align-items:center;gap:9px;border:1px solid var(--ga-border);background:var(--ga-raised);border-radius:12px;padding:0 12px;margin:0 18px 12px;color:var(--ga-muted)}
+.ga-reactors-search input{width:100%;min-height:39px;border:none;outline:none;background:transparent;color:var(--ga-ink);font-size:12px}
+.ga-reactors-list{flex:1;min-height:95px;overflow:auto;overscroll-behavior:contain;display:grid;align-content:start;gap:4px;padding:2px 18px 16px}
+.ga-reactor-person{display:flex;align-items:center;gap:11px;padding:11px 5px;border-bottom:1px solid var(--ga-border)}
+.ga-reactor-avatar{display:grid;place-items:center;flex:0 0 39px;width:39px;height:39px;border-radius:50%;background:var(--ga-raised);color:var(--ga-purple);font-weight:900}
+.ga-reactor-identity{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.ga-reactor-identity strong{font-size:13px;overflow-wrap:anywhere}.ga-reactor-identity small{font-size:11px;color:var(--ga-muted);overflow-wrap:anywhere}
+.ga-reactor-emoji{font-size:20px}.ga-reactors-empty{padding:25px 4px;text-align:center;color:var(--ga-muted);font-size:13px}
+.ga-reactors-summary{font-size:11px;color:var(--ga-muted);padding:13px 19px;border-top:1px solid var(--ga-border)}
+@media(max-width:690px){.ga-engagement-filters{gap:8px}.ga-engagement-filters label{min-width:calc(50% - 6px)}.ga-reactors-dialog{height:100dvh;max-height:100dvh;border-radius:0;width:100%}.ga-reactors-header{padding:18px}.ga-reactors-tabs{padding:11px}.ga-reactors-search{margin:0 12px 10px}.ga-reactors-list{padding:3px 12px 15px}}

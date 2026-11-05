@@ -7,7 +7,7 @@ const gaPhotos=window.G8AnnouncementsPhotoCache;
 const SRC=new URLSearchParams(location.search).get('from');
 const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',audienceSection:'all',order:'newest',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -55,7 +55,7 @@ function installSmartBack(){
  try{history.pushState({g8AnnouncementsRoleBack:true},'',location.href);window.addEventListener('popstate',goBack);}catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.audienceSection='all';state.order='newest';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
 async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Announcements are temporarily unavailable. Please try again later.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
  $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
  if(state.teacher){loadTeacher();loadCatalog();
@@ -87,7 +87,7 @@ function acceptPosts(next){
   const gallery=live&&(Array.isArray(live.attachments)?live.attachments:Object.values(live.attachments||{}));
   if(!gallery||!gallery.some(f=>f.type==='image'&&f.driveFileId===state.viewerGallery[state.viewerIndex]?.driveFileId))closeViewer();
  }
- render();gaPhotos.scheduleReconcile(state.posts);
+ updateAudienceFilterOptions();render();gaPhotos.scheduleReconcile(state.posts);
  for(const [postId,raw] of Object.entries(previous)){
   const before=Array.isArray(raw?.attachments)?raw.attachments:Object.values(raw?.attachments||{});
   const updated=state.posts[postId];
@@ -125,11 +125,11 @@ function loadTeacher(){on('posts',data=>acceptPosts(data)); // RTDB only.
  // sources. Reading directory alone inflated Announcements' audience picker.
  const base='g8MessagesV1/';
  state.unsubs.push(state.sdk.onValue(state.sdk.ref(state.db,base+'directory'),snap=>{
-  state.directory=snap.val()||{};state.directoryLoaded=true;if(state.summaryLoaded)renderAudience();
+  state.directory=snap.val()||{};state.directoryLoaded=true;state.peopleCache=null;if(state.summaryLoaded)renderAudience();refreshIdentityDisplays();
  },err=>{state.audienceLoadError=true;toast('Student list could not be loaded. Please refresh and try again.',true);
   $('gaAudienceCount').textContent='Cannot publish until the student directory is available.';}));
  state.unsubs.push(state.sdk.onValue(state.sdk.ref(state.db,base+'summary'),snap=>{
-  state.messageSummaries=snap.val()||{};state.summaryLoaded=true;if(state.directoryLoaded)renderAudience();
+  state.messageSummaries=snap.val()||{};state.summaryLoaded=true;state.peopleCache=null;if(state.directoryLoaded)renderAudience();refreshIdentityDisplays();
  },err=>{state.audienceLoadError=true;console.warn('Messages identity summaries unavailable:',err.message);
   toast('Some historical student identities could not be matched; refresh after checking Messages access.',true);}));
 }
@@ -159,6 +159,7 @@ function personNameKey(raw){
  return key==='STUDENT'||key==='UNKNOWN'||key==='UNNAMED STUDENT'||key==='N A'?'':key;
 }
 function activePeople(){
+ if(state.peopleCache?.directory===state.directory&&state.peopleCache?.summaries===state.messageSummaries)return state.peopleCache.people;
  const directory=state.directory||{},summaries=state.messageSummaries||{};
  const rows=[];const byUid=new Map();
  // The active directory remains the source of enrollment. Summaries supply
@@ -229,7 +230,38 @@ function activePeople(){
  // Expose diagnostic information for the teacher without changing RTDB records.
  state.audienceDiagnostics={accountRecords:rows.filter(row=>row.fromDirectory).length,
   uniqueStudents:people.length,linkedAccounts:rows.length-people.length,conflictingNames};
- return people.sort((a,b)=>a.section.localeCompare(b.section)||a.name.localeCompare(b.name));
+ const result=people.sort((a,b)=>a.section.localeCompare(b.section)||a.name.localeCompare(b.name));
+ state.peopleCache={directory:state.directory,summaries:state.messageSummaries,people:result,byUid:new Map(result.flatMap(p=>p.uids.map(uid=>[uid,p])))};
+ return result;
+}
+function directoryPerson(uid){
+ if(!state.teacher||!uid)return null;
+ activePeople();return state.peopleCache?.byUid.get(uid)||null;
+}
+function commentDisplayIdentity(comment){
+ if(state.teacher&&comment.uid===state.user?.uid)return {name:'ICT Teacher',section:''};
+ const verified=directoryPerson(comment.uid);
+ return {name:txt(verified?.name||comment.name||'Student',100),section:txt(verified?.section||comment.section||'',100)};
+}
+function reactionPeople(postId){
+ const rows=Object.entries(state.reactions[postId]||{}).filter(([,value])=>['👍','❤️','🤗'].includes(value));
+ if(!state.teacher)return rows.map(([uid,emoji])=>({uid,emoji}));
+ const byPerson=new Map();
+ for(const [uid,emoji] of rows){
+  const p=directoryPerson(uid),key=p?.identityKey||'uid:'+uid;
+  const prior=byPerson.get(key);
+  // An active account takes precedence if linked historic accounts both reacted.
+  if(!prior||uid===p?.uid){byPerson.set(key,{uid,emoji,name:p?.name||txt(state.directory[uid]?.name||state.messageSummaries[uid]?.name||'Student',100),section:p?.section||txt(state.directory[uid]?.section||state.messageSummaries[uid]?.section||'',100)});}
+ }
+ return [...byPerson.values()].sort((a,b)=>a.section.localeCompare(b.section)||a.name.localeCompare(b.name));
+}
+function refreshIdentityDisplays(){
+ updateAudienceFilterOptions();
+ document.querySelectorAll('[data-ga-post]').forEach(card=>{
+  card.__gaRefreshReactions?.();
+  if(!card.querySelector('.ga-comments')?.hidden){const p=state.posts[card.dataset.gaPost];if(p)drawComments(p.id,card,normalizePost(p,p.id));}
+ });
+ renderReactorDialog();
 }
 function determineRecipients(audience){
  const people=activePeople();if(audience.type==='all')return people;
@@ -243,7 +275,31 @@ function determineRecipients(audience){
 function recipientAccountUids(audience){return [...new Set(determineRecipients(audience).flatMap(p=>p.deliveryUids))];}
 function normalizePost(raw,id){return {id,title:txt(raw.title||'Untitled announcement',140),bodyHtml:sanitizeHtml(raw.bodyHtml||''),background:['plain','blue','lavender','yellow','mint','rose','navy','gradient','custom'].includes(raw.background)?raw.background:'plain',font:['Arial','Georgia','Verdana','Trebuchet MS','Times New Roman','Courier New'].includes(raw.font)?raw.font:'Arial',bgColor:/^#[0-9a-f]{6}$/i.test(raw.bgColor||'')?raw.bgColor:'#e8f0ff',status:raw.status||'draft',pinned:!!raw.pinned,allowReplies:raw.allowReplies!==false,attachments:(Array.isArray(raw.attachments)?raw.attachments:Object.values(raw.attachments||{})).slice(0,40),createdAtMs:Number(raw.createdAtMs||0),publishedAtMs:Number(raw.publishedAtMs||0),updatedAtMs:Number(raw.updatedAtMs||0),audience:raw.audience||{type:'all'}};}
 function published(p){return p.status==='published';}
-function allIds(){const rows=Object.entries(state.posts).map(([id,p])=>normalizePost(p,id));const filter=state.filter;return rows.filter(p=>state.teacher?filter==='drafts'?p.status==='draft':filter==='archived'?p.status==='archived':filter==='all'?p.status!=='archived':published(p):published(p)).filter(p=>filter!=='unread'||state.teacher||!state.seen[p.id]).filter(p=>filter!=='pinned'||p.pinned).filter(p=>!state.search||[p.title,plainHtml(p.bodyHtml)].join(' ').toLowerCase().includes(state.search)).sort((a,b)=>Number(b.pinned)-Number(a.pinned)||Number(b.publishedAtMs||b.createdAtMs)-Number(a.publishedAtMs||a.createdAtMs)).slice(0,80);}
+function allIds(){
+ const filter=state.filter;
+ const rows=Object.entries(state.posts).map(([id,p])=>normalizePost(p,id));
+ return rows.filter(p=>state.teacher?filter==='drafts'?p.status==='draft':filter==='archived'?p.status==='archived':filter==='all'?p.status!=='archived':published(p):published(p))
+ .filter(p=>filter!=='unread'||state.teacher||!state.seen[p.id])
+ .filter(p=>filter!=='pinned'||p.pinned)
+ .filter(p=>!state.teacher||state.audienceFilter==='all'||p.audience.type===(state.audienceFilter==='everyone'?'all':state.audienceFilter))
+ .filter(p=>!state.teacher||state.audienceSection==='all'||(p.audience.type==='sections'&&(p.audience.sections||[]).some(section=>sectionKey(section)===state.audienceSection)))
+ .filter(p=>!state.search||[p.title,plainHtml(p.bodyHtml)].join(' ').toLowerCase().includes(state.search))
+ .sort((a,b)=>Number(b.pinned)-Number(a.pinned)||(state.teacher&&state.order==='oldest'?1:-1)*(Number(b.publishedAtMs||b.createdAtMs)-Number(a.publishedAtMs||a.createdAtMs)))
+ .slice(0,80);
+}
+function updateAudienceFilterOptions(){
+ const select=$('gaAudienceSectionFilter');if(!select)return;
+ const current=state.audienceSection;
+ const sections=new Map();
+ for(const p of Object.values(state.posts))if(p?.audience?.type==='sections')for(const s of p.audience.sections||[])if(sectionKey(s))sections.set(sectionKey(s),txt(s,100));
+ if(state.teacher&&(state.directoryLoaded||state.summaryLoaded))for(const p of activePeople())if(p.sectionKey)sections.set(p.sectionKey,txt(p.section,100));
+ select.replaceChildren();const any=node('option','','All selected sections');any.value='all';select.append(any);
+ for(const [key,label] of [...sections].sort((a,b)=>a[1].localeCompare(b[1]))){const option=node('option','',label);option.value=key;select.append(option);}
+ if(current==='all'||sections.has(current)){select.value=current;}else{select.value='all';state.audienceSection='all';}
+ select.disabled=state.audienceFilter!=='sections';
+ $('gaAudienceSectionWrap').hidden=state.audienceFilter!=='sections';
+}
+
 function renderBadges(){if(state.teacher){$('gaAllCount').textContent=Object.values(state.posts).filter(p=>p.status==='published').length;return;}const posts=Object.entries(state.posts).filter(([,p])=>published(p));const newCount=posts.filter(([id])=>!state.seen[id]).length;$('gaAllCount').textContent=posts.length;$('gaUnreadCount').textContent=newCount;document.title=newCount?`(${newCount}) Announcements · G8Code`:'Announcements · G8Code';}
 function renderReadFlags(){document.querySelectorAll('[data-ga-post-new]').forEach(el=>{el.hidden=!!state.seen[el.dataset.gaPostNew];});}
 // A push notification can open the exact announcement and its comments.
@@ -283,6 +339,38 @@ function postBody(p){
  return b;
 }
 function reactionLabel(emoji){return emoji==='❤️'?'Love':emoji==='🤗'?'Care':'Like';}
+function openReactorDialog(postId,filter='all'){
+ if(!state.teacher||!state.posts[postId])return;
+ state.reactorsPostId=postId;state.reactorsFilter=filter;state.reactorsSearch='';
+ $('gaReactorsSearch').value='';$('gaReactorsModal').hidden=false;
+ renderReactorDialog();$('gaReactorsClose').focus({preventScroll:true});
+}
+function closeReactorDialog(){state.reactorsPostId='';$('gaReactorsModal').hidden=true;}
+function renderReactorDialog(){
+ const postId=state.reactorsPostId;if(!state.teacher||!postId||$('gaReactorsModal').hidden)return;
+ const p=state.posts[postId];if(!p){closeReactorDialog();return;}
+ const everyone=reactionPeople(postId),tabs=$('gaReactorsTabs'),list=$('gaReactorsList');
+ $('gaReactorsPostTitle').textContent=txt(p.title||'Announcement',120);
+ tabs.replaceChildren();
+ for(const [code,label] of [['all','All'],['👍','👍 Like'],['❤️','❤️ Love'],['🤗','🤗 Care']]){
+  const n=code==='all'?everyone.length:everyone.filter(x=>x.emoji===code).length;
+  const b=node('button','ga-reactors-tab'+(code===state.reactorsFilter?' active':''),`${label} · ${n}`);b.type='button';b.setAttribute('aria-pressed',String(code===state.reactorsFilter));
+  b.addEventListener('click',()=>{state.reactorsFilter=code;renderReactorDialog();});tabs.append(b);
+ }
+ const q=state.reactorsSearch.toLocaleLowerCase();
+ const filtered=everyone.filter(x=>(state.reactorsFilter==='all'||x.emoji===state.reactorsFilter)&&(!q||`${x.name} ${x.section}`.toLocaleLowerCase().includes(q)));
+ list.replaceChildren();
+ if(!filtered.length)list.append(node('p','ga-reactors-empty',everyone.length?'No matching students.':'No student reactions yet.'));
+ for(const person of filtered){
+  const row=node('div','ga-reactor-person');const av=node('span','ga-reactor-avatar',txt(person.name||'S',1).toUpperCase());
+  const identity=node('div','ga-reactor-identity');identity.append(node('strong','',txt(person.name||'Student',100)),node('small','',txt(person.section||'Section unavailable',100)));
+  row.append(av,identity,node('span','ga-reactor-emoji',person.emoji));list.append(row);
+ }
+ $('gaReactorsSummary').textContent=`${filtered.length} student${filtered.length===1?'':'s'} shown · ${everyone.length} total`;
+}
+$('gaReactorsClose').addEventListener('click',closeReactorDialog);
+document.querySelectorAll('[data-ga-close="reactors"]').forEach(b=>b.addEventListener('click',closeReactorDialog));
+$('gaReactorsSearch').addEventListener('input',e=>{state.reactorsSearch=e.target.value.trim();renderReactorDialog();});
 function renderCard(p){
  const card=node('article','ga-card');card.dataset.gaPost=p.id;
  const h=node('div','ga-post-head');h.append(node('span','ga-avatar','📣'));
@@ -290,7 +378,7 @@ function renderCard(p){
  author.append(node('strong','',state.teacher?'ICT Teacher · Admin':'ICT Teacher'),node('small','',`${stamp(p.publishedAtMs||p.createdAtMs)}${p.pinned?' · 📌 Pinned':''}${state.teacher?' · '+p.status:''}`));
  h.append(author);
  if(!state.teacher){const n=node('span','ga-post-tag ga-post-new','New');n.dataset.gaPostNew=p.id;n.hidden=!!state.seen[p.id];h.append(n);}
- else h.append(node('span','ga-post-tag',p.audience.type==='all'?'All students':p.audience.type==='sections'?'Sections':'Selected students'));
+ else{const scope=p.audience.type==='all'?'All sections':p.audience.type==='sections'?`${(p.audience.sections||[]).length} section${(p.audience.sections||[]).length===1?'':'s'}`:'Selected students';const label=node('span','ga-post-tag',scope);label.title=p.audience.type==='sections'?(p.audience.sections||[]).join(', '):scope;h.append(label);}
  card.append(h,postBody(p));renderFiles(p,card);
  if(published(p)){
   const footer=node('div','ga-post-footer'),totals=node('div','ga-post-totals'),action=node('div','ga-post-actions');
@@ -345,10 +433,18 @@ function renderCard(p){
   const comments=node('div','ga-comments');comments.id='ga-comments-'+p.id;comments.hidden=true;card.append(comments);
   function updateTotals(){
    const reactions=state.reactions[p.id]||{},comments=state.comments[p.id]||{};
-   const count={};Object.values(reactions).forEach(emoji=>{if(['👍','❤️','🤗'].includes(emoji))count[emoji]=(count[emoji]||0)+1;});
+   const counted=state.teacher?reactionPeople(p.id):Object.entries(reactions).filter(([,emoji])=>['👍','❤️','🤗'].includes(emoji)).map(([,emoji])=>({emoji}));
+   const count={};counted.forEach(({emoji})=>{count[emoji]=(count[emoji]||0)+1;});
    totals.replaceChildren();
-   const emojis=node('span','ga-reaction-totals');
-   for(const emoji of ['❤️','🤗','👍']){if(count[emoji])emojis.append(node('span','',emoji+' '+count[emoji]));}
+   const emojis=node('span','ga-reaction-totals'+(state.teacher?' ga-reaction-totals-admin':''));
+   if(state.teacher&&counted.length){
+    const all=node('button','ga-react-total-pill',`All · ${counted.length}`);all.type='button';all.title='View all students who reacted';all.addEventListener('click',()=>openReactorDialog(p.id,'all'));emojis.append(all);
+   }
+   for(const emoji of ['❤️','🤗','👍']){
+    if(!count[emoji])continue;
+    if(state.teacher){const pill=node('button','ga-react-total-pill',emoji+' '+count[emoji]);pill.type='button';pill.title='View '+reactionLabel(emoji)+' reactions';pill.addEventListener('click',()=>openReactorDialog(p.id,emoji));emojis.append(pill);}
+    else emojis.append(node('span','',emoji+' '+count[emoji]));
+   }
    if(!emojis.children.length)emojis.append(node('span','ga-no-reactions','Be the first to react'));
    const commentCount=Object.keys(comments).length;
    const countButton=node('button','ga-reply-total',commentCount+' comment'+(commentCount===1?'':'s'));
@@ -368,8 +464,8 @@ function renderCard(p){
    reactButton.classList.toggle('active',!!selected);
    popup.querySelectorAll('[data-ga-choice]').forEach(btn=>btn.classList.toggle('active',btn.dataset.gaChoice===selected));
   }
-  updateTotals();drawComments(p.id,card,p);
-  on(`reactions/${p.id}`,data=>{state.reactions[p.id]=data;updateTotals();},state.postUnsubs);
+  card.__gaRefreshReactions=updateTotals;updateTotals();drawComments(p.id,card,p);
+  on(`reactions/${p.id}`,data=>{state.reactions[p.id]=data;updateTotals();if(state.reactorsPostId===p.id)renderReactorDialog();},state.postUnsubs);
   on(`replies/${p.id}`,data=>{state.comments[p.id]=data;updateTotals();drawComments(p.id,card,p);},state.postUnsubs);
  }
  if(state.teacher){const menu=node('div','ga-teacher-menu');for(const [label,action] of [['Edit',()=>openComposer(p)],['Duplicate',()=>openComposer(p,true)],[p.status==='published'?'Archive':'Publish',()=>p.status==='published'?archivePost(p):publishExisting(p)],['Delete',()=>deletePost(p)]]){const b=node('button',label==='Delete'?'danger':'',label);b.type='button';b.addEventListener('click',action);menu.append(b);}card.append(menu);}
@@ -433,7 +529,9 @@ function drawComments(id,card,p){
   for(const [rid,c] of all){
    const row=node('div','ga-comment');const av=node('div','ga-comment-avatar',txt(c.name||'S',1).toUpperCase());
    const content=node('div','ga-comment-content'),bubble=node('div','ga-comment-bubble');
-   bubble.append(node('strong','',txt(c.name||'Student',80)));
+   const who=commentDisplayIdentity(c);const identityLine=node('div','ga-comment-identity');identityLine.append(node('strong','',who.name));
+   if(who.section)identityLine.append(node('small','ga-comment-section',who.section));else if(c.uid!==state.user?.uid)identityLine.append(node('small','ga-comment-section ga-comment-section--unknown','Section not recorded'));
+   bubble.append(identityLine);
    if(c.replyTo&&data[c.replyTo])bubble.append(node('span','ga-comment-inreply','↳ '+txt(data[c.replyTo].name||'Reply',50)));
    bubble.append(node('p','',txt(c.text,1200)));content.append(bubble);
    const tools=node('div','ga-comment-tools');tools.append(node('small','',stamp(c.createdAtMs)));
@@ -462,6 +560,7 @@ function drawComments(id,card,p){
   try{
    const key=state.sdk.push(path(`replies/${id}`)).key;
    const comment={uid:state.user.uid,name:txt(state.teacher?'ICT Teacher':state.profile?.name||'Student',80),text:value,createdAtMs:Date.now()};
+   if(!state.teacher)comment.section=txt(state.profile?.section||'',100);
    if(state.replyTargets[id]?.id)comment.replyTo=state.replyTargets[id].id;
    await state.sdk.set(path(`replies/${id}/${key}`),comment);
    if(!state.teacher)void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'comment',commentId:key});
@@ -493,7 +592,11 @@ function openCourseItem(file,postId){
  location.assign(`index.html?g8mBack=student&gaOpen=${encodeURIComponent(kind)}&gaItem=${encodeURIComponent(file.itemId)}`);
 }
 function applyFilter(filter){state.filter=filter;document.querySelectorAll('[data-ga-filter]').forEach(b=>b.classList.toggle('active',b.dataset.gaFilter===filter));render();}
-document.querySelectorAll('[data-ga-filter]').forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.gaFilter)));$('gaSearch').addEventListener('input',e=>{state.search=e.target.value.toLowerCase().trim();render();});$('gaRefresh').addEventListener('click',()=>render());$('gaNew').addEventListener('click',()=>openComposer());
+document.querySelectorAll('[data-ga-filter]').forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.gaFilter)));
+$('gaAudienceTypeFilter').addEventListener('change',e=>{state.audienceFilter=e.target.value;state.audienceSection='all';updateAudienceFilterOptions();render();});
+$('gaAudienceSectionFilter').addEventListener('change',e=>{state.audienceSection=e.target.value;render();});
+$('gaOrderFilter').addEventListener('change',e=>{state.order=e.target.value;render();});
+$('gaSearch').addEventListener('input',e=>{state.search=e.target.value.toLowerCase().trim();render();});$('gaRefresh').addEventListener('click',()=>render());$('gaNew').addEventListener('click',()=>openComposer());
 // Composer supports multiple attachment types in the SAME published post.
 function openComposer(p=null,duplicate=false){if(!state.teacher)return;state.editingId=p&&!duplicate?p.id:'';state.editingBase=p&&!duplicate?p:null;state.files=p?JSON.parse(JSON.stringify(p.attachments||[])).map(f=>(duplicate && ['image','pdf'].includes(f.type))?{...f,sourcePostId:f.sourcePostId||p.id}:f):[];state.selectedSections=new Set(p?.audience?.sections||[]);state.selectedStudents=new Set(p?.audience?.students||[]);$('gaComposeTitle').textContent=p?(duplicate?'Duplicate announcement':'Edit announcement'):'Create announcement';$('gaPostTitle').value=p?.title||'';$('gaRichText').innerHTML=p?.bodyHtml||'';$('gaBackground').value=p?.background||'plain';$('gaCustomBackground').value=p?.bgColor||'#e8f0ff';$('gaCustomBackgroundWrap').hidden=$('gaBackground').value!=='custom';$('gaFont').value=p?.font||'Arial';document.querySelector(`input[name="gaAudience"][value="${p?.audience?.type||'all'}"]`).checked=true;$('gaAllowReplies').checked=p?.allowReplies!==false;$('gaPinned').checked=!!p?.pinned;$('gaComposerModal').hidden=false;document.body.style.overflow='hidden';$('gaComposeStatus').textContent='Compose your announcement. Attachments are saved before publishing.';renderAudience();renderAttachments();drawPreview();$('gaPostTitle').focus();}
 function closeComposer(){if(state.transferBusy||state.composerBusy){toast('An upload or save is still in progress. Wait for its verified result.',true);return;}$('gaComposerModal').hidden=true;document.body.style.overflow='';}
@@ -910,6 +1013,6 @@ async function openFile(p,f){
 }
 window.addEventListener('resize',()=>{if(gaGalleryUI){gaGalleryMeasure();if(!gaGalleryAnimating)gaGalleryOffset(0,false);}});
 $('gaViewerDownload').addEventListener('click',()=>{if(!state.viewerFile)return;const a=node('a');a.href=state.viewerFile.url;a.download=state.viewerFile.name;a.click();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaResourcePicker').hidden)closeResourcePicker();else if(!$('gaComposerModal').hidden)closeComposer();}else if(!$('gaViewerModal').hidden&&state.viewerGallery.length>1){if(e.key==='ArrowRight')changeGallery(1);else if(e.key==='ArrowLeft')changeGallery(-1);}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('gaReactorsModal').hidden)closeReactorDialog();else if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaResourcePicker').hidden)closeResourcePicker();else if(!$('gaComposerModal').hidden)closeComposer();}else if(!$('gaViewerModal').hidden&&state.viewerGallery.length>1){if(e.key==='ArrowRight')changeGallery(1);else if(e.key==='ArrowLeft')changeGallery(-1);}});
 void boot();
 })();
