@@ -246,7 +246,25 @@ function published(p){return p.status==='published';}
 function allIds(){const rows=Object.entries(state.posts).map(([id,p])=>normalizePost(p,id));const filter=state.filter;return rows.filter(p=>state.teacher?filter==='drafts'?p.status==='draft':filter==='archived'?p.status==='archived':filter==='all'?p.status!=='archived':published(p):published(p)).filter(p=>filter!=='unread'||state.teacher||!state.seen[p.id]).filter(p=>filter!=='pinned'||p.pinned).filter(p=>!state.search||[p.title,plainHtml(p.bodyHtml)].join(' ').toLowerCase().includes(state.search)).sort((a,b)=>Number(b.pinned)-Number(a.pinned)||Number(b.publishedAtMs||b.createdAtMs)-Number(a.publishedAtMs||a.createdAtMs)).slice(0,80);}
 function renderBadges(){if(state.teacher){$('gaAllCount').textContent=Object.values(state.posts).filter(p=>p.status==='published').length;return;}const posts=Object.entries(state.posts).filter(([,p])=>published(p));const newCount=posts.filter(([id])=>!state.seen[id]).length;$('gaAllCount').textContent=posts.length;$('gaUnreadCount').textContent=newCount;document.title=newCount?`(${newCount}) Announcements · G8Code`:'Announcements · G8Code';}
 function renderReadFlags(){document.querySelectorAll('[data-ga-post-new]').forEach(el=>{el.hidden=!!state.seen[el.dataset.gaPostNew];});}
-function render(){renderBadges();while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();const feed=$('gaFeed');feed.replaceChildren();const rows=allIds();state.displayedIds=rows.map(r=>r.id);$('gaFeedStatus').textContent=`${rows.length} post${rows.length===1?'':'s'}`;if(!rows.length){const empty=node('div','ga-empty');empty.append(node('strong','',state.filter==='unread'?'All caught up!':'No announcements here yet.'),node('span','',state.teacher?'Create a post to share a class update.':'Your teacher’s announcements will appear here.'));feed.append(empty);return;}for(const p of rows)feed.append(renderCard(p));if(!state.teacher){state.markObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const id=entry.target.dataset.gaPost;setTimeout(()=>{if(!state.user||!entry.target.isConnected||!state.markObserver)return;const r=entry.target.getBoundingClientRect();if(r.top<innerHeight*.8&&r.bottom>innerHeight*.25&&!state.seen[id])state.sdk.set(path(`seen/${state.user.uid}/${id}`),{atMs:Date.now(),publishedAtMs:Number(state.posts[id]?.publishedAtMs||0)}).catch(e=>console.warn('Mark read:',e.message));},900);state.markObserver.unobserve(entry.target);}}},{threshold:.55});for(const card of feed.querySelectorAll('[data-ga-post]'))state.markObserver.observe(card);}}
+// A push notification can open the exact announcement and its comments.
+const gaLink=new URLSearchParams(location.search);
+const gaTarget=/^[A-Za-z0-9_-]{1,128}$/.test(gaLink.get('gaPost')||'')?gaLink.get('gaPost'):'';
+let gaFocused=false;
+function focusPushPost(){
+ if(gaFocused||!state.teacher||!gaTarget)return;
+ const card=[...document.querySelectorAll('[data-ga-post]')].find(el=>el.dataset.gaPost===gaTarget);
+ if(!card)return;
+ gaFocused=true;
+ requestAnimationFrame(()=>{
+  if(gaLink.get('gaEngagement')==='comment'&&!state.commentExpanded.has(gaTarget))
+   card.querySelector('.ga-reply-total')?.click();
+  card.scrollIntoView({block:'center',behavior:'smooth'});
+  card.style.outline='3px solid #4c89ec';card.style.outlineOffset='5px';
+  setTimeout(()=>{if(card.isConnected){card.style.outline='';card.style.outlineOffset='';}},3500);
+ });
+}
+
+function render(){renderBadges();while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();const feed=$('gaFeed');feed.replaceChildren();const rows=allIds();state.displayedIds=rows.map(r=>r.id);$('gaFeedStatus').textContent=`${rows.length} post${rows.length===1?'':'s'}`;if(!rows.length){const empty=node('div','ga-empty');empty.append(node('strong','',state.filter==='unread'?'All caught up!':'No announcements here yet.'),node('span','',state.teacher?'Create a post to share a class update.':'Your teacher’s announcements will appear here.'));feed.append(empty);return;}for(const p of rows)feed.append(renderCard(p));focusPushPost();if(!state.teacher){state.markObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const id=entry.target.dataset.gaPost;setTimeout(()=>{if(!state.user||!entry.target.isConnected||!state.markObserver)return;const r=entry.target.getBoundingClientRect();if(r.top<innerHeight*.8&&r.bottom>innerHeight*.25&&!state.seen[id])state.sdk.set(path(`seen/${state.user.uid}/${id}`),{atMs:Date.now(),publishedAtMs:Number(state.posts[id]?.publishedAtMs||0)}).catch(e=>console.warn('Mark read:',e.message));},900);state.markObserver.unobserve(entry.target);}}},{threshold:.55});for(const card of feed.querySelectorAll('[data-ga-post]'))state.markObserver.observe(card);}}
 // Text-only announcements can use a design background. Any attachment switches
 // the post to Facebook-style text + media layout without losing saved design.
 function postBody(p){
@@ -390,7 +408,7 @@ function renderFiles(p,card){
   b.append(badge,copy,node('span','ga-attach-arrow','↗'));host.append(b);
  });card.append(host);
 }
-async function react(id,emoji){try{currentUser();const was=state.reactions[id]?.[state.user.uid]===emoji;const r=path(`reactions/${id}/${state.user.uid}`);if(was)await state.sdk.remove(r);else await state.sdk.set(r,emoji);}catch(e){toast('Could not save reaction: '+e.message,true);}}
+async function react(id,emoji){try{currentUser();const was=state.reactions[id]?.[state.user.uid]===emoji;const r=path(`reactions/${id}/${state.user.uid}`);if(was)await state.sdk.remove(r);else{await state.sdk.set(r,emoji);if(!state.teacher){const reactionCode=emoji==='❤️'?'love':emoji==='🤗'?'care':'like';void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'reaction',reactionCode});}}}catch(e){toast('Could not save reaction: '+e.message,true);}}
 function drawComments(id,card,p){
  const host=card.querySelector('.ga-comments');if(!host)return;
  const current=host.querySelector('.ga-reply-form textarea');
@@ -446,6 +464,7 @@ function drawComments(id,card,p){
    const comment={uid:state.user.uid,name:txt(state.teacher?'ICT Teacher':state.profile?.name||'Student',80),text:value,createdAtMs:Date.now()};
    if(state.replyTargets[id]?.id)comment.replyTo=state.replyTargets[id].id;
    await state.sdk.set(path(`replies/${id}/${key}`),comment);
+   if(!state.teacher)void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'comment',commentId:key});
    // Show the newly saved comment immediately, even if the realtime callback
    // arrives after the write acknowledgement. Never prepend on a failed save.
    if(!state.comments[id])state.comments[id]={};

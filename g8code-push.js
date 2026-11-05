@@ -19,11 +19,11 @@ const immediateUrl=()=>{
 // Apps Script ContentService responses redirect cross-origin. In no-cors mode
 // the response is opaque, so never treat fetch resolving as confirmed delivery.
 // The scheduled worker safely retries any event still marked pending.
-async function nudgeImmediateSender(account,eventId,prefetchedToken){
+async function nudgeImmediateSender(account,eventId){
  const endpoint=immediateUrl();
  if(!endpoint||!validId(eventId)||!account)return;
  try{
-  const idToken=await (prefetchedToken||account.getIdToken());
+  const idToken=await account.getIdToken();
   if(!idToken||account.uid!==state.auth?.currentUser?.uid)return;
   const body=new URLSearchParams({eventId,idToken});
   await fetch(endpoint,{
@@ -180,7 +180,7 @@ async function registerDevice(uid){
   // Reuse the SINGLE app Service Worker registration. Registering a different
   // script URL for the same scope can trigger a controllerchange/reload loop.
   let reg=await navigator.serviceWorker.getRegistration('./');
-  if(!reg)reg=await navigator.serviceWorker.register('./service-worker.js?v=681-adviser-student-name',{scope:'./',updateViaCache:'none'});
+  if(!reg)reg=await navigator.serviceWorker.register('./service-worker.js?v=680-background-check',{scope:'./',updateViaCache:'none'});
   state.reg=reg;await reg.update().catch(()=>{});await navigator.serviceWorker.ready;
   if(!await identityToWorker(uid))throw Error('Background worker could not save this account. Please retry.');
   state.deviceId=getDeviceId();if(!state.deviceId)throw Error('Secure device registration is unavailable.');
@@ -231,20 +231,48 @@ async function queueStudentMessage(event){
   if(!validId(itemId)||!validId(chatUid)||chatUid!==account.uid)return false;
   const eventId=`s2t_${account.uid}_${itemId}`;
   if(!validId(eventId))return false;
-  // Fetch the short-lived Firebase ID token in parallel with the RTDB outbox
-  // write. It is never sent before the outbox has been committed, and it is
-  // never stored in the database, a log, or the public website.
-  const tokenReady=account.getIdToken().catch(()=>null);
   const record={type:'messages',itemId,chatUid,createdByUid:account.uid,
    audience:'teacher',createdAtMs:Date.now(),status:'pending'};
   await state.database.set(state.database.ref(state.db,`${ROOT}/outbox/${eventId}`),record);
-  void nudgeImmediateSender(account,eventId,tokenReady);
+  void nudgeImmediateSender(account,eventId);
   return true;
  }catch(err){
   console.info('Adviser alert not queued; chat message remains safely saved.');
   return false;
  }
 }
+// Student announcement reactions/comments: trusted server rechecks saved event.
+async function queueAnnouncementEngagement(event){
+ try{
+  await (state.ready||init());
+  const account=state.auth?.currentUser;
+  if(!account||state.teacher||!publicKey())return false;
+  const postId=String(event?.postId||''),kind=String(event?.kind||'');
+  if(!validId(postId))return false;
+  const record={type:'announcements',itemId:postId,createdByUid:account.uid,
+   createdAtMs:Date.now(),audience:'teacher',status:'pending'};
+  let eventId='';
+  if(kind==='reaction'){
+   const reactionCode=String(event?.reactionCode||'');
+   if(!['like','love','care'].includes(reactionCode))return false;
+   record.engagementType='reaction';record.reactionCode=reactionCode;
+   eventId=`aR_${account.uid}_${postId}_${reactionCode}`;
+  }else if(kind==='comment'){
+   const commentId=String(event?.commentId||'');
+   if(!validId(commentId))return false;
+   record.engagementType='comment';record.commentId=commentId;
+   eventId=`aC_${account.uid}_${postId}_${commentId}`;
+  }else return false;
+  if(!validId(eventId))return false;
+  const ref=state.database.ref(state.db,`${ROOT}/outbox/${eventId}`);
+  // Rules permit create-only writes: a repeat of the same event ID is rejected.
+  // Avoid RTDB transactions because students cannot read the private outbox.
+  await state.database.set(ref,record);
+  void nudgeImmediateSender(account,eventId);
+  return true;
+ }catch(_){console.info('Announcement alert not queued; saved engagement is unaffected.');return false;}
+}
+
 async function queueTeacherEvent(event){
  try{
   await (state.ready||init());
@@ -268,12 +296,11 @@ async function queueTeacherEvent(event){
   if(audienceSection)record.audienceSection=audienceSection;
   if(recipientUids)record.recipientUids=recipientUids;
   const newRef=state.database.push(state.database.ref(state.db,`${ROOT}/outbox`));
-  const tokenReady=account.getIdToken().catch(()=>null);
   await state.database.set(newRef,record);
   // Do not hold the chat/lesson publish flow open for a cross-origin GAS call.
   // If the endpoint is unavailable or still being configured, the existing
   // 1-minute worker processes this same pending event without duplication.
-  void nudgeImmediateSender(account,newRef.key,tokenReady);
+  void nudgeImmediateSender(account,newRef.key);
   return true;
  }catch(err){console.warn('Phone alert could not be queued (main content was saved):',err?.message||err);return false;}
 }
@@ -310,6 +337,6 @@ async function init(){
  })().catch(err=>{state.lastError=err?.message||'Push setup unavailable';render();});
  return state.ready;
 }
-window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,refresh:render});
+window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,queueAnnouncementEngagement,refresh:render});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{void init();},{once:true});else void init();
 })();

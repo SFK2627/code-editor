@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v714-adviser-message-types';
+const CACHE_NAME = 'ict8-connect-v715-adviser-engagement';
 const APP_SHELL = [
   './',
   './index.html',
@@ -181,7 +181,7 @@ self.addEventListener('push',event=>{
   if(!['teacher','student'].includes(recipientRole)){
    await writePushAudit('unknown-role',receivedAtMs);return;
   }
-  if(recipientRole==='teacher' && (type!=='messages'||!/^[A-Za-z0-9_-]{1,128}$/.test(chatUid))){
+  if(recipientRole==='teacher' && !(type==='announcements'||(type==='messages'&&/^[A-Za-z0-9_-]{1,128}$/.test(chatUid)))){
    await writePushAudit('unknown-chat',receivedAtMs);return;
   }
   // Messenger itself already shows the incoming message live. Do not send a
@@ -189,12 +189,13 @@ self.addEventListener('push',event=>{
   // The Admin Dashboard (including while open) should show OS notifications.
   const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
   if(windows.some(c=>c.visibilityState==='visible'&&c.focused&&
-    (recipientRole==='student'||/\/messages\.html(?:[?#]|$)/.test(c.url)))){
+    (recipientRole==='student'||(type==='messages'&&/\/messages\.html(?:[?#]|$)/.test(c.url))))){
    await writePushAudit('in-app-foreground',receivedAtMs);return;
   }
   const itemId=String(data.itemId||'');
   const validItem=/^[A-Za-z0-9_-]{1,128}$/.test(itemId);
-  const destination=recipientRole==='teacher'?`./messages.html?from=admin&student=${encodeURIComponent(chatUid)}`
+  const destination=recipientRole==='teacher'&&type==='announcements'?`./announcements.html?from=admin&gaPost=${encodeURIComponent(itemId)}&gaEngagement=${String(data.engagementType||'')==='comment'?'comment':'reaction'}`
+    :recipientRole==='teacher'?`./messages.html?from=admin&student=${encodeURIComponent(chatUid)}`
     :type==='messages'?'./messages.html?from=student'
     :type==='announcements'?'./announcements.html?from=student'
     :validItem?`./index.html?g8mBack=student&gaOpen=${type==='lessons'?'lesson':'activity'}&gaItem=${encodeURIComponent(itemId)}`
@@ -216,12 +217,21 @@ self.addEventListener('push',event=>{
   const adviserTitle=studentName
    ?`${studentName}${studentSection?' ('+studentSection+')':''}`
    :studentSection?`Student (${studentSection})`:'G8Code Messages';
+  const announcementTitle=String(data.announcementTitle||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+   .replace(/\s+/g,' ').trim().slice(0,75);
+  const announcementRef=announcementTitle?' “'+announcementTitle+'”':'';
+  const reactionCode=String(data.reactionCode||'');
+  const announcementBody=String(data.engagementType||'')==='comment'
+   ?'💬 Commented on your announcement'+announcementRef+'.'
+   :reactionCode==='love'?'❤️ Loved your announcement'+announcementRef+'.'
+   :reactionCode==='care'?'🤗 Reacted with care to your announcement'+announcementRef+'.'
+   :'👍 Liked your announcement'+announcementRef+'.';
   const adviserBody=adviserKind==='project'?'Shared a project with you.'
    :adviserKind==='photo'?(photoCount>1?`Sent you ${photoCount} photos.`:'Sent you a photo.')
    :'Sent you a message.';
   try{
   await self.registration.showNotification(recipientRole==='teacher'?adviserTitle:'G8Code',{
-   body:recipientRole==='teacher'?adviserBody:pushLabels[type],icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
+   body:recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):pushLabels[type],icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
    tag:`g8code-${type}-${eventId}`,renotify:false,
    data:{destination,type,targetUid},silent:false
   });
