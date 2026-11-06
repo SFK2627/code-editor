@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v744-learning-title-integrity';
+const CACHE_NAME = 'ict8-connect-v745-specific-acknowledgments';
 const APP_SHELL = [
   './',
   './index.html',
@@ -273,28 +273,39 @@ self.addEventListener('push',event=>{
    ?(studentPhotoCount>1?`Your teacher sent you ${studentPhotoCount} photos.`:'Your teacher sent you a photo.')
    :studentKind==='project'?'Your teacher shared a project with you.':pushLabels.messages;
   const ackObject=studentKind==='project'?(projectName?`Your activity “${projectName}”`:'Your shared activity')
-   :(studentPhotoCount>1?'Your photos':'Your photo');
-  // Checked photos AND shared projects point to Messenger for feedback/score.
-  // Received is only an acknowledgment; it must not promise a score.
-  const studentAckBody=ackStatus==='checked'?`${ackObject} was marked Checked. Check Messenger for your teacher’s feedback or score.`
-   :`${ackObject} was marked Received by your teacher.`;
+   :(studentPhotoCount>1?`Your ${studentPhotoCount} photos`:'Your photo');
+  // V4.5: reject a malformed/legacy ACK instead of ever showing generic
+  // 'Submission Updated' or mistaking it for a newly sent photo/project.
+  if(recipientRole==='student'&&type==='messages'&&eventKind==='ack'&&
+     (!ackStatus||!['photo','project'].includes(studentKind)||
+      (studentKind==='project'&&!projectName))){
+   await writePushAudit('ack-context-missing',receivedAtMs);
+   return;
+  }
+  const checked=ackStatus==='checked';
+  const ackTitle=studentKind==='project'?`${projectName} — ${checked?'Checked':'Received'}`
+   :`Photo${studentPhotoCount>1?'s':''} ${checked?'Checked':'Received'}`;
+  const studentAckBody=studentKind==='project'
+   ?`Your activity “${projectName}” was marked ${checked?'Checked':'Received'}${checked?'. Check Messenger for your teacher’s feedback or score.':' by your teacher.'}`
+   :`${ackObject} ${studentPhotoCount>1?'were':'was'} marked ${checked?'Checked':'Received'}${checked?'. Check Messenger for your teacher’s feedback or score.':' by your teacher.'}`;
+  // Prefer the GAS-supplied, source-verified text when present. For older
+  // versions with all verified fields, compute the same specific text locally.
+  const verifiedAckTitle=String(data.ackNoticeTitle||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+   .replace(/\s+/g,' ').trim().slice(0,140);
+  const verifiedAckBody=String(data.ackNoticeBody||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+   .replace(/\s+/g,' ').trim().slice(0,300);
   const studentEventBody=eventKind==='reaction'
    ?(reactionEmoji?`Your teacher reacted ${reactionEmoji} to your ${kindObject(reactedObject)}.`
      :`Your teacher reacted to your ${kindObject(reactedObject)}.`)
    :eventKind==='reply'?`Your teacher replied to your ${kindObject(replyObject)}.`
    :studentMessageBody;
-  // Explicit acknowledgment beats the source object's photo/project category.
-  // If an ack-tagged event is missing its verified status, never mislabel it
-  // as a new photo or project share.
-  const safeStudentAckBody=(eventKind==='ack'&&!ackStatus)
-   ?'Your submission acknowledgment was updated. Open Messenger to see its status.':studentAckBody;
   const noticeTitle=recipientRole==='teacher'?adviserTitle:
    learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):
-   type==='announcements'?'New Announcement Posted!':ackStatus?(ackStatus==='checked'?'Submission Checked':'Submission Received'):eventKind==='ack'?'Submission Updated':'G8Code Messages';
+   type==='announcements'?'New Announcement Posted!':eventKind==='ack'?(verifiedAckTitle||ackTitle):'G8Code Messages';
   const noticeBody=recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):
    learningAlert?learningTitle:
    type==='announcements'?(studentAnnouncementTitle||pushLabels.announcements):
-   eventKind==='ack'?safeStudentAckBody:studentEventBody;
+   eventKind==='ack'?(verifiedAckBody||studentAckBody):studentEventBody;
   try{
   await self.registration.showNotification(noticeTitle,{
    body:noticeBody,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
