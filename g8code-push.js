@@ -291,7 +291,10 @@ async function queueTeacherEvent(event){
   }else if(event.audienceSection&&String(event.audienceSection).toLowerCase()!=='all'){
    audience='section';audienceSection=safeSection(event.audienceSection);
   }
+  const ackStatus=type==='messages'&&event?.ackStatus?String(event.ackStatus):'';
+  if(ackStatus&&(!['received','checked'].includes(ackStatus)||audience!=='uid'))return false;
   const record={type,itemId,createdByUid:account.uid,createdAtMs:Date.now(),audience,status:'pending'};
+  if(ackStatus){record.notificationKind='ack';record.ackStatus=ackStatus;}
   if(type==='lessons'||type==='activities'){
    const version=Number(event.catalogVersion);
    if(!Number.isSafeInteger(version)||version<=0)return false;
@@ -300,8 +303,20 @@ async function queueTeacherEvent(event){
   if(targetUid)record.targetUid=targetUid;
   if(audienceSection)record.audienceSection=audienceSection;
   if(recipientUids)record.recipientUids=recipientUids;
-  const newRef=state.database.push(state.database.ref(state.db,`${ROOT}/outbox`));
-  await state.database.set(newRef,record);
+  let newRef;
+  if(ackStatus){
+   // Deterministic id prevents repeating the same status alert for one item.
+   // Teacher has RTDB read access; student clients never use this path.
+   const source=new TextEncoder().encode(`${account.uid}|${targetUid}|${itemId}|${ackStatus}`);
+   const digest=await crypto.subtle.digest('SHA-256',source);
+   const eventId='ack_'+[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
+   newRef=state.database.ref(state.db,`${ROOT}/outbox/${eventId}`);
+   const result=await state.database.runTransaction(newRef,old=>old===null?record:undefined,{applyLocally:false});
+   if(!result.committed)return true; // Already queued; no duplicate push.
+  }else{
+   newRef=state.database.push(state.database.ref(state.db,`${ROOT}/outbox`));
+   await state.database.set(newRef,record);
+  }
   // Do not hold the chat/lesson publish flow open for a cross-origin GAS call.
   // If the endpoint is unavailable or still being configured, the existing
   // 1-minute worker processes this same pending event without duplication.

@@ -3277,7 +3277,13 @@ async function acknowledge(messageId,st){
  if(previous===st)return;
  try{
   await set(ref(rtdb,`${studentPath(uid)}/acks/${messageId}`),{status:st,atMs:serverTimestamp(),byUid:user.uid});
-  if(uid===openedUid)status(st==='checked'?'Marked Checked — no grade was changed.':'Marked Received — no grade was changed.');
+  // Received/Checked is a Messenger acknowledgment, not a grade. Send an
+  // event only after the saved acknowledgment can be verified by the server.
+  // Never block the acknowledgment if the push service is unavailable.
+  void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:String(messageId),targetUid:uid,ackStatus:st})
+   .then(queued=>{if(!queued)console.info('Acknowledgment saved; phone alert pending or unavailable.');})
+   .catch(()=>console.info('Acknowledgment saved; phone alert fallback unavailable.'));
+  if(uid===openedUid)status(st==='checked'?'Marked Checked. Share any score or feedback separately in Messenger.':'Marked Received. Share any score or feedback separately in Messenger.');
   if((previous==='checked') !== (st==='checked')){
    try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.max(0,Math.min(9999,Number(n||0)+(st==='checked'?-1:1))));}
    catch(error){console.warn('Needs Checking sync pending:',error);}

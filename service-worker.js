@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v715-adviser-engagement';
+const CACHE_NAME = 'ict8-connect-v739-smart-student-alerts';
 const APP_SHELL = [
   './',
   './index.html',
@@ -189,7 +189,8 @@ self.addEventListener('push',event=>{
   // The Admin Dashboard (including while open) should show OS notifications.
   const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
   if(windows.some(c=>c.visibilityState==='visible'&&c.focused&&
-    ((recipientRole==='student'&&['messages','announcements'].includes(type))||
+    ((recipientRole==='student'&&type==='messages'&&/\/messages\.html(?:[?#]|$)/.test(c.url))||
+     (recipientRole==='student'&&type==='announcements'&&/\/announcements\.html(?:[?#]|$)/.test(c.url))||
      (recipientRole==='teacher'&&type==='messages'&&/\/messages\.html(?:[?#]|$)/.test(c.url))))){
    await writePushAudit('in-app-foreground',receivedAtMs);return;
   }
@@ -235,10 +236,31 @@ self.addEventListener('push',event=>{
    ?String(data.learningTitle||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
      .replace(/\s+/g,' ').trim().slice(0,160):'';
   const learningAlert=recipientRole==='student'&&['lessons','activities'].includes(type);
+  // Every student-facing caption below is derived from server-verified saved
+  // messages, acknowledgments, or published announcement records.
+  const ackStatus=String(data.notificationKind||'')==='ack'&&['received','checked'].includes(String(data.ackStatus||''))
+   ?String(data.ackStatus):'';
+  const studentKind=['message','photo','project'].includes(String(data.messageKind||''))?String(data.messageKind):'message';
+  const projectName=String(data.projectName||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+   .replace(/\s+/g,' ').trim().slice(0,100);
+  const studentPhotoCount=Math.max(1,Math.min(10,Number.parseInt(data.photoCount,10)||1));
+  const studentAnnouncementTitle=recipientRole==='student'&&type==='announcements'
+   ?String(data.announcementTitle||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+    .replace(/\s+/g,' ').trim().slice(0,140):'';
+  const studentMessageBody=studentKind==='photo'
+   ?(studentPhotoCount>1?`Your teacher sent you ${studentPhotoCount} photos.`:'Your teacher sent you a photo.')
+   :studentKind==='project'?'Your teacher shared a project with you.':pushLabels.messages;
+  const ackObject=studentKind==='project'?(projectName?`Your activity “${projectName}”`:'Your shared activity')
+   :(studentPhotoCount>1?'Your photos':'Your photo');
+  const studentAckBody=ackStatus==='checked'?`${ackObject} was marked Checked. Check Messenger for your teacher’s score or feedback.`
+   :`${ackObject} was marked Received by your teacher.`;
   const noticeTitle=recipientRole==='teacher'?adviserTitle:
-   learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):'G8Code';
+   learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):
+   type==='announcements'?'New Announcement Posted!':ackStatus?(ackStatus==='checked'?'Submission Checked':'Submission Received'):'G8Code Messages';
   const noticeBody=recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):
-   (learningTitle||pushLabels[type]);
+   learningAlert?(learningTitle||pushLabels[type]):
+   type==='announcements'?(studentAnnouncementTitle||pushLabels.announcements):
+   ackStatus?studentAckBody:studentMessageBody;
   try{
   await self.registration.showNotification(noticeTitle,{
    body:noticeBody,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',

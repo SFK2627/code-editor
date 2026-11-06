@@ -88,7 +88,7 @@
  }
  function bindStudent(uid){
   const {sdk,db}=state;if(!sdk||!db)return;
-  const subscribe=(path,fn)=>sdk.onValue(sdk.ref(db,path),snap=>{if(state.uid!==uid)return;fn(snap.val()||{});scheduleRender();},err=>{console.warn('Learning badge subscription:',err.message);});
+  const subscribe=(path,fn)=>sdk.onValue(sdk.ref(db,path),snap=>{if(state.uid!==uid)return;fn(snap.val()||{});scheduleRender();},err=>{console.warn('Learning badge subscription denied at '+path+':',err.message);state.subscriptionError={path,message:err.message};scheduleRender();});
   for(const type of TYPES){state.teardown.push(subscribe(`${BASE}/catalog/${type}`,val=>{state.catalog[type]=val;state.ready[type]=true;localHydrate();}));}
   state.teardown.push(subscribe(`${BASE}/seen/${uid}`,val=>{
    for(const type of TYPES){const incoming=val?.[type]||{};for(const [id,version] of Object.entries(incoming)){const n=Number(version)||0;if(n>Number(state.seen[type]?.[id]||0))state.seen[type][id]=n;}}state.ready.seen=true;localHydrate();
@@ -111,7 +111,9 @@
    }
    // A published record already in this catalog is an EDIT, not a new post.
    // Preserve its version (and students' seen badges); do NOT re-notify.
-   const prior=(await state.sdk.get(path)).val();
+   let prior;
+   try{prior=(await state.sdk.get(path)).val();}
+   catch(error){return {ok:false,error:`NEW badge catalog READ failed at ${BASE}/catalog/${type}: ${error?.message||error}. Check RTDB Rules, Firebase teacher login, and deployed database URL.`};}
    const newlyPublished=!prior||prior.active!==true;
    const version=newlyPublished?stamp():Number(prior.version||stamp());
    const audienceSection=type==='lessons'?'all':String(record.audienceSection||'all').trim().slice(0,100)||'all';
@@ -121,7 +123,8 @@
    if(!title)return {ok:false,error:'Learning notification title missing'};
    // Save the student-readable badge catalog FIRST. If private learningMeta
    // rules were not deployed, badge visibility must not fail with the title.
-   await state.sdk.set(path,{active:true,version,term,audienceSection});
+   try{await state.sdk.set(path,{active:true,version,term,audienceSection});}
+   catch(error){return {ok:false,error:`NEW badge catalog WRITE failed at ${BASE}/catalog/${type}: ${error?.message||error}. Publish the updated full RTDB Rules from the V3.9 ZIP and confirm the Admin Firebase account is authorized.`};}
    let metadataSaved=true;
    try{
     await state.sdk.set(state.sdk.ref(state.db,metadataPath),
@@ -151,7 +154,7 @@
    return {ok:true};
   }catch(err){console.warn('Notification removal:',err.message);return {ok:false};}
  }
- window.G8CodeLearningBadges=Object.freeze({publish,remove,markViewed,refresh:scheduleRender,getCount,diagnostics:()=>({connected:Boolean(state.sdk&&state.db),uidPresent:Boolean(state.uid),teacher:state.isTeacher,ready:{...state.ready},counts:{lessons:getCount('lessons'),activities:getCount('activities')}})});
+ window.G8CodeLearningBadges=Object.freeze({publish,remove,markViewed,refresh:scheduleRender,getCount,diagnostics:()=>({connected:Boolean(state.sdk&&state.db),uidPresent:Boolean(state.uid),teacher:state.isTeacher,ready:{...state.ready},subscriptionError:state.subscriptionError||null,counts:{lessons:getCount('lessons'),activities:getCount('activities')}})});
  // Handle lesson/activity rerender without observing subtree changes caused by our own badges.
  const grids=['lessonLibraryGrid','givenActivitiesGrid'];
  function observeCards(){for(const id of grids){const el=$(id);if(el)new MutationObserver(mutations=>{
