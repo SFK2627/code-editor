@@ -52,3 +52,34 @@ html.ga-post-modal-open { overflow: hidden; }
   100%{box-shadow:0 0 0 0 transparent}
 }
 @media (prefers-reduced-motion:reduce){.ga-comment--just-posted .ga-comment-bubble{animation:none;box-shadow:0 0 0 2px var(--ga-primary)}}
+
+/* V3.7 — Phone-first comments view, no keyboard until the user taps the input. */
+.ga-post-back{display:none!important}
+.ga-mobile-reactions{display:none}
+@media (max-width:690px){
+ .ga-post-dialog-header{padding:9px 54px;justify-content:center;}
+ .ga-post-back:not([hidden]){display:grid!important;left:10px;right:auto;transform:translateY(-50%);font-size:32px;font-weight:400;line-height:1;}
+ .ga-post-dialog-header strong{padding:0;max-width:100%;font-size:17px;}
+ .ga-mobile-reactions:not([hidden]){display:flex;flex-direction:column;gap:8px;flex:0 0 auto;padding:11px 13px 10px;border-bottom:1px solid var(--ga-border);background:var(--ga-surface);}
+ .ga-mobile-reaction-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+ .ga-mobile-reaction-choices button{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;min-height:38px;padding:6px 5px;border-radius:18px;border:1px solid var(--ga-border);background:var(--ga-raised);color:var(--ga-ink);font:inherit;font-size:12px;font-weight:650;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+ .ga-mobile-reaction-choices button.active{border-color:var(--ga-primary);background:color-mix(in srgb,var(--ga-primary) 11%,var(--ga-surface));color:var(--ga-ink);}
+ .ga-mobile-reaction-choices button:focus-visible{outline:2px solid var(--ga-primary);outline-offset:2px;}
+ .ga-mobile-reaction-choices .ga-mobile-reaction-count{font-size:11px;font-weight:600;color:var(--ga-muted);}
+ .ga-mobile-comment-count{font-size:11px;color:var(--ga-muted);text-align:right;padding-right:5px;}
+ .ga-mobile-comments-view .ga-post-dialog-scroll{overscroll-behavior-y:contain;touch-action:pan-y;}
+ .ga-mobile-comments-view .ga-comments-only{border:0;box-shadow:none;background:transparent;}
+ .ga-mobile-comments-view .ga-comments-only .ga-comments{display:flex;flex-direction:column;gap:13px;padding:16px 13px 30px;border:0;min-height:100%;}
+ .ga-mobile-comments-view .ga-comments-only .ga-empty-comments{margin-top:40px;padding:20px 5px;}
+ .ga-mobile-comments-view .ga-post-comment-dock{position:relative;z-index:2;padding:10px 11px max(10px,env(safe-area-inset-bottom));}
+ .ga-mobile-comments-view .ga-comment-entry textarea{font-size:16px;}
+ .ga-mobile-comments-view .ga-post-dialog{height:100dvh;max-height:100dvh;}
+ .ga-mobile-comments-view .ga-post-dialog-scroll{flex:1 1 0;}
+}
+
+/* Follow the visible mobile viewport when the software keyboard opens. */
+@media (max-width:690px){
+ #gaPostModal:not([hidden]){inset:auto 0 auto 0;top:var(--ga-visual-top,0px);height:var(--ga-visual-height,100dvh);max-height:none;}
+ #gaPostModal .ga-post-dialog{height:100%;max-height:100%;}
+ #gaPostModal.ga-mobile-comments-view .ga-post-dialog{height:100%;max-height:100%;}
+}

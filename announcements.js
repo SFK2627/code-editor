@@ -7,7 +7,7 @@ const gaPhotos=window.G8AnnouncementsPhotoCache;
 const SRC=new URLSearchParams(location.search).get('from');
 const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},commentSending:{},commentJustPosted:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},detailPostId:"",detailScrollY:0,detailTrigger:null,detailPreviousOverflow:"",detailUnsubs:[],catalog:{},pickerType:'lesson',backGuardInstalled:false};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},commentSending:{},commentJustPosted:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},detailPostId:"",detailMode:"post",detailViewScroll:{post:0,comments:0},detailScrollY:0,detailTrigger:null,detailPreviousOverflow:"",detailUnsubs:[],catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -50,9 +50,38 @@ function backDestination(){
  return SRC==='login'?'index.html':'admin-v2.html?g8mBack=overview';
 }
 function goBack(){cleanup();location.replace(backDestination());}
+// Protect native Android/iOS/browser Back from exiting the whole G8Code app
+// when the student is browsing a post. Every modal view gets a SAME-document
+// history entry. No Firebase reads or full-page reloads are involved.
+const GA_NAV_KEY='g8AnnouncementsV37',GA_NAV_OWNER=Date.now().toString(36)+Math.random().toString(36).slice(2);
+function gaNavState(view,postId=''){return {...history.state,[GA_NAV_KEY]:{owner:GA_NAV_OWNER,view,postId}};}
+function gaPushView(view,postId=''){
+ if(!state.backGuardInstalled)return false;
+ try{history.pushState(gaNavState(view,postId),'',location.href);return true;}
+ catch(err){console.info('Announcements view history:',err);return false;}
+}
+function handleAnnouncementPop(event){
+ const route=event.state?.[GA_NAV_KEY];
+ if(route?.owner!==GA_NAV_OWNER||route.view==='root'){goBack();return;}
+ if(route.view==='feed'){
+  if(!$('gaViewerModal').hidden)closeViewer();
+  closePostDialog();return;
+ }
+ if((route.view==='post'||route.view==='comments')&&route.postId){
+  if(!$('gaViewerModal').hidden)closeViewer();
+  openPostDialog(route.postId,false,null,true,route.view);
+  return;
+ }
+ goBack();
+}
 function installSmartBack(){
- if(state.backGuardInstalled)return;state.backGuardInstalled=true;
- try{history.pushState({g8AnnouncementsRoleBack:true},'',location.href);window.addEventListener('popstate',goBack);}catch(error){console.info('Announcements browser Back guard:',error);}
+ if(state.backGuardInstalled)return;
+ try{
+  history.replaceState(gaNavState('root'),'',location.href);
+  history.pushState(gaNavState('feed'),'',location.href);
+  state.backGuardInstalled=true;
+  window.addEventListener('popstate',handleAnnouncementPop);
+ }catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
 function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentSending={};state.commentJustPosted={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
@@ -427,35 +456,104 @@ $('gaReactorsSearch').addEventListener('input',e=>{state.reactorsSearch=e.target
 
 // Facebook-style full announcement view for students. This reuses the SAME
 // content, reaction and reply handlers as the feed; no duplicate RTDB listeners.
-function openPostDialog(id,focusComposer=false,trigger=null){
+function isMobilePostView(){return window.matchMedia('(max-width:690px)').matches;}
+// The iOS virtual keyboard may shrink visualViewport without resizing 100dvh.
+// Keep the fixed comment dock inside the truly visible height on both iOS/Android.
+function syncMobilePostViewport(){
+ const modal=$('gaPostModal'),viewport=window.visualViewport;
+ if(!state.detailPostId||!isMobilePostView()||!viewport){
+  modal.style.removeProperty('--ga-visual-height');
+  modal.style.removeProperty('--ga-visual-top');
+  return;
+ }
+ modal.style.setProperty('--ga-visual-height',Math.max(250,Math.round(viewport.height))+'px');
+ modal.style.setProperty('--ga-visual-top',Math.round(viewport.offsetTop)+'px');
+}
+window.visualViewport?.addEventListener('resize',syncMobilePostViewport,{passive:true});
+window.visualViewport?.addEventListener('scroll',syncMobilePostViewport,{passive:true});
+function setPostDialogMode(mode,resetScroll=true){
+ const modal=$('gaPostModal');
+ if(!modal||modal.hidden)return;
+ const scroll=$('gaPostDialogScroll');
+ if(state.detailMode!==mode){
+  state.detailViewScroll[state.detailMode]=scroll.scrollTop;
+  state.detailMode=mode;
+ }
+ syncMobilePostViewport();
+ const commentsOnly=mode==='comments'&&isMobilePostView();
+ modal.classList.toggle('ga-mobile-comments-view',commentsOnly);
+ modal.classList.toggle('ga-mobile-post-view',!commentsOnly);
+ $('gaPostBack').hidden=!isMobilePostView();
+ $('gaMobileReactionBar').hidden=!commentsOnly;
+ $('gaPostModalTitle').textContent=commentsOnly?'Comments':'ICT Teacher’s post';
+ refreshPostDialog(resetScroll);
+ // Use header button rather than auto-focusing the textarea on mobile.
+ if(isMobilePostView())$('gaPostBack').focus({preventScroll:true});
+}
+function openPostDialog(id,focusComposer=false,trigger=null,fromHistory=false,requestedMode=null){
  if(state.teacher||!state.user||!state.posts[id])return;
  const p=normalizePost(state.posts[id],id);
  if(!published(p))return;
+ const mode=requestedMode||(isMobilePostView()?'comments':'post');
+ const wasSame=state.detailPostId===id;
  if(state.detailPostId&&state.detailPostId!==id)closePostDialog(true);
  if(!state.detailPostId){
   state.detailScrollY=window.scrollY;
   state.detailTrigger=trigger||document.activeElement;
   state.detailPreviousOverflow=document.body.style.overflow;
+  state.detailViewScroll={post:0,comments:0};
   document.body.style.overflow='hidden';
   document.documentElement.classList.add('ga-post-modal-open');
+ }
+ if(!fromHistory){
+  // Mobile opens on Comments. The intermediate 'post' history entry means
+  // hardware Back / gesture Back goes Comments -> Full Post -> Feed.
+  if(mode==='comments')gaPushView('post',id);
+  gaPushView(mode,id);
  }
  state.detailPostId=id;
  state.commentOpen.add(id);state.commentExpanded.add(id);
  $('gaPostModal').hidden=false;
- refreshPostDialog(true);
- if(focusComposer&&window.matchMedia('(min-width:691px)').matches){
+ if(wasSame&&state.detailMode===mode){
+  // Preserve scroll, draft and focus on duplicate native history events.
+  return;
+ }
+ setPostDialogMode(mode,true);
+ if(!isMobilePostView()&&focusComposer){
   $('gaPostCommentDock').querySelector('textarea')?.focus({preventScroll:true});
- }else $('gaPostClose').focus({preventScroll:true});
+ }else if(!isMobilePostView())$('gaPostClose').focus({preventScroll:true});
+}
+function goToMobileComments(){
+ if(!state.detailPostId||!isMobilePostView()||state.detailMode==='comments')return;
+ gaPushView('comments',state.detailPostId);
+ setPostDialogMode('comments');
+}
+function requestPostBack(){
+ if(!state.detailPostId)return;
+ if(!state.backGuardInstalled){
+  if(isMobilePostView()&&state.detailMode==='comments')setPostDialogMode('post');
+  else closePostDialog();
+  return;
+ }
+ history.back();
+}
+function requestPostClose(){
+ if(!state.detailPostId)return;
+ if(!state.backGuardInstalled){closePostDialog();return;}
+ // Close X skips the post view when opened directly in mobile Comments.
+ history.go(isMobilePostView()&&state.detailMode==='comments'?-2:-1);
 }
 function closePostDialog(silent=false){
  const id=state.detailPostId;
  if(!id)return;
- state.detailPostId='';
- while(state.detailUnsubs.length){try{state.detailUnsubs.pop()();}catch(_){}}
+ state.detailPostId='';state.detailMode='post';state.detailViewScroll={post:0,comments:0};
+ while(state.detailUnsubs.length){try{state.detailUnsubs.pop()();}catch(_){} }
  state.commentOpen.delete(id);state.commentExpanded.delete(id);state.replyTargets[id]=null;
  const typing=$('gaPostCommentDock').querySelector('textarea');
  if(typing)state.commentDrafts[id]=typing.value;
  $('gaPostModal').hidden=true;
+ $('gaPostModal').classList.remove('ga-mobile-comments-view','ga-mobile-post-view');
+ syncMobilePostViewport();
  $('gaPostDialogBody').replaceChildren();$('gaPostCommentDock').replaceChildren();
  document.documentElement.classList.remove('ga-post-modal-open');
  document.body.style.overflow=state.detailPreviousOverflow;
@@ -467,20 +565,48 @@ function closePostDialog(silent=false){
  }
  state.detailTrigger=null;
 }
+function updateMobileReactionBar(id){
+ if(!id||!state.user)return;
+ const reactions=state.reactions[id]||{},comments=state.comments[id]||{};
+ const counts={'👍':0,'❤️':0,'🤗':0};
+ Object.values(reactions).forEach(emoji=>{if(Object.hasOwn(counts,emoji))counts[emoji]++;});
+ const selected=reactions[state.user.uid]||'';
+ for(const button of $('gaMobileReactionChoices').querySelectorAll('[data-ga-mobile-reaction]')){
+  const emoji=button.dataset.gaMobileReaction;
+  button.classList.toggle('active',selected===emoji);
+  button.setAttribute('aria-pressed',String(selected===emoji));
+  button.querySelector('.ga-mobile-reaction-count').textContent=counts[emoji]||'';
+ }
+ const count=Object.keys(comments).length;
+ $('gaMobileCommentCount').textContent=count+' comment'+(count===1?'':'s');
+}
+function renderCommentOnlyCard(p){
+ // Do NOT load attachments or the announcement body when the student only
+ // wants to see comments. Reuses the same RTDB subscriptions and composer.
+ const card=node('article','ga-card ga-detail-card ga-comments-only');card.dataset.gaPost=p.id;
+ const comments=node('div','ga-comments');comments.id='ga-comments-'+p.id;
+ card.append(comments);
+ card.__gaRefreshReactions=()=>updateMobileReactionBar(p.id);
+ drawComments(p.id,card,p);
+ return card;
+}
 function refreshPostDialog(resetScroll=false){
  const id=state.detailPostId;if(!id)return;
  const raw=state.posts[id];
- if(!raw||!published(raw)){closePostDialog();return;}
+ if(!raw||!published(raw)){requestPostClose();return;}
  const p=normalizePost(raw,id);
- const scroll=$('gaPostDialogScroll');const pos=resetScroll?0:scroll.scrollTop;
+ const scroll=$('gaPostDialogScroll');
+ const pos=resetScroll?(state.detailViewScroll[state.detailMode]||0):scroll.scrollTop;
  const typing=$('gaPostCommentDock').querySelector('textarea');
- const refocus=!!typing&&document.activeElement===typing;
+ const refocus=!resetScroll&&!!typing&&document.activeElement===typing;
  const caret=refocus?{start:typing.selectionStart,end:typing.selectionEnd}:null;
  if(typing)state.commentDrafts[id]=typing.value;
- $('gaPostModalTitle').textContent='ICT Teacher’s post';
- $('gaPostDialogBody').replaceChildren(renderCard(p,true));
+ const commentsOnly=state.detailMode==='comments'&&isMobilePostView();
+ $('gaPostModalTitle').textContent=commentsOnly?'Comments':'ICT Teacher’s post';
+ $('gaPostDialogBody').replaceChildren(commentsOnly?renderCommentOnlyCard(p):renderCard(p,true));
+ updateMobileReactionBar(id);
  scroll.scrollTop=pos;
- if(refocus){const next=$('gaPostCommentDock').querySelector('textarea');next?.focus({preventScroll:true});if(next&&caret)try{next.setSelectionRange(caret.start,caret.end);}catch(_){}}
+ if(refocus){const next=$('gaPostCommentDock').querySelector('textarea');next?.focus({preventScroll:true});if(next&&caret)try{next.setSelectionRange(caret.start,caret.end);}catch(_){} }
 }
 function ensureDetailSubscriptions(isShownInFeed){
  if(!state.detailPostId||isShownInFeed){
@@ -498,9 +624,32 @@ function syncPostDialogEngagement(id){
  if(!card)return;
  card.__gaRefreshReactions?.();
  const raw=state.posts[id];if(raw)drawComments(id,card,normalizePost(raw,id));
+ updateMobileReactionBar(id);
 }
-$('gaPostClose').addEventListener('click',()=>closePostDialog());
-document.querySelectorAll('[data-ga-close="post"]').forEach(el=>el.addEventListener('click',()=>closePostDialog()));
+$('gaPostClose').addEventListener('click',requestPostClose);
+$('gaPostBack').addEventListener('click',requestPostBack);
+document.querySelectorAll('[data-ga-close="post"]').forEach(el=>el.addEventListener('click',requestPostClose));
+$('gaMobileReactionChoices').addEventListener('click',event=>{
+ const choice=event.target.closest('[data-ga-mobile-reaction]');
+ if(choice&&state.detailPostId)react(state.detailPostId,choice.dataset.gaMobileReaction);
+});
+// Web-app right-edge swipe can be handled by Android/iOS browser history;
+// this left-edge fallback handles in-page swipes without obstructing scrolling.
+let gaBackSwipe=null;
+$('gaPostModal').addEventListener('touchstart',event=>{
+ if(!isMobilePostView()||!state.detailPostId||event.touches.length!==1||!$('gaViewerModal').hidden)return;
+ const touch=event.touches[0];
+ gaBackSwipe=touch.clientX<=56&&!event.target.closest('textarea,input,button,a')?{x:touch.clientX,y:touch.clientY,at:Date.now()}:null;
+},{passive:true});
+$('gaPostModal').addEventListener('touchend',event=>{
+ if(!gaBackSwipe||event.changedTouches.length!==1)return;
+ const touch=event.changedTouches[0],dx=touch.clientX-gaBackSwipe.x,dy=touch.clientY-gaBackSwipe.y;
+ if(dx>85&&Math.abs(dy)<Math.abs(dx)*.65&&Date.now()-gaBackSwipe.at<1200){
+  event.preventDefault();requestPostBack();
+ }
+ gaBackSwipe=null;
+},{passive:false});
+$('gaPostModal').addEventListener('touchcancel',()=>gaBackSwipe=null,{passive:true});
 
 function renderCard(p,inPostModal=false){
  const card=node('article','ga-card'+(inPostModal?' ga-detail-card':''));card.dataset.gaPost=p.id;
@@ -553,6 +702,7 @@ function renderCard(p,inPostModal=false){
   const cbtn=node('button','ga-comment-main','💬 Comment');cbtn.type='button';
   cbtn.addEventListener('click',()=>{
    if(!state.teacher&&!inPostModal){openPostDialog(p.id,true,cbtn);return;}
+   if(inPostModal&&isMobilePostView()&&state.detailMode==='post'){goToMobileComments();return;}
    state.commentOpen.add(p.id);state.commentExpanded.add(p.id);
    drawComments(p.id,card,p);
    const ta=inPostModal?$('gaPostCommentDock').querySelector('textarea'):card.querySelector('.ga-reply-form textarea');
@@ -584,6 +734,7 @@ function renderCard(p,inPostModal=false){
    countButton.addEventListener('click',()=>{
     if(!state.teacher&&!inPostModal){openPostDialog(p.id,false,countButton);return;}
     if(inPostModal){
+     if(isMobilePostView()&&state.detailMode==='post'){goToMobileComments();return;}
      $('gaPostDialogScroll').scrollTo({top:$('gaPostDialogScroll').scrollHeight,behavior:'smooth'});
      return;
     }
@@ -1260,13 +1411,26 @@ async function openFile(p,f){
   $('gaViewerError').textContent='';$('gaViewerDownload').disabled=false;state.viewerFile={url,name:f.name};
  }catch(_){if(request===state.viewerRequest){status.replaceChildren(node('span','','Could not open attachment. Please try again.'));}}
 }
-window.addEventListener('resize',()=>{if(gaGalleryUI){gaGalleryMeasure();if(!gaGalleryAnimating)gaGalleryOffset(0,false);}});
+window.addEventListener('resize',()=>{
+ if(gaGalleryUI){gaGalleryMeasure();if(!gaGalleryAnimating)gaGalleryOffset(0,false);}
+ if(state.detailPostId){
+  syncMobilePostViewport();
+  const commentsOnly=state.detailMode==='comments'&&isMobilePostView();
+  if($('gaPostModal').classList.contains('ga-mobile-comments-view')!==commentsOnly){
+   $('gaPostModal').classList.toggle('ga-mobile-comments-view',commentsOnly);
+   $('gaPostModal').classList.toggle('ga-mobile-post-view',!commentsOnly);
+   $('gaMobileReactionBar').hidden=!commentsOnly;
+   $('gaPostBack').hidden=!isMobilePostView();
+   refreshPostDialog(true);
+  }
+ }
+});
 $('gaViewerDownload').addEventListener('click',()=>{if(!state.viewerFile)return;const a=node('a');a.href=state.viewerFile.url;a.download=state.viewerFile.name;a.click();});
 document.addEventListener('keydown',e=>{
  if(e.key==='Tab'&&!$('gaPostModal').hidden&&$('gaViewerModal').hidden){
   const buttons=[...$('gaPostModal').querySelectorAll('button:not([disabled]),a[href],textarea:not([disabled]),input:not([disabled])')].filter(el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
   if(buttons.length){const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
  }
- if(e.key==='Escape'){if(!$('gaReactorsModal').hidden)closeReactorDialog();else if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaResourcePicker').hidden)closeResourcePicker();else if(!$('gaComposerModal').hidden)closeComposer();else if(!$('gaPostModal').hidden)closePostDialog();}else if(!$('gaViewerModal').hidden&&state.viewerGallery.length>1){if(e.key==='ArrowRight')changeGallery(1);else if(e.key==='ArrowLeft')changeGallery(-1);}});
+ if(e.key==='Escape'){if(!$('gaReactorsModal').hidden)closeReactorDialog();else if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaResourcePicker').hidden)closeResourcePicker();else if(!$('gaComposerModal').hidden)closeComposer();else if(!$('gaPostModal').hidden)requestPostBack();}else if(!$('gaViewerModal').hidden&&state.viewerGallery.length>1){if(e.key==='ArrowRight')changeGallery(1);else if(e.key==='ArrowLeft')changeGallery(-1);}});
 void boot();
 })();

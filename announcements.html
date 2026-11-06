@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark"><title>Announcements · G8Code</title>
-<link rel="icon" href="favicon.png"><link rel="stylesheet" href="announcements.css?v=810-scheduled-publish"><link rel="stylesheet" href="announcements-post-modal.css?v=836-comment-focus">
+<link rel="icon" href="favicon.png"><link rel="stylesheet" href="announcements.css?v=810-scheduled-publish"><link rel="stylesheet" href="announcements-post-modal.css?v=837-mobile-comments-navigation">
 <script src="firebase-config.js"></script><script src="g8code-messages-drive-config.js"></script>
 <script src="announcements-photo-cache.js?v=529" defer></script>
 <script defer src="g8code-push-config.js?v=2"></script>
 <script defer src="g8code-push.js?v=736-announcement-engagement"></script>
-<script src="announcements.js?v=836-comment-focus" defer></script>
+<script src="announcements.js?v=837-mobile-comments-navigation" defer></script>
 </head>
 <body>
 <div class="ga-app" id="gaApp">
@@ -25,7 +25,19 @@
 <div class="ga-modal ga-post-modal" id="gaPostModal" role="dialog" aria-modal="true" aria-labelledby="gaPostModalTitle" hidden>
  <div class="ga-modal-backdrop" data-ga-close="post"></div>
  <section class="ga-post-dialog" aria-label="Announcement and comments">
-  <header class="ga-post-dialog-header"><strong id="gaPostModalTitle">ICT Teacher’s post</strong><button type="button" id="gaPostClose" aria-label="Close full announcement">×</button></header>
+  <header class="ga-post-dialog-header">
+   <button type="button" id="gaPostBack" class="ga-post-back" aria-label="Back to full announcement" hidden>‹</button>
+   <strong id="gaPostModalTitle">ICT Teacher’s post</strong>
+   <button type="button" id="gaPostClose" aria-label="Close announcement and return to feed">×</button>
+  </header>
+  <nav id="gaMobileReactionBar" class="ga-mobile-reactions" aria-label="React to this announcement" hidden>
+   <div id="gaMobileReactionChoices" class="ga-mobile-reaction-choices" role="group" aria-label="Choose your reaction">
+    <button type="button" data-ga-mobile-reaction="👍" aria-label="Like" aria-pressed="false"><span aria-hidden="true">👍</span> Like <small class="ga-mobile-reaction-count"></small></button>
+    <button type="button" data-ga-mobile-reaction="❤️" aria-label="Love" aria-pressed="false"><span aria-hidden="true">❤️</span> Love <small class="ga-mobile-reaction-count"></small></button>
+    <button type="button" data-ga-mobile-reaction="🤗" aria-label="Care" aria-pressed="false"><span aria-hidden="true">🤗</span> Care <small class="ga-mobile-reaction-count"></small></button>
+   </div>
+   <small id="gaMobileCommentCount" class="ga-mobile-comment-count">0 comments</small>
+  </nav>
   <div id="gaPostDialogScroll" class="ga-post-dialog-scroll" tabindex="0"><div id="gaPostDialogBody"></div></div>
   <footer id="gaPostCommentDock" class="ga-post-comment-dock" aria-label="Write a comment"></footer>
  </section>
