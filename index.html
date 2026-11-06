@@ -514,6 +514,7 @@
 <link rel="stylesheet" href="g8code-learning-badges.css?v=38" /><link rel="stylesheet" href="g8code-push.css?v=2" />
 <link rel="stylesheet" href="student-home-compact.css?v=529" />
 <link rel="stylesheet" href="student-modal-compact.css?v=532" />
+<link rel="stylesheet" href="mobile-student-nav-v39.css?v=20261106-v41-context-size" />
 </head>
 <body class="entry-gate-active">
   <div id="g8codePwaWritingSplash" aria-hidden="true">
@@ -823,12 +824,12 @@
         <p class="sh-footer-note">G8Code · ICT 8 Connect · Learn, Code, Connect ✨</p>
       </main>
     </div>
-    <nav class="sh-bottom-nav" aria-label="Student home navigation">
-      <button class="sh-bottom-tab is-active" type="button" data-home-action="home" aria-current="page"><span aria-hidden="true">⌂</span><small>Home</small></button>
-      <button class="sh-bottom-tab" type="button" data-home-action="projects"><span aria-hidden="true">▣</span><small>Projects</small></button>
-      <button class="sh-bottom-tab" type="button" data-home-action="lessons"><span aria-hidden="true">▤</span><small>Lessons</small></button>
-      <button class="sh-bottom-tab" type="button" data-home-action="activities"><span aria-hidden="true">☷</span><small>Activities</small></button>
-      <button class="sh-bottom-tab" type="button" data-home-action="explorer"><span aria-hidden="true">⌘</span><small>Explore</small></button>
+        <nav class="sh-bottom-nav g8-mobile-nav" aria-label="Student home navigation">
+      <button class="sh-bottom-tab g8-nav-item is-active" type="button" data-home-action="home" aria-label="Home" aria-current="page"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></span><small>Home</small></button>
+      <button class="sh-bottom-tab g8-nav-item" type="button" data-home-action="lessons" aria-label="Lessons"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 6.5c-2.5-2-5.8-2.4-9-1.5v14c3.3-.9 6.5-.5 9 1.5m0-14c2.5-2 5.8-2.4 9-1.5v14c-3.3-.9-6.5-.5-9 1.5zm0 0v14"/></svg></span><small>Lessons</small></button>
+      <button class="sh-bottom-tab g8-nav-item g8-nav-projects" type="button" data-home-action="projects" aria-label="Projects"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span><small>Projects</small></button>
+      <button class="sh-bottom-tab g8-nav-item" type="button" data-home-action="activities" aria-label="Activities"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6M9 11h6M9 15h6"/></svg></span><small>Activities</small></button>
+      <button class="sh-bottom-tab g8-nav-item" type="button" data-home-action="explorer" aria-label="Code Explorer"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m8 8-4 4 4 4m8-8 4 4-4 4m-2-13-4 18"/></svg></span><small>Code Explorer</small></button>
     </nav>
   </div>
 
@@ -1002,12 +1003,12 @@
 
 
     </main>
-    <nav class="mp-unified-bottom-nav" aria-label="My Projects student navigation">
-      <button class="mp-unified-bottom-tab" type="button" data-projects-nav="home"><span aria-hidden="true">⌂</span><small>Home</small></button>
-      <button class="mp-unified-bottom-tab is-active" type="button" data-projects-nav="projects" aria-current="page"><span aria-hidden="true">▣</span><small>Projects</small></button>
-      <button class="mp-unified-bottom-tab" type="button" data-projects-nav="lessons"><span aria-hidden="true">▤</span><small>Lessons</small></button>
-      <button class="mp-unified-bottom-tab" type="button" data-projects-nav="activities"><span aria-hidden="true">☷</span><small>Activities</small></button>
-      <button class="mp-unified-bottom-tab" type="button" data-projects-nav="explorer"><span aria-hidden="true">⌘</span><small>Explore</small></button>
+        <nav class="mp-unified-bottom-nav g8-mobile-nav" aria-label="My Projects student navigation">
+      <button class="mp-unified-bottom-tab g8-nav-item" type="button" data-projects-nav="home" aria-label="Home"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></span><small>Home</small></button>
+      <button class="mp-unified-bottom-tab g8-nav-item" type="button" data-projects-nav="lessons" aria-label="Lessons"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 6.5c-2.5-2-5.8-2.4-9-1.5v14c3.3-.9 6.5-.5 9 1.5m0-14c2.5-2 5.8-2.4 9-1.5v14c-3.3-.9-6.5-.5-9 1.5zm0 0v14"/></svg></span><small>Lessons</small></button>
+      <button class="mp-unified-bottom-tab g8-nav-item g8-nav-projects is-active" type="button" data-projects-nav="projects" aria-label="Projects" aria-current="page"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span><small>Projects</small></button>
+      <button class="mp-unified-bottom-tab g8-nav-item" type="button" data-projects-nav="activities" aria-label="Activities"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6M9 11h6M9 15h6"/></svg></span><small>Activities</small></button>
+      <button class="mp-unified-bottom-tab g8-nav-item" type="button" data-projects-nav="explorer" aria-label="Code Explorer"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m8 8-4 4 4 4m8-8 4 4-4 4m-2-13-4 18"/></svg></span><small>Code Explorer</small></button>
     </nav>
   </div>
 
@@ -1424,13 +1425,13 @@
       <section id="lessonLibraryGrid" class="lesson-library-grid" aria-live="polite"></section>
     </main>
 
-    <nav class="learning-bottom-nav learning-student-only" aria-label="Student learning navigation">
-<button class="learning-bottom-tab" type="button" data-learning-action="home"><span aria-hidden="true">⌂</span><small>Home</small></button>
-<button class="learning-bottom-tab" type="button" data-learning-action="projects"><span aria-hidden="true">▣</span><small>Projects</small></button>
-<button class="learning-bottom-tab is-active" type="button" data-learning-action="lessons" aria-current="page"><span aria-hidden="true">▤</span><small>Lessons</small></button>
-<button class="learning-bottom-tab" type="button" data-learning-action="activities"><span aria-hidden="true">☷</span><small>Activities</small></button>
-<button class="learning-bottom-tab" type="button" data-learning-action="explorer"><span aria-hidden="true">⌘</span><small>Explore</small></button>
-</nav>
+        <nav class="learning-bottom-nav learning-student-only g8-mobile-nav" aria-label="Student learning navigation">
+      <button class="learning-bottom-tab g8-nav-item" type="button" data-learning-action="home" aria-label="Home"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></span><small>Home</small></button>
+      <button class="learning-bottom-tab g8-nav-item is-active" type="button" data-learning-action="lessons" aria-label="Lessons" aria-current="page"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 6.5c-2.5-2-5.8-2.4-9-1.5v14c3.3-.9 6.5-.5 9 1.5m0-14c2.5-2 5.8-2.4 9-1.5v14c-3.3-.9-6.5-.5-9 1.5zm0 0v14"/></svg></span><small>Lessons</small></button>
+      <button class="learning-bottom-tab g8-nav-item g8-nav-projects" type="button" data-learning-action="projects" aria-label="Projects"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span><small>Projects</small></button>
+      <button class="learning-bottom-tab g8-nav-item" type="button" data-learning-action="activities" aria-label="Activities"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6M9 11h6M9 15h6"/></svg></span><small>Activities</small></button>
+      <button class="learning-bottom-tab g8-nav-item" type="button" data-learning-action="explorer" aria-label="Code Explorer"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m8 8-4 4 4 4m8-8 4 4-4 4m-2-13-4 18"/></svg></span><small>Code Explorer</small></button>
+    </nav>
 
     <div id="lessonPdfOverlay" class="lesson-pdf-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="lessonPdfTitle">
       <section id="lessonPdfCard" class="lesson-pdf-card" role="document">
@@ -1509,13 +1510,13 @@
       <section id="givenActivitiesGrid" class="given-activities-grid" aria-live="polite"></section>
     </main>
 
-    <nav class="learning-bottom-nav learning-student-only" aria-label="Student learning navigation">
-<button class="learning-bottom-tab" type="button" data-learning-action="home"><span aria-hidden="true">⌂</span><small>Home</small></button>
-<button class="learning-bottom-tab" type="button" data-learning-action="projects"><span aria-hidden="true">▣</span><small>Projects</small></button>
-<button class="learning-bottom-tab" type="button" data-learning-action="lessons"><span aria-hidden="true">▤</span><small>Lessons</small></button>
-<button class="learning-bottom-tab is-active" type="button" data-learning-action="activities" aria-current="page"><span aria-hidden="true">☷</span><small>Activities</small></button>
-<button class="learning-bottom-tab" type="button" data-learning-action="explorer"><span aria-hidden="true">⌘</span><small>Explore</small></button>
-</nav>
+        <nav class="learning-bottom-nav learning-student-only g8-mobile-nav" aria-label="Student learning navigation">
+      <button class="learning-bottom-tab g8-nav-item" type="button" data-learning-action="home" aria-label="Home"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></span><small>Home</small></button>
+      <button class="learning-bottom-tab g8-nav-item" type="button" data-learning-action="lessons" aria-label="Lessons"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 6.5c-2.5-2-5.8-2.4-9-1.5v14c3.3-.9 6.5-.5 9 1.5m0-14c2.5-2 5.8-2.4 9-1.5v14c-3.3-.9-6.5-.5-9 1.5zm0 0v14"/></svg></span><small>Lessons</small></button>
+      <button class="learning-bottom-tab g8-nav-item g8-nav-projects" type="button" data-learning-action="projects" aria-label="Projects"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span><small>Projects</small></button>
+      <button class="learning-bottom-tab g8-nav-item is-active" type="button" data-learning-action="activities" aria-label="Activities" aria-current="page"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6M9 11h6M9 15h6"/></svg></span><small>Activities</small></button>
+      <button class="learning-bottom-tab g8-nav-item" type="button" data-learning-action="explorer" aria-label="Code Explorer"><span class="g8-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m8 8-4 4 4 4m8-8 4 4-4 4m-2-13-4 18"/></svg></span><small>Code Explorer</small></button>
+    </nav>
 
     <div id="givenActivityViewerOverlay" class="given-activity-viewer-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="givenActivityViewerTitle">
       <section class="given-activity-viewer-card">
@@ -5712,6 +5713,23 @@ https://example.com/song3.mp3"></textarea>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
+  <script id="g8-floating-projects-plus-v40">
+  (() => {
+    'use strict';
+    // Tap 1 from Home/Lessons/Activities: existing navigation opens My Projects.
+    // Tap on My Projects: trigger precisely the same dialog as its New Project button.
+    document.addEventListener('click', (event) => {
+      const plus = event.target.closest('.mp-unified-bottom-nav button.g8-nav-projects[data-projects-nav="projects"]');
+      if (!plus) return;
+      const screen = document.getElementById('studentDashboard');
+      if (!screen || screen.classList.contains('hidden') || !document.body.classList.contains('student-session-active')) return;
+      event.preventDefault();
+      event.stopPropagation(); // Do not invoke the old no-op Projects nav click.
+      const create = document.getElementById('newProjectBtn');
+      if (create && !create.disabled) create.click();
+    }, true);
+  })();
+  </script>
   <script src="student-official-editor-bridge.js?v=20261104-v527-friendly-copy"></script>
   <script>
     // v410 fallback: keep the desktop editor settings popover working even if older cached
