@@ -7,7 +7,7 @@ const gaPhotos=window.G8AnnouncementsPhotoCache;
 const SRC=new URLSearchParams(location.search).get('from');
 const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},catalog:{},pickerType:'lesson',backGuardInstalled:false};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},commentSending:{},commentJustPosted:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},detailPostId:"",detailScrollY:0,detailTrigger:null,detailPreviousOverflow:"",detailUnsubs:[],catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -38,7 +38,7 @@ function sanitizeHtml(html){const parsed=new DOMParser().parseFromString('<main>
  walk(parsed.body.querySelector('main'),output,0);return output.innerHTML.slice(0,16000);
 }
 function plainHtml(html){const x=node('div');x.innerHTML=sanitizeHtml(html);return txt(x.textContent,2000);}
-function cleanup(){while(state.unsubs.length){try{state.unsubs.pop()();}catch{}}while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();state.markObserver=null;closeViewer();gaPhotos.clearMemory();}
+function cleanup(){closePostDialog(true);while(state.unsubs.length){try{state.unsubs.pop()();}catch{}}while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();state.markObserver=null;closeViewer();gaPhotos.clearMemory();}
 async function sdk(){if(state.sdk)return state.sdk;const base=`https://www.gstatic.com/firebasejs/${window.MCS_FIREBASE_SDK_VERSION||'10.12.5'}`;const [a,au,d]=await Promise.all([import(base+'/firebase-app.js'),import(base+'/firebase-auth.js'),import(base+'/firebase-database.js')]);const app=a.getApps().length?a.getApp():a.initializeApp(window.MCS_FIREBASE_CONFIG);state.auth=au.getAuth(app);state.db=d.getDatabase(app,window.MCS_FIREBASE_DATABASE_URL);state.sdk={...d,...au};return state.sdk;}
 function path(p){return state.sdk.ref(state.db,BASE+'/'+p);}
 function on(p,callback,bag=state.unsubs){bag.push(state.sdk.onValue(path(p),s=>callback(s.val()||{}),err=>{console.error('Announcements RTDB:',err);toast(`Announcements permission/connection issue: ${err.message}`,true);setLive('RTDB error');}));}
@@ -55,7 +55,7 @@ function installSmartBack(){
  try{history.pushState({g8AnnouncementsRoleBack:true},'',location.href);window.addEventListener('popstate',goBack);}catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentSending={};state.commentJustPosted={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
 async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Announcements are temporarily unavailable. Please try again later.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
  $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
  if(state.teacher){loadTeacher();loadCatalog();
@@ -373,7 +373,7 @@ function ensurePushPostVisible(){
  }else if(post.audience.type==='all')state.audienceFilter='everyone';
  updateAudienceFilterOptions();
 }
-function render(){ensurePushPostVisible();renderBadges();while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();const feed=$('gaFeed');feed.replaceChildren();const rows=allIds();state.displayedIds=rows.map(r=>r.id);$('gaFeedStatus').textContent=`${rows.length} post${rows.length===1?'':'s'}`;if(!rows.length){const empty=node('div','ga-empty');empty.append(node('strong','',state.filter==='unread'?'All caught up!':'No announcements here yet.'),node('span','',state.teacher?'No posts match this view. Try another section or audience.':'Your teacher’s announcements will appear here.'));feed.append(empty);return;}for(const p of rows)feed.append(renderCard(p));focusPushPost();if(!state.teacher){state.markObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const id=entry.target.dataset.gaPost;setTimeout(()=>{if(!state.user||!entry.target.isConnected||!state.markObserver)return;const r=entry.target.getBoundingClientRect();if(r.top<innerHeight*.8&&r.bottom>innerHeight*.25&&!state.seen[id])state.sdk.set(path(`seen/${state.user.uid}/${id}`),{atMs:Date.now(),publishedAtMs:Number(state.posts[id]?.publishedAtMs||0)}).catch(e=>console.warn('Mark read:',e.message));},900);state.markObserver.unobserve(entry.target);}}},{threshold:.55});for(const card of feed.querySelectorAll('[data-ga-post]'))state.markObserver.observe(card);}}
+function render(){ensurePushPostVisible();renderBadges();while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();const feed=$('gaFeed');feed.replaceChildren();const rows=allIds();state.displayedIds=rows.map(r=>r.id);$('gaFeedStatus').textContent=`${rows.length} post${rows.length===1?'':'s'}`;if(!rows.length){if(state.detailPostId){refreshPostDialog();ensureDetailSubscriptions(false);}const empty=node('div','ga-empty');empty.append(node('strong','',state.filter==='unread'?'All caught up!':'No announcements here yet.'),node('span','',state.teacher?'No posts match this view. Try another section or audience.':'Your teacher’s announcements will appear here.'));feed.append(empty);return;}for(const p of rows)feed.append(renderCard(p));if(state.detailPostId){refreshPostDialog();ensureDetailSubscriptions(rows.some(r=>r.id===state.detailPostId));}focusPushPost();if(!state.teacher){state.markObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const id=entry.target.dataset.gaPost;setTimeout(()=>{if(!state.user||!entry.target.isConnected||!state.markObserver)return;const r=entry.target.getBoundingClientRect();if(r.top<innerHeight*.8&&r.bottom>innerHeight*.25&&!state.seen[id])state.sdk.set(path(`seen/${state.user.uid}/${id}`),{atMs:Date.now(),publishedAtMs:Number(state.posts[id]?.publishedAtMs||0)}).catch(e=>console.warn('Mark read:',e.message));},900);state.markObserver.unobserve(entry.target);}}},{threshold:.55});for(const card of feed.querySelectorAll('[data-ga-post]'))state.markObserver.observe(card);}}
 // Text-only announcements can use a design background. Any attachment switches
 // the post to Facebook-style text + media layout without losing saved design.
 function postBody(p){
@@ -424,15 +424,93 @@ function renderReactorDialog(){
 $('gaReactorsClose').addEventListener('click',closeReactorDialog);
 document.querySelectorAll('[data-ga-close="reactors"]').forEach(b=>b.addEventListener('click',closeReactorDialog));
 $('gaReactorsSearch').addEventListener('input',e=>{state.reactorsSearch=e.target.value.trim();renderReactorDialog();});
-function renderCard(p){
- const card=node('article','ga-card');card.dataset.gaPost=p.id;
+
+// Facebook-style full announcement view for students. This reuses the SAME
+// content, reaction and reply handlers as the feed; no duplicate RTDB listeners.
+function openPostDialog(id,focusComposer=false,trigger=null){
+ if(state.teacher||!state.user||!state.posts[id])return;
+ const p=normalizePost(state.posts[id],id);
+ if(!published(p))return;
+ if(state.detailPostId&&state.detailPostId!==id)closePostDialog(true);
+ if(!state.detailPostId){
+  state.detailScrollY=window.scrollY;
+  state.detailTrigger=trigger||document.activeElement;
+  state.detailPreviousOverflow=document.body.style.overflow;
+  document.body.style.overflow='hidden';
+  document.documentElement.classList.add('ga-post-modal-open');
+ }
+ state.detailPostId=id;
+ state.commentOpen.add(id);state.commentExpanded.add(id);
+ $('gaPostModal').hidden=false;
+ refreshPostDialog(true);
+ if(focusComposer&&window.matchMedia('(min-width:691px)').matches){
+  $('gaPostCommentDock').querySelector('textarea')?.focus({preventScroll:true});
+ }else $('gaPostClose').focus({preventScroll:true});
+}
+function closePostDialog(silent=false){
+ const id=state.detailPostId;
+ if(!id)return;
+ state.detailPostId='';
+ while(state.detailUnsubs.length){try{state.detailUnsubs.pop()();}catch(_){}}
+ state.commentOpen.delete(id);state.commentExpanded.delete(id);state.replyTargets[id]=null;
+ const typing=$('gaPostCommentDock').querySelector('textarea');
+ if(typing)state.commentDrafts[id]=typing.value;
+ $('gaPostModal').hidden=true;
+ $('gaPostDialogBody').replaceChildren();$('gaPostCommentDock').replaceChildren();
+ document.documentElement.classList.remove('ga-post-modal-open');
+ document.body.style.overflow=state.detailPreviousOverflow;
+ if(!silent){
+  window.scrollTo(0,state.detailScrollY);
+  const target=state.detailTrigger?.isConnected?state.detailTrigger
+   :[...document.querySelectorAll('[data-ga-post]')].find(el=>el.dataset.gaPost===id)?.querySelector('.ga-comment-main');
+  target?.focus?.({preventScroll:true});
+ }
+ state.detailTrigger=null;
+}
+function refreshPostDialog(resetScroll=false){
+ const id=state.detailPostId;if(!id)return;
+ const raw=state.posts[id];
+ if(!raw||!published(raw)){closePostDialog();return;}
+ const p=normalizePost(raw,id);
+ const scroll=$('gaPostDialogScroll');const pos=resetScroll?0:scroll.scrollTop;
+ const typing=$('gaPostCommentDock').querySelector('textarea');
+ const refocus=!!typing&&document.activeElement===typing;
+ const caret=refocus?{start:typing.selectionStart,end:typing.selectionEnd}:null;
+ if(typing)state.commentDrafts[id]=typing.value;
+ $('gaPostModalTitle').textContent='ICT Teacher’s post';
+ $('gaPostDialogBody').replaceChildren(renderCard(p,true));
+ scroll.scrollTop=pos;
+ if(refocus){const next=$('gaPostCommentDock').querySelector('textarea');next?.focus({preventScroll:true});if(next&&caret)try{next.setSelectionRange(caret.start,caret.end);}catch(_){}}
+}
+function ensureDetailSubscriptions(isShownInFeed){
+ if(!state.detailPostId||isShownInFeed){
+  while(state.detailUnsubs.length){try{state.detailUnsubs.pop()();}catch(_){}}
+  return;
+ }
+ if(state.detailUnsubs.length)return;
+ const id=state.detailPostId;
+ on(`reactions/${id}`,data=>{state.reactions[id]=data;syncPostDialogEngagement(id);},state.detailUnsubs);
+ on(`replies/${id}`,data=>{state.comments[id]=data;syncPostDialogEngagement(id);},state.detailUnsubs);
+}
+function syncPostDialogEngagement(id){
+ if(id!==state.detailPostId)return;
+ const card=$('gaPostDialogBody').querySelector('.ga-detail-card');
+ if(!card)return;
+ card.__gaRefreshReactions?.();
+ const raw=state.posts[id];if(raw)drawComments(id,card,normalizePost(raw,id));
+}
+$('gaPostClose').addEventListener('click',()=>closePostDialog());
+document.querySelectorAll('[data-ga-close="post"]').forEach(el=>el.addEventListener('click',()=>closePostDialog()));
+
+function renderCard(p,inPostModal=false){
+ const card=node('article','ga-card'+(inPostModal?' ga-detail-card':''));card.dataset.gaPost=p.id;
  const h=node('div','ga-post-head');h.append(node('span','ga-avatar','📣'));
  const author=node('div','ga-post-author');
  author.append(node('strong','',state.teacher?'ICT Teacher · Admin':'ICT Teacher'),node('small','',`${p.status==='scheduled'?'🗓 Scheduled: '+scheduledLabel(p.scheduledForMs):stamp(p.publishedAtMs||p.createdAtMs)}${p.pinned?' · 📌 Pinned':''}${state.teacher?' · '+p.status:''}`));
  h.append(author);
  if(!state.teacher){const n=node('span','ga-post-tag ga-post-new','New');n.dataset.gaPostNew=p.id;n.hidden=!!state.seen[p.id];h.append(n);}
  else{const scope=p.audience.type==='all'?'All sections':p.audience.type==='sections'?`${(p.audience.sections||[]).length} section${(p.audience.sections||[]).length===1?'':'s'}`:'Selected students';const label=node('span','ga-post-tag',scope);label.title=p.audience.type==='sections'?(p.audience.sections||[]).join(', '):scope;h.append(label);}
- card.append(h,postBody(p));renderFiles(p,card);
+ card.append(h,postBody(p));renderFiles(p,card,inPostModal);
  if(published(p)){
   const footer=node('div','ga-post-footer'),totals=node('div','ga-post-totals'),action=node('div','ga-post-actions');
   const reactWrap=node('div','ga-react-wrap');
@@ -473,13 +551,12 @@ function renderCard(p){
   reactButton.addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key===' '&&e.shiftKey){e.preventDefault();showPicker();popup.querySelector('button')?.focus();}});
   reactWrap.append(reactButton,popup);
   const cbtn=node('button','ga-comment-main','💬 Comment');cbtn.type='button';
-  // Comment opens only the composer. Existing comments stay hidden until the
-  // comment count is tapped or the new comment has been posted successfully.
   cbtn.addEventListener('click',()=>{
-   state.commentOpen.add(p.id);
+   if(!state.teacher&&!inPostModal){openPostDialog(p.id,true,cbtn);return;}
+   state.commentOpen.add(p.id);state.commentExpanded.add(p.id);
    drawComments(p.id,card,p);
-   const ta=card.querySelector('.ga-reply-form textarea');
-   if(ta){ta.scrollIntoView({block:'nearest',behavior:'smooth'});ta.focus({preventScroll:true});}
+   const ta=inPostModal?$('gaPostCommentDock').querySelector('textarea'):card.querySelector('.ga-reply-form textarea');
+   if(ta){ta.focus({preventScroll:true});}
    else card.querySelector('.ga-comments')?.scrollIntoView({block:'nearest',behavior:'smooth'});
   });
   action.append(reactWrap,cbtn);footer.append(totals,action);card.append(footer);
@@ -501,10 +578,15 @@ function renderCard(p){
    if(!emojis.children.length)emojis.append(node('span','ga-no-reactions','Be the first to react'));
    const commentCount=Object.keys(comments).length;
    const countButton=node('button','ga-reply-total',commentCount+' comment'+(commentCount===1?'':'s'));
-   countButton.type='button';countButton.setAttribute('aria-controls',comments.id);
+   countButton.type='button';countButton.setAttribute('aria-controls',(!state.teacher&&!inPostModal)?'gaPostModal':comments.id);if(!state.teacher&&!inPostModal)countButton.setAttribute('aria-haspopup','dialog');
    countButton.setAttribute('aria-expanded',String(state.commentExpanded.has(p.id)));
    countButton.setAttribute('aria-label',commentCount+' comment'+(commentCount===1?'':'s')+', '+(state.commentExpanded.has(p.id)?'hide':'view')+' comments');
    countButton.addEventListener('click',()=>{
+    if(!state.teacher&&!inPostModal){openPostDialog(p.id,false,countButton);return;}
+    if(inPostModal){
+     $('gaPostDialogScroll').scrollTo({top:$('gaPostDialogScroll').scrollHeight,behavior:'smooth'});
+     return;
+    }
     const willShow=!state.commentExpanded.has(p.id);
     if(willShow){state.commentExpanded.add(p.id);state.commentOpen.add(p.id);}
     else{state.commentExpanded.delete(p.id);state.commentOpen.delete(p.id);state.replyTargets[p.id]=null;}
@@ -518,19 +600,21 @@ function renderCard(p){
    popup.querySelectorAll('[data-ga-choice]').forEach(btn=>btn.classList.toggle('active',btn.dataset.gaChoice===selected));
   }
   card.__gaRefreshReactions=updateTotals;updateTotals();drawComments(p.id,card,p);
-  on(`reactions/${p.id}`,data=>{state.reactions[p.id]=data;updateTotals();if(state.reactorsPostId===p.id)renderReactorDialog();},state.postUnsubs);
-  on(`replies/${p.id}`,data=>{state.comments[p.id]=data;updateTotals();drawComments(p.id,card,p);},state.postUnsubs);
+  if(!inPostModal){
+   on(`reactions/${p.id}`,data=>{state.reactions[p.id]=data;updateTotals();syncPostDialogEngagement(p.id);if(state.reactorsPostId===p.id)renderReactorDialog();},state.postUnsubs);
+   on(`replies/${p.id}`,data=>{state.comments[p.id]=data;updateTotals();drawComments(p.id,card,p);syncPostDialogEngagement(p.id);},state.postUnsubs);
+  }
  }
  if(state.teacher){const menu=node('div','ga-teacher-menu');for(const [label,action] of [['Edit',()=>openComposer(p)],['Duplicate',()=>openComposer(p,true)],[p.status==='published'?'Archive':p.status==='scheduled'?'Publish Now':'Publish',()=>p.status==='published'?archivePost(p):publishExisting(p)],['Delete',()=>deletePost(p)]]){const b=node('button',label==='Delete'?'danger':'',label);b.type='button';b.addEventListener('click',action);menu.append(b);}card.append(menu);}
  return card;
 }
 let gaPreviewActive=0;const gaPreviewWaiting=[];function withPreviewTurn(fn){return new Promise((resolve,reject)=>{gaPreviewWaiting.push({fn,resolve,reject});pumpPreview();});}function pumpPreview(){while(gaPreviewActive<2&&gaPreviewWaiting.length){const task=gaPreviewWaiting.shift();gaPreviewActive++;Promise.resolve().then(task.fn).then(task.resolve,task.reject).finally(()=>{gaPreviewActive--;pumpPreview();});}}
-function renderFiles(p,card){
+function renderFiles(p,card,inPostModal=false){
  const files=p.attachments||[];if(!files.length)return;
  const host=node('div','ga-card-files');
  const images=files.filter(x=>x.type==='image');
  if(images.length){
-  const preview=images.slice(0,5),n=preview.length;
+  const preview=inPostModal?images:images.slice(0,5),n=inPostModal?'detail':preview.length;
   const gallery=node('div','ga-images ga-images--'+n);gallery.setAttribute('aria-label',`${images.length} announcement photo${images.length===1?'':'s'}`);
   preview.forEach((file,i)=>{
    const btn=node('button','ga-image');btn.type='button';btn.setAttribute('aria-label',`Open photo ${i+1} of ${images.length}`);
@@ -539,7 +623,7 @@ function renderFiles(p,card){
    pending.append(node('span','ga-image-placeholder-icon','▧'),node('span','ga-image-placeholder-caption','Loading photo…'));
    const retry=node('span','ga-image-retry');retry.hidden=true;retry.setAttribute('role','button');retry.setAttribute('tabindex','0');retry.textContent='↻ Retry photo';
    btn.append(img,pending,retry);
-   if(i===4&&images.length>5)btn.append(node('span','ga-more-images','+'+(images.length-5)));
+   if(!inPostModal&&i===4&&images.length>5)btn.append(node('span','ga-more-images','+'+(images.length-5)));
    img.__gaRetry=()=>loadImage(p,file,img);
    btn.addEventListener('click',()=>openFile(p,file));gallery.append(btn);
    const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){observer.disconnect();loadImage(p,file,img);}}, {rootMargin:'500px'});observer.observe(btn);
@@ -558,15 +642,43 @@ function renderFiles(p,card){
  });card.append(host);
 }
 async function react(id,emoji){try{currentUser();const was=state.reactions[id]?.[state.user.uid]===emoji;const r=path(`reactions/${id}/${state.user.uid}`);if(was)await state.sdk.remove(r);else{await state.sdk.set(r,emoji);if(!state.teacher){const reactionCode=emoji==='❤️'?'love':emoji==='🤗'?'care':'like';void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'reaction',reactionCode});}}}catch(e){toast('Could not save reaction: '+e.message,true);}}
+// After a successful comment write, move keyboard/scroll focus to the actual
+// new comment, not back to the composer. Works inside the fixed desktop/mobile
+// post dialog and in the teacher's inline comment list.
+function revealNewComment(id,commentId,card){
+ const inDialog=state.detailPostId===id&&!$('gaPostModal').hidden;
+ const activeCard=inDialog?$('gaPostDialogBody').querySelector('.ga-detail-card'):card;
+ if(!activeCard?.isConnected)return;
+ const row=[...activeCard.querySelectorAll('.ga-comment[data-ga-comment-id]')].find(el=>el.dataset.gaCommentId===commentId);
+ if(!row)return;
+ document.activeElement?.matches?.('textarea')&&document.activeElement.blur();
+ row.tabIndex=-1;
+ row.focus({preventScroll:true});
+ const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+ // Two frames allow the phone viewport to settle after the software keyboard
+ // closes. Scroll ONLY the dialog's scrollable content, not the page behind it.
+ requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  if(!row.isConnected)return;
+  if(inDialog){
+   const scroller=$('gaPostDialogScroll');
+   const y=scroller.scrollTop+row.getBoundingClientRect().top-scroller.getBoundingClientRect().top-16;
+   scroller.scrollTo({top:Math.max(0,y),behavior:reduced?'auto':'smooth'});
+  }else row.scrollIntoView({block:'center',behavior:reduced?'auto':'smooth'});
+ }));
+}
 function drawComments(id,card,p){
  const host=card.querySelector('.ga-comments');if(!host)return;
- const current=host.querySelector('.ga-reply-form textarea');
+ const inPostModal=card.classList.contains('ga-detail-card');
+ const dock=$('gaPostCommentDock');
+ const current=host.querySelector('.ga-reply-form textarea')||(inPostModal?dock.querySelector('textarea'):null);
  const wasTyping=current===document.activeElement;
+ const previouslyFocusedComment=host.contains(document.activeElement)?document.activeElement.closest('.ga-comment')?.dataset.gaCommentId:null;
  const cursor=wasTyping?{start:current.selectionStart,end:current.selectionEnd}:null;
  if(current)state.commentDrafts[id]=current.value;
  host.replaceChildren();
- const expanded=state.commentExpanded.has(id);
- const composerOpen=state.commentOpen.has(id)||expanded;
+ const expanded=inPostModal||state.commentExpanded.has(id);
+ const composerOpen=inPostModal||state.commentOpen.has(id)||expanded;
+ if(!state.teacher&&!inPostModal){host.hidden=true;return;}
  // No text box, names, or comment previews appear until the user chooses to
  // read or write comments. The count on the card remains visible and clickable.
  host.hidden=!composerOpen;
@@ -576,11 +688,18 @@ function drawComments(id,card,p){
   .sort(([keyA,a],[keyB,b])=>Number(b.createdAtMs||0)-Number(a.createdAtMs||0)||keyB.localeCompare(keyA))
   .slice(0,120):[];
  if(expanded){
-  const hide=node('button','ga-more-comments ga-hide-comments','Hide comments');hide.type='button';
-  hide.addEventListener('click',()=>{card.querySelector('.ga-reply-total')?.click();});
-  host.append(hide);
+  if(!inPostModal){
+   const hide=node('button','ga-more-comments ga-hide-comments','Hide comments');hide.type='button';
+   hide.addEventListener('click',()=>{card.querySelector('.ga-reply-total')?.click();});
+   host.append(hide);
+  }
+  if(!all.length)host.append(node('p','ga-empty-comments','No comments yet. Start the conversation.'));
   for(const [rid,c] of all){
-   const row=node('div','ga-comment');const av=node('div','ga-comment-avatar',txt(c.name||'S',1).toUpperCase());
+   const row=node('div','ga-comment');row.dataset.gaCommentId=rid;
+   if(state.commentJustPosted[id]?.key===rid&&Date.now()<state.commentJustPosted[id].until){
+    row.classList.add('ga-comment--just-posted');row.tabIndex=-1;row.setAttribute('aria-label','Your newly posted comment');
+   }
+   const av=node('div','ga-comment-avatar',txt(c.name||'S',1).toUpperCase());
    const content=node('div','ga-comment-content'),bubble=node('div','ga-comment-bubble');
    const who=commentDisplayIdentity(c);const identityLine=node('div','ga-comment-identity');identityLine.append(node('strong','',who.name));
    if(who.section)identityLine.append(node('small','ga-comment-section',who.section));else if(c.uid!==state.user?.uid)identityLine.append(node('small','ga-comment-section ga-comment-section--unknown','Section not recorded'));
@@ -590,7 +709,7 @@ function drawComments(id,card,p){
    const tools=node('div','ga-comment-tools');tools.append(node('small','',stamp(c.createdAtMs)));
    if(p.allowReplies||state.teacher){
     const reply=node('button','','Reply');reply.type='button';
-    reply.addEventListener('click',()=>{state.replyTargets[id]={id:rid,name:c.name};state.commentOpen.add(id);drawComments(id,card,p);host.querySelector('textarea')?.focus({preventScroll:true});});tools.append(reply);
+    reply.addEventListener('click',()=>{state.replyTargets[id]={id:rid,name:c.name};state.commentOpen.add(id);drawComments(id,card,p);(inPostModal?dock:host).querySelector('textarea')?.focus({preventScroll:true});});tools.append(reply);
    }
    if(state.teacher||c.uid===state.user.uid){const del=node('button','','Remove');del.type='button';del.addEventListener('click',async()=>{if(!confirm('Remove this comment?'))return;try{await state.sdk.remove(path(`replies/${id}/${rid}`));}catch(e){toast(e.message,true);}});tools.append(del);}
    content.append(tools);row.append(av,content);host.append(row);
@@ -607,9 +726,15 @@ function drawComments(id,card,p){
  }
  const entry=node('div','ga-comment-entry'),ta=node('textarea');ta.maxLength=1200;ta.rows=1;ta.placeholder=state.replyTargets[id]?.id?'Write a reply…':'Write a comment…';ta.value=state.commentDrafts[id]||'';
  ta.addEventListener('input',()=>{state.commentDrafts[id]=ta.value;});
- const send=node('button','','➤');send.type='submit';send.setAttribute('aria-label','Post comment');entry.append(ta,send);composer.append(entry);form.append(av,composer);
+ const send=node('button','','➤');send.type='submit';send.setAttribute('aria-label','Post comment');
+ send.disabled=!!state.commentSending[id];ta.readOnly=!!state.commentSending[id];
+ entry.append(ta,send);composer.append(entry);form.append(av,composer);
  form.addEventListener('submit',async e=>{
-  e.preventDefault();const value=txt(ta.value,1200);if(!value)return;send.disabled=true;
+  e.preventDefault();
+  const value=txt(ta.value,1200);if(!value||state.commentSending[id])return;
+  // The live RTDB listener can redraw the composer before set() resolves.
+  // Guard the post across those redraws to prevent accidental double-send.
+  state.commentSending[id]=true;send.disabled=true;ta.readOnly=true;
   try{
    const key=state.sdk.push(path(`replies/${id}`)).key;
    const comment={uid:state.user.uid,name:txt(state.teacher?'ICT Teacher':state.profile?.name||'Student',80),text:value,createdAtMs:Date.now()};
@@ -617,18 +742,40 @@ function drawComments(id,card,p){
    if(state.replyTargets[id]?.id)comment.replyTo=state.replyTargets[id].id;
    await state.sdk.set(path(`replies/${id}/${key}`),comment);
    if(!state.teacher)void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'comment',commentId:key});
-   // Show the newly saved comment immediately, even if the realtime callback
-   // arrives after the write acknowledgement. Never prepend on a failed save.
    if(!state.comments[id])state.comments[id]={};
    state.comments[id][key]=comment;
-   state.commentDrafts[id]='';ta.value='';state.replyTargets[id]=null;
+   state.commentSending[id]=false;
+   // IMPORTANT: clear the CURRENT live textarea, not just `ta` from the
+   // original submit closure (which may already be detached after RTDB sync).
+   const liveCard=inPostModal?$('gaPostDialogBody').querySelector('.ga-detail-card'):
+    ([...$('gaFeed').querySelectorAll('[data-ga-post]')].find(el=>el.dataset.gaPost===id)||card);
+   const liveInput=(inPostModal?dock:liveCard?.querySelector('.ga-comments'))?.querySelector('.ga-reply-form textarea');
+   if(liveInput){liveInput.value='';liveInput.blur();}
+   ta.value='';state.commentDrafts[id]='';state.replyTargets[id]=null;
    state.commentOpen.add(id);state.commentExpanded.add(id);
-   drawComments(id,card,p);
-   const countButton=card.querySelector('.ga-reply-total');
+   state.commentJustPosted[id]={key,until:Date.now()+3500};
+   if(liveCard?.isConnected){drawComments(id,liveCard,p);liveCard.__gaRefreshReactions?.();}
+   if(inPostModal){const feedCard=[...$('gaFeed').querySelectorAll('[data-ga-post]')].find(el=>el.dataset.gaPost===id);feedCard?.__gaRefreshReactions?.();}
+   else syncPostDialogEngagement(id);
+   const countButton=liveCard?.querySelector('.ga-reply-total');
    if(countButton)countButton.setAttribute('aria-expanded','true');
-  }catch(err){toast('Comment not saved: '+err.message,true);}finally{send.disabled=false;}
- });host.append(form);
+   requestAnimationFrame(()=>revealNewComment(id,key,liveCard));
+  }catch(err){
+   state.commentSending[id]=false;
+   const liveCard=inPostModal?$('gaPostDialogBody').querySelector('.ga-detail-card'):card;
+   if(liveCard?.isConnected)drawComments(id,liveCard,p);
+   toast('Comment not saved: '+err.message,true);
+  }finally{
+   state.commentSending[id]=false;
+   const activeForm=(inPostModal?dock:card.querySelector('.ga-comments'))?.querySelector('.ga-reply-form');
+   if(activeForm){const activeSend=activeForm.querySelector('button[type="submit"]');const activeInput=activeForm.querySelector('textarea');if(activeSend)activeSend.disabled=false;if(activeInput)activeInput.readOnly=false;}
+  }
+ });if(inPostModal)dock.replaceChildren(form);else host.append(form);
  if(wasTyping){ta.focus({preventScroll:true});if(cursor)try{ta.setSelectionRange(cursor.start,cursor.end);}catch(_){}}
+ if(previouslyFocusedComment){
+  const same=[...host.querySelectorAll('.ga-comment[data-ga-comment-id]')].find(el=>el.dataset.gaCommentId===previouslyFocusedComment);
+  same?.focus({preventScroll:true});
+ }
 }
 
 function openCourseItem(file,postId){
@@ -1115,6 +1262,11 @@ async function openFile(p,f){
 }
 window.addEventListener('resize',()=>{if(gaGalleryUI){gaGalleryMeasure();if(!gaGalleryAnimating)gaGalleryOffset(0,false);}});
 $('gaViewerDownload').addEventListener('click',()=>{if(!state.viewerFile)return;const a=node('a');a.href=state.viewerFile.url;a.download=state.viewerFile.name;a.click();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('gaReactorsModal').hidden)closeReactorDialog();else if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaResourcePicker').hidden)closeResourcePicker();else if(!$('gaComposerModal').hidden)closeComposer();}else if(!$('gaViewerModal').hidden&&state.viewerGallery.length>1){if(e.key==='ArrowRight')changeGallery(1);else if(e.key==='ArrowLeft')changeGallery(-1);}});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Tab'&&!$('gaPostModal').hidden&&$('gaViewerModal').hidden){
+  const buttons=[...$('gaPostModal').querySelectorAll('button:not([disabled]),a[href],textarea:not([disabled]),input:not([disabled])')].filter(el=>el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
+  if(buttons.length){const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+ }
+ if(e.key==='Escape'){if(!$('gaReactorsModal').hidden)closeReactorDialog();else if(!$('gaViewerModal').hidden)closeViewer();else if(!$('gaResourcePicker').hidden)closeResourcePicker();else if(!$('gaComposerModal').hidden)closeComposer();else if(!$('gaPostModal').hidden)closePostDialog();}else if(!$('gaViewerModal').hidden&&state.viewerGallery.length>1){if(e.key==='ArrowRight')changeGallery(1);else if(e.key==='ArrowLeft')changeGallery(-1);}});
 void boot();
 })();

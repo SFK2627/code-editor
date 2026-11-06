@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark"><title>Announcements · G8Code</title>
-<link rel="icon" href="favicon.png"><link rel="stylesheet" href="announcements.css?v=810-scheduled-publish">
+<link rel="icon" href="favicon.png"><link rel="stylesheet" href="announcements.css?v=810-scheduled-publish"><link rel="stylesheet" href="announcements-post-modal.css?v=836-comment-focus">
 <script src="firebase-config.js"></script><script src="g8code-messages-drive-config.js"></script>
 <script src="announcements-photo-cache.js?v=529" defer></script>
 <script defer src="g8code-push-config.js?v=2"></script>
-<script defer src="g8code-push.js?v=739-smart-student-alerts"></script>
-<script src="announcements.js?v=821-all-announcements" defer></script>
+<script defer src="g8code-push.js?v=736-announcement-engagement"></script>
+<script src="announcements.js?v=836-comment-focus" defer></script>
 </head>
 <body>
 <div class="ga-app" id="gaApp">
@@ -21,6 +21,14 @@
  <p class="ga-smallprint ga-audience-filter-hint" id="gaAudienceFilterHint">Showing every announcement across all audiences and publication statuses.</p>
  
  </div><div id="gaFeed" class="ga-feed" aria-live="polite"></div><p id="gaFeedMore" class="ga-footnote">Only announcements meant for your account are shown.</p></main>
+</div>
+<div class="ga-modal ga-post-modal" id="gaPostModal" role="dialog" aria-modal="true" aria-labelledby="gaPostModalTitle" hidden>
+ <div class="ga-modal-backdrop" data-ga-close="post"></div>
+ <section class="ga-post-dialog" aria-label="Announcement and comments">
+  <header class="ga-post-dialog-header"><strong id="gaPostModalTitle">ICT Teacher’s post</strong><button type="button" id="gaPostClose" aria-label="Close full announcement">×</button></header>
+  <div id="gaPostDialogScroll" class="ga-post-dialog-scroll" tabindex="0"><div id="gaPostDialogBody"></div></div>
+  <footer id="gaPostCommentDock" class="ga-post-comment-dock" aria-label="Write a comment"></footer>
+ </section>
 </div>
 <div class="ga-modal" id="gaComposerModal" role="dialog" aria-modal="true" aria-labelledby="gaComposeTitle" hidden><div class="ga-modal-backdrop" data-ga-close="composer"></div><section class="ga-compose-dialog"><header class="ga-dialog-header"><div><small>TEACHER POST CREATOR</small><h2 id="gaComposeTitle">Create announcement</h2></div><button type="button" id="gaComposeClose" aria-label="Close announcement editor">×</button></header><div class="ga-compose-scroll"><div class="ga-compose-content">
 <label class="ga-field"><span>Announcement title</span><input id="gaPostTitle" maxlength="140" placeholder="e.g. ICT 8 — Weekly Reminders" required></label>

@@ -1,0 +1,54 @@
+/* Student announcement full-post dialog (G8Code V3.5). Scoped: no Admin composer changes. */
+html.ga-post-modal-open { overflow: hidden; }
+#gaPostModal { z-index: 65; padding: 18px; }
+#gaPostModal .ga-modal-backdrop { background: rgba(6, 11, 25, .69); backdrop-filter: blur(5px); }
+.ga-post-dialog { position: relative; display:flex; flex-direction:column; width:min(760px,100%); height:min(790px,calc(100dvh - 36px)); min-height:0; overflow:hidden; background:var(--ga-surface); color:var(--ga-ink); border:1px solid var(--ga-border); border-radius:16px; box-shadow:0 24px 70px rgba(0,0,0,.39); }
+.ga-post-dialog-header { flex:0 0 auto; min-height:62px; padding:12px 18px; position:relative; display:flex; align-items:center; justify-content:center; border-bottom:1px solid var(--ga-border); background:var(--ga-surface); }
+.ga-post-dialog-header strong { display:block; padding:0 48px; max-width:100%; font-size:18px; font-weight:750; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ga-post-dialog-header button { position:absolute; right:13px; top:50%; transform:translateY(-50%); display:grid; place-items:center; border:0; background:var(--ga-raised); color:var(--ga-ink); width:36px; height:36px; border-radius:50%; font-size:25px; line-height:1; }
+.ga-post-dialog-header button:hover { filter:brightness(.94); }
+.ga-post-dialog-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
+.ga-post-dialog-scroll .ga-card { border:0; border-radius:0; box-shadow:none; margin:0; background:transparent; }
+.ga-post-dialog-scroll .ga-card .ga-post-head { padding-top:15px; }
+.ga-post-dialog-scroll .ga-post-new { display:none; }
+.ga-post-dialog-scroll .ga-card-files { width:100%; }
+.ga-post-dialog-scroll .ga-images--detail { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; overflow:hidden; border-radius:10px; }
+.ga-post-dialog-scroll .ga-images--detail .ga-image { height:clamp(155px,21vw,285px); }
+.ga-post-dialog-scroll .ga-images--detail .ga-image:only-child { grid-column:1/-1; height:auto; min-height:220px; max-height:460px; aspect-ratio:16/10; }
+.ga-post-dialog-scroll .ga-image:only-child img { object-fit:contain; background:var(--ga-raised); }
+.ga-post-dialog-scroll .ga-comments { border-top:1px solid var(--ga-border); padding:16px 20px 22px; gap:13px; }
+.ga-post-dialog-scroll .ga-comment { align-items:start; }
+.ga-post-dialog-scroll .ga-comment-bubble { max-width:100%; }
+.ga-empty-comments { font-size:12px; color:var(--ga-muted); text-align:center; margin:8px 0; }
+.ga-post-comment-dock { flex:0 0 auto; padding:12px 16px max(12px,env(safe-area-inset-bottom)); background:var(--ga-surface); border-top:1px solid var(--ga-border); }
+.ga-post-comment-dock:empty { display:none; }
+.ga-post-comment-dock .ga-reply-form { width:100%; display:flex; align-items:flex-end; gap:10px; }
+.ga-post-comment-dock .ga-comment-avatar { flex:0 0 34px; }
+.ga-post-comment-dock .ga-comment-composer { flex:1; min-width:0; }
+.ga-post-comment-dock .ga-comment-entry { width:100%; }
+.ga-post-comment-dock .ga-comment-entry textarea { min-height:36px; max-height:110px; font-size:13px; }
+#gaViewerModal { z-index: 80; }
+@media (max-width:690px) {
+ #gaPostModal { padding:0; }
+ .ga-post-dialog { width:100%; height:100dvh; max-height:none; border:0; border-radius:0; }
+ .ga-post-dialog-header { min-height:58px; padding:10px 12px; }
+ .ga-post-dialog-header strong { font-size:16px; }
+ .ga-post-dialog-header button { right:11px; width:34px; height:34px; }
+ .ga-post-dialog-scroll { scrollbar-gutter:auto; }
+ .ga-post-dialog-scroll .ga-images--detail .ga-image { height:150px; }
+ .ga-post-dialog-scroll .ga-images--detail .ga-image:only-child { height:auto; min-height:195px; max-height:360px; }
+ .ga-post-dialog-scroll .ga-comments { padding:12px 13px 17px; }
+ .ga-post-comment-dock { padding:9px 11px max(9px,env(safe-area-inset-bottom)); }
+ .ga-post-comment-dock .ga-reply-form { gap:8px; }
+ .ga-post-comment-dock .ga-comment-avatar { flex-basis:30px; height:30px; width:30px; }
+}
+
+/* V3.6: newly sent comments move to the top and briefly highlight there. */
+.ga-comment[data-ga-comment-id]{scroll-margin-block-start:16px}
+.ga-comment--just-posted:focus{outline:none}
+.ga-comment--just-posted .ga-comment-bubble{animation:ga-new-comment-focus 3.5s ease-out both}
+@keyframes ga-new-comment-focus{
+  0%,45%{box-shadow:0 0 0 2px var(--ga-primary)}
+  100%{box-shadow:0 0 0 0 transparent}
+}
+@media (prefers-reduced-motion:reduce){.ga-comment--just-posted .ga-comment-bubble{animation:none;box-shadow:0 0 0 2px var(--ga-primary)}}
