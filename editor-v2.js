@@ -245,7 +245,7 @@ function normalizePreviewLink(raw,currentPage=state.previewPage){
 }
 // V2.41: diagnostics are sourced from the opaque preview iframe only.
 // Never execute a student's logs or permit diagnostics to access the parent app.
-const studioConsole={entries:[],diagnostics:new Map(),errors:0,open:false,run:0,limit:90,raf:0,filter:'all'};
+const studioConsole={entries:[],diagnostics:new Map(),errors:0,open:false,run:0,limit:90,raf:0,filter:'all',visible:120};
 let diagnosticTimer=null;
 function explainStudioIssue(message){
  const s=String(message||'');
@@ -361,14 +361,14 @@ function renderStudioConsole(){
  const everything=[...diagnostics,...studioConsole.entries];
  const combined=everything.filter(item=>studioConsole.filter==='all'||(item.language||'js')===studioConsole.filter);
  if(!combined.length){const el=document.createElement('p');el.className='studio-console-empty';el.textContent=everything.length?'No '+studioConsole.filter.toUpperCase()+' messages. Try All.':'No issues found. Edit a file or run the preview to check again.';frag.append(el)}
- for(const item of combined){
+ for(const item of combined.slice(0,studioConsole.visible)){
   const row=document.createElement('div');row.className='studio-console-entry level-'+item.level;
   const heading=document.createElement('div');heading.className='studio-console-entry-head';
   const type=document.createElement('strong');type.textContent=item.level==='error'?'Error':item.level==='warn'?'Warning':item.level==='info'?'Info':'Log';heading.append(type);
   if(item.file){
    const jump=document.createElement('button');jump.type='button';jump.className='studio-console-jump';
-   jump.dataset.diagLang=item.language;jump.dataset.diagFile=item.file;jump.dataset.diagLine=String(item.line||1);
-   jump.textContent=item.file+':'+(item.line||1);jump.title='Open this location in the editor';
+   jump.dataset.diagLang=item.sourceLang||item.language;jump.dataset.diagFile=item.file;jump.dataset.diagLine=String(item.line||1);jump.dataset.diagCol=String(item.column||1);
+   jump.textContent=item.file+':'+(item.line||1)+(item.column?':'+item.column:'');jump.title='Open this location in the editor';
    heading.append(jump);
   } else {const time=document.createElement('span');time.textContent=item.time;heading.append(time);}
   row.append(heading);
@@ -384,6 +384,7 @@ function renderStudioConsole(){
   }
   frag.append(row);
  }
+ if(combined.length>studioConsole.visible){const show=document.createElement('button');show.type='button';show.className='studio-console-jump';show.textContent=`Show more (${combined.length-studioConsole.visible} remaining)`;show.addEventListener('click',()=>{studioConsole.visible+=120;scheduleStudioConsolePaint()});frag.append(show);}
  log.replaceChildren(frag);
  studioConsole.errors=combined.filter(e=>e.level==='error').length;
  const warnings=combined.filter(e=>e.level==='warn').length;
@@ -413,15 +414,16 @@ function scheduleSourceDiagnostics(immediate=false){
   }
   studioConsole.diagnostics=next;
   scheduleStudioConsolePaint();
- },immediate?0:430);
+ },immediate?0:560);
 }
 function clearSourceDiagnostics(){clearTimeout(diagnosticTimer);studioConsole.diagnostics.clear();scheduleSourceDiagnostics(true)}
-function jumpToDiagnostic(lang,name,line){
+function checkAllStudioIssues(){scheduleSourceDiagnostics(true);setStudioConsoleOpen(true);toast('Checking HTML5, CSS and JavaScript in all project files.');}
+function jumpToDiagnostic(lang,name,line,column=1){
  if(!GROUP[lang] || !fileMap(lang)?.hasOwnProperty(name))return;
  switchFile(lang,name);
  const rows=input.value.split('\n'),n=clamp(Number(line)||1,1,rows.length);
  const position=rows.slice(0,n-1).reduce((total,row)=>total+row.length+1,0);
- input.focus({preventScroll:true});input.setSelectionRange(position,Math.min(input.value.length,position+rows[n-1].length));
+ const exact=position+clamp(Number(column)||1,1,(rows[n-1]||'').length+1)-1;input.focus({preventScroll:true});input.setSelectionRange(exact,Math.min(input.value.length,exact+Math.min(14,Math.max(1,rows[n-1].length-(exact-position)))));
  const lh=parseFloat(getComputedStyle(input).lineHeight)||20;
  input.scrollTop=Math.max(0,(n-3)*lh);refreshCursor();
  if(matchMedia('(max-width:700px)').matches)setStudioConsoleOpen(false);
@@ -443,14 +445,15 @@ function setStudioConsoleOpen(open){
  if(studioConsole.open){if(matchMedia('(max-width:700px)').matches && state.mobileTab==='preview' && !document.body.dataset.immersive)setMobileTab('code');scheduleStudioConsolePaint()}
 }
 function installStudioConsole(){
- $('studioConsoleFilter')?.addEventListener('change',e=>{studioConsole.filter=e.target.value;scheduleStudioConsolePaint()});
+ $('studioConsoleFilter')?.addEventListener('change',e=>{studioConsole.filter=e.target.value;studioConsole.visible=120;scheduleStudioConsolePaint()});
+ $('studioConsoleCheckAll')?.addEventListener('click',checkAllStudioIssues);
  $('studioConsoleToggle')?.addEventListener('click',()=>setStudioConsoleOpen(!studioConsole.open));
  $('studioPreviewConsoleToggle')?.addEventListener('click',()=>setStudioConsoleOpen(true));
  $('studioConsoleClose')?.addEventListener('click',()=>setStudioConsoleOpen(false));
  $('studioConsoleClear')?.addEventListener('click',clearStudioConsole);
  $('studioConsoleLog')?.addEventListener('click',e=>{
   const b=e.target.closest('[data-diag-lang]');if(!b)return;
-  jumpToDiagnostic(b.dataset.diagLang,b.dataset.diagFile,b.dataset.diagLine);
+  jumpToDiagnostic(b.dataset.diagLang,b.dataset.diagFile,b.dataset.diagLine,b.dataset.diagCol);
  });
  const drag=$('studioConsoleDrag'),panel=$('studioConsolePanel');let pointer=null;
  drag?.addEventListener('pointerdown',e=>{if(e.target.closest('button')||!panel||matchMedia('(max-width:700px)').matches)return;pointer={y:e.clientY,h:panel.getBoundingClientRect().height,id:e.pointerId};drag.setPointerCapture(e.pointerId)});

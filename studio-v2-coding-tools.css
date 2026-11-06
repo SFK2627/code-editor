@@ -112,3 +112,23 @@ body[data-appearance="dark"] .studio-console-trigger.has-errors{color:#ffacba}
 .studio-console-filter-label select{min-height:28px;max-width:108px;padding:3px 5px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:inherit}
 .studio-console-header #studioConsoleSummary{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:520px){.studio-console-filter-label{font-size:0}.studio-console-filter-label select{font-size:11px;max-width:100px}.studio-console-header{gap:5px;padding:6px}.studio-console-header #studioConsoleSummary{font-size:10px}}
+
+/* G8Code Studio V2.8 — keep comprehensive diagnostics controls usable on phones. */
+.studio-console-header #studioConsoleCheckAll {
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--brand);
+}
+.studio-console-entry.level-info { border-left-color: #6188b0; }
+.studio-console-entry .studio-console-jump { flex: 0 1 auto; }
+@media (max-width: 700px) {
+  .studio-console-header { flex-wrap: wrap; height: auto; min-height: 48px; column-gap: 6px; row-gap: 5px; touch-action: pan-x; }
+  .studio-console-header strong { margin-right: auto; }
+  .studio-console-header #studioConsoleCheckAll { padding: 5px 7px; font-size: 10px; min-height: 28px; }
+  .studio-console-header .studio-console-filter-label { order: 4; }
+  .studio-console-header #studioConsoleSummary { order: 5; flex: 1 1 80px; font-size: 10px; }
+  .studio-console-header #studioConsoleClear { order: 6; }
+  .studio-console-header #studioConsoleClose { order: 7; }
+  .studio-console-panel { height: min(56dvh, 390px); }
+  .studio-console-entry .studio-console-jump { max-width: 68%; }
+}
