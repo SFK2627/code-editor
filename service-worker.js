@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v739-smart-student-alerts';
+const CACHE_NAME = 'ict8-connect-v740-smart-replies-reactions';
 const APP_SHELL = [
   './',
   './index.html',
@@ -196,9 +196,20 @@ self.addEventListener('push',event=>{
   }
   const itemId=String(data.itemId||'');
   const validItem=/^[A-Za-z0-9_-]{1,128}$/.test(itemId);
+  // Older sender versions sometimes omitted acknowledgment metadata. Its fixed
+  // ack_<sha256> event ID is still distinct from an ordinary new message.
+  const legacyAck=/^ack_[a-f0-9]{64}$/.test(String(data.eventId||''));
+  const eventKind=String(data.notificationKind||'')||(legacyAck?'ack':'');
+  const reactionEmojis={heart:'❤️',laugh:'😂',wow:'😮',sad:'😢',angry:'😡',like:'👍'};
+  const reactionEmoji=eventKind==='reaction'?reactionEmojis[String(data.reactionCode||'')]||'':'';
+  const replyObject=['message','photo','project'].includes(String(data.replyObject||''))?String(data.replyObject):'message';
+  const reactedObject=['message','photo','project'].includes(String(data.reactedObject||''))?String(data.reactedObject):'message';
+  const kindObject=kind=>kind==='photo'?'photo':kind==='project'?'shared project':'message';
+  const focusId=String(data.focusMessageId||'');
+  const focusQuery=/^[A-Za-z0-9_-]{6,120}$/.test(focusId)?`&g8mFocus=${encodeURIComponent(focusId)}`:'';
   const destination=recipientRole==='teacher'&&type==='announcements'?`./announcements.html?from=admin&gaPost=${encodeURIComponent(itemId)}&gaEngagement=${String(data.engagementType||'')==='comment'?'comment':'reaction'}`
-    :recipientRole==='teacher'?`./messages.html?from=admin&student=${encodeURIComponent(chatUid)}`
-    :type==='messages'?'./messages.html?from=student'
+    :recipientRole==='teacher'?`./messages.html?from=admin&student=${encodeURIComponent(chatUid)}${focusQuery}`
+    :type==='messages'?`./messages.html?from=student${focusQuery?'?'+focusQuery.slice(1):''}`
     :type==='announcements'?'./announcements.html?from=student'
     :validItem?`./index.html?g8mBack=student&gaOpen=${type==='lessons'?'lesson':'activity'}&gaItem=${encodeURIComponent(itemId)}`
     :'./index.html';
@@ -228,7 +239,10 @@ self.addEventListener('push',event=>{
    :reactionCode==='love'?'❤️ Loved your announcement'+announcementRef+'.'
    :reactionCode==='care'?'🤗 Reacted with care to your announcement'+announcementRef+'.'
    :'👍 Liked your announcement'+announcementRef+'.';
-  const adviserBody=adviserKind==='project'?'Shared a project with you.'
+  const adviserBody=eventKind==='reaction'&&reactionEmoji
+   ?`Reacted ${reactionEmoji} to your ${kindObject(reactedObject)}.`
+   :eventKind==='reply'?`Replied to your ${kindObject(replyObject)}.`
+   :adviserKind==='project'?'Shared a project with you.'
    :adviserKind==='photo'?(photoCount>1?`Sent you ${photoCount} photos.`:'Sent you a photo.')
    :'Sent you a message.';
   // Lesson/activity titles are supplied by server-verified teacher-only metadata.
@@ -254,13 +268,22 @@ self.addEventListener('push',event=>{
    :(studentPhotoCount>1?'Your photos':'Your photo');
   const studentAckBody=ackStatus==='checked'?`${ackObject} was marked Checked. Check Messenger for your teacher’s score or feedback.`
    :`${ackObject} was marked Received by your teacher.`;
+  const studentEventBody=eventKind==='reaction'&&reactionEmoji
+   ?`Your teacher reacted ${reactionEmoji} to your ${kindObject(reactedObject)}.`
+   :eventKind==='reply'?`Your teacher replied to your ${kindObject(replyObject)}.`
+   :studentMessageBody;
+  // Explicit acknowledgment beats the source object's photo/project category.
+  // If an ack-tagged event is missing its verified status, never mislabel it
+  // as a new photo or project share.
+  const safeStudentAckBody=(eventKind==='ack'&&!ackStatus)
+   ?'Your teacher updated a submission in Messenger.':studentAckBody;
   const noticeTitle=recipientRole==='teacher'?adviserTitle:
    learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):
-   type==='announcements'?'New Announcement Posted!':ackStatus?(ackStatus==='checked'?'Submission Checked':'Submission Received'):'G8Code Messages';
+   type==='announcements'?'New Announcement Posted!':ackStatus?(ackStatus==='checked'?'Submission Checked':'Submission Received'):eventKind==='ack'?'Submission Updated':'G8Code Messages';
   const noticeBody=recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):
    learningAlert?(learningTitle||pushLabels[type]):
    type==='announcements'?(studentAnnouncementTitle||pushLabels.announcements):
-   ackStatus?studentAckBody:studentMessageBody;
+   eventKind==='ack'?safeStudentAckBody:studentEventBody;
   try{
   await self.registration.showNotification(noticeTitle,{
    body:noticeBody,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',

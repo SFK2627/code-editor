@@ -242,6 +242,43 @@ async function queueStudentMessage(event){
  }
 }
 // Student announcement reactions/comments: trusted server rechecks saved event.
+// Push only after the actual RTDB reaction was saved. The FCM sender
+// independently verifies the original author's identity and current emoji.
+const MESSAGE_REACTION_CODES=Object.freeze({'❤️':'heart','😂':'laugh','😮':'wow','😢':'sad','😡':'angry','👍':'like'});
+async function queueMessageReaction(event){
+ try{
+  await (state.ready||init());
+  const account=state.auth?.currentUser;
+  if(!account||!publicKey())return false;
+  const chatUid=String(event?.chatUid||''),itemId=String(event?.messageId||'');
+  const reactionCode=MESSAGE_REACTION_CODES[String(event?.emoji||'')]||'';
+  if(!validId(chatUid)||!validId(itemId)||!reactionCode)return false;
+  const actingTeacher=teacherEmails().has(String(account.email||'').toLowerCase());
+  if(!actingTeacher&&chatUid!==account.uid)return false;
+  const eventId=(actingTeacher?'rt_':'rs_')+(actingTeacher?chatUid:account.uid)+'_'+itemId+'_'+reactionCode;
+  if(!validId(eventId))return false;
+  const record={type:'messages',notificationKind:'reaction',reactionCode,itemId,
+   createdByUid:account.uid,createdAtMs:Date.now(),status:'pending',
+   audience:actingTeacher?'uid':'teacher'};
+  if(actingTeacher)record.targetUid=chatUid;
+  else record.chatUid=chatUid;
+  const eventRef=state.database.ref(state.db,`${ROOT}/outbox/${eventId}`);
+  if(actingTeacher){
+   // Teacher can read this path. A transaction prevents duplicate alerts when
+   // the same emoji is selected again; student writes stay create-only.
+   const result=await state.database.runTransaction(eventRef,old=>old===null?record:undefined,{applyLocally:false});
+   if(!result.committed)return true;
+  }else{
+   await state.database.set(eventRef,record);
+  }
+  void nudgeImmediateSender(account,eventId);
+  return true;
+ }catch(_){
+  // The reaction remains saved even if the optional push queue fails.
+  console.info('Message reaction saved; phone alert unavailable or previously sent.');
+  return false;
+ }
+}
 async function queueAnnouncementEngagement(event){
  try{
   await (state.ready||init());
@@ -357,6 +394,6 @@ async function init(){
  })().catch(err=>{state.lastError=err?.message||'Push setup unavailable';render();});
  return state.ready;
 }
-window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,queueAnnouncementEngagement,refresh:render});
+window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,queueMessageReaction,queueAnnouncementEngagement,refresh:render});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{void init();},{once:true});else void init();
 })();

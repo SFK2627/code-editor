@@ -50,6 +50,10 @@ const BASE = 'g8MessagesV1';
 // Entry source is explicit, not inferred from history or the signed-in role.
 // from=login: learn shortcut (teacher-only). from=admin: Admin V2.
 const g8mEntrySource = new URLSearchParams(location.search).get('from');
+let g8mPendingPushFocus = (()=>{
+ const id=new URLSearchParams(location.search).get('g8mFocus')||'';
+ return /^[A-Za-z0-9_-]{6,120}$/.test(id)?id:'';
+})();
 const g8mTeacherShortcut = g8mEntrySource === 'login';
 const g8mTeacherEntry = g8mEntrySource === 'admin' || g8mTeacherShortcut;
 // Accept original images up to 30 MB; optimize large photos client-side before
@@ -925,6 +929,11 @@ function openChat(uid){
   if(uid!==openedUid)return;
   try{
    displayMessagesFromSnapshot(snap,uid);
+   if(g8mPendingPushFocus){
+    const focusId=g8mPendingPushFocus;g8mPendingPushFocus='';
+    // The message timeline is rendered before selecting the referenced bubble.
+    setTimeout(()=>{if(openedUid===uid)void jumpToQuotedMessage(focusId);},400);
+   }
    markSeen(uid).catch(err=>console.warn('Seen sync:',err));
   }catch(error){
    console.error('Messages render error:',error);
@@ -1552,7 +1561,16 @@ async function reactToMessage(id,emoji){
  const old=activeReactions[id]?.[user.uid]||'';
  closeReactionPicker();
  try{
-  if(old===emoji)await remove(refPath);else await set(refPath,emoji);
+  if(old===emoji)await remove(refPath);
+  else{
+   await set(refPath,emoji);
+   // Real reaction to the OTHER person's actual saved message, never a menu tap.
+   const original=messageById(id);
+   if(original&&String(original.senderUid||'')!==String(user.uid)){
+    void window.G8CodePush?.queueMessageReaction?.({chatUid:uid,messageId:id,emoji})
+     .catch(()=>{});
+   }
+  }
  }catch(error){status(`Could not save reaction: ${friendlyError(error)}`,true);}
 }
 reactionPicker.addEventListener('click',event=>{
