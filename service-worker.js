@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v742-specific-notification-payloads';
+const CACHE_NAME = 'ict8-connect-v744-learning-title-integrity';
 const APP_SHELL = [
   './',
   './index.html',
@@ -251,6 +251,13 @@ self.addEventListener('push',event=>{
    ?String(data.learningTitle||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
      .replace(/\s+/g,' ').trim().slice(0,160):'';
   const learningAlert=recipientRole==='student'&&['lessons','activities'].includes(type);
+  // If a previous Apps Script deployment omits the title, do NOT show an
+  // unhelpful generic 'A new activity is available' notification. Record it
+  // for Check Background Alerts. The administrator can inspect FCM diagnostics.
+  if(learningAlert&&!learningTitle){
+   await writePushAudit('learning-title-missing',receivedAtMs);
+   return;
+  }
   // Every student-facing caption below is derived from server-verified saved
   // messages, acknowledgments, or published announcement records.
   const ackStatus=eventKind==='ack'&&['received','checked'].includes(String(data.ackStatus||''))
@@ -285,7 +292,7 @@ self.addEventListener('push',event=>{
    learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):
    type==='announcements'?'New Announcement Posted!':ackStatus?(ackStatus==='checked'?'Submission Checked':'Submission Received'):eventKind==='ack'?'Submission Updated':'G8Code Messages';
   const noticeBody=recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):
-   learningAlert?(learningTitle||pushLabels[type]):
+   learningAlert?learningTitle:
    type==='announcements'?(studentAnnouncementTitle||pushLabels.announcements):
    eventKind==='ack'?safeStudentAckBody:studentEventBody;
   try{

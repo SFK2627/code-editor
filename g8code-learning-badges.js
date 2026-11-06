@@ -156,14 +156,10 @@
    }
    // Only after the main item and badge catalog are saved.
    if(newlyPublished){
-    // The actual title must be saved BEFORE FCM sends the alert. When title
-    // metadata is denied, let the verified server repair it and queue the push
-    // together; otherwise the phone would display a misleading generic title.
-    if(!metadataSaved){
-     const server=await publishViaVerifiedSender(type,{...record,queueMissing:true});
-     if(server.ok)return {...server,metadataSaved:false};
-     console.warn('Named alert repair not confirmed:',server.error);
-    }
+    // The teacher-authenticated, private outbox event carries the actual title.
+    // Queue it directly even if a separate learningMeta write was denied:
+    // the sender validates the exact catalog version and target audience.
+    // Avoid treating an opaque no-cors recovery request as confirmed success.
     let queued=false;
     try{queued=Boolean(await window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection,catalogVersion:version,title}));}
     catch(pushError){console.warn('Learning push queue error:',pushError);}
