@@ -1,4 +1,4 @@
-/* G8Code V4.1 — responsive floating Projects size by current page.
+/* G8Code V4.2 — unified active icon + label colors, preserved responsive FAB size.
    One selected page at a time. Tapping the FAB from other student pages opens
    My Projects; tapping it again inside My Projects uses the existing New Project flow. */
 
@@ -173,6 +173,27 @@
   #studentDashboard .g8-mobile-nav .g8-nav-projects.is-active .g8-nav-icon {
     background:linear-gradient(145deg,var(--g8-nav-blue),#687bff);
     box-shadow:0 8px 19px rgba(39,80,184,.31),0 2px 5px rgba(9,24,56,.1);
+  }
+  /* V4.2: All standard icons AND labels use one active-state foreground.
+     This overrides older Home / Projects / Learning page-specific color rules.
+     The '+' glyph itself remains white for contrast against the floating circle. */
+  :is(#studentHomeScreen,#studentDashboard,#lessonViewerScreen,#givenActivitiesScreen)
+  .g8-mobile-nav button.g8-nav-item {
+    --g8-tab-foreground:var(--g8-nav-ink);
+  }
+  :is(#studentHomeScreen,#studentDashboard,#lessonViewerScreen,#givenActivitiesScreen)
+  .g8-mobile-nav button.g8-nav-item:is(.is-active,[aria-current="page"]) {
+    --g8-tab-foreground:var(--g8-nav-blue);
+  }
+  :is(#studentHomeScreen,#studentDashboard,#lessonViewerScreen,#givenActivitiesScreen)
+  .g8-mobile-nav button.g8-nav-item:not(.g8-nav-projects) :is(.g8-nav-icon,.g8-nav-icon svg,small),
+  :is(#studentHomeScreen,#studentDashboard,#lessonViewerScreen,#givenActivitiesScreen)
+  .g8-mobile-nav button.g8-nav-projects small {
+    color:var(--g8-tab-foreground)!important;
+  }
+  :is(#studentHomeScreen,#studentDashboard,#lessonViewerScreen,#givenActivitiesScreen)
+  .g8-mobile-nav button.g8-nav-item:not(.g8-nav-projects) .g8-nav-icon svg {
+    stroke:currentColor!important;
   }
   .g8-mobile-nav .g8-nav-item:focus-visible {
     outline:2px solid var(--g8-nav-blue)!important;
