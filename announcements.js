@@ -53,7 +53,9 @@ function goBack(){cleanup();location.replace(backDestination());}
 // Protect native Android/iOS/browser Back from exiting the whole G8Code app
 // when the student is browsing a post. Every modal view gets a SAME-document
 // history entry. No Firebase reads or full-page reloads are involved.
-const GA_NAV_KEY='g8AnnouncementsV37',GA_NAV_OWNER=Date.now().toString(36)+Math.random().toString(36).slice(2);
+const GA_NAV_KEY='g8AnnouncementsV38',GA_NAV_OWNER=Date.now().toString(36)+Math.random().toString(36).slice(2);
+let gaNavChangeCount=0,gaSwipeFallbackTimer=null;
+function cancelSwipeFallback(){if(gaSwipeFallbackTimer!==null){clearTimeout(gaSwipeFallbackTimer);gaSwipeFallbackTimer=null;}}
 function gaNavState(view,postId=''){return {...history.state,[GA_NAV_KEY]:{owner:GA_NAV_OWNER,view,postId}};}
 function gaPushView(view,postId=''){
  if(!state.backGuardInstalled)return false;
@@ -61,6 +63,7 @@ function gaPushView(view,postId=''){
  catch(err){console.info('Announcements view history:',err);return false;}
 }
 function handleAnnouncementPop(event){
+ gaNavChangeCount++;cancelSwipeFallback();
  const route=event.state?.[GA_NAV_KEY];
  if(route?.owner!==GA_NAV_OWNER||route.view==='root'){goBack();return;}
  if(route.view==='feed'){
@@ -529,6 +532,7 @@ function goToMobileComments(){
  setPostDialogMode('comments');
 }
 function requestPostBack(){
+ cancelSwipeFallback();
  if(!state.detailPostId)return;
  if(!state.backGuardInstalled){
   if(isMobilePostView()&&state.detailMode==='comments')setPostDialogMode('post');
@@ -538,6 +542,7 @@ function requestPostBack(){
  history.back();
 }
 function requestPostClose(){
+ cancelSwipeFallback();
  if(!state.detailPostId)return;
  if(!state.backGuardInstalled){closePostDialog();return;}
  // Close X skips the post view when opened directly in mobile Comments.
@@ -633,23 +638,33 @@ $('gaMobileReactionChoices').addEventListener('click',event=>{
  const choice=event.target.closest('[data-ga-mobile-reaction]');
  if(choice&&state.detailPostId)react(state.detailPostId,choice.dataset.gaMobileReaction);
 });
-// Web-app right-edge swipe can be handled by Android/iOS browser history;
-// this left-edge fallback handles in-page swipes without obstructing scrolling.
+// The phone/browser owns edge Back gestures. Avoid firing our own history.back()
+// at the same moment: that used to pop TWO entries (Comments -> Post -> Feed
+// or straight into the G8Code Exit confirmation) for a single swipe.
+// A delayed fallback handles embedded webviews without native swipe navigation.
 let gaBackSwipe=null;
 $('gaPostModal').addEventListener('touchstart',event=>{
  if(!isMobilePostView()||!state.detailPostId||event.touches.length!==1||!$('gaViewerModal').hidden)return;
  const touch=event.touches[0];
- gaBackSwipe=touch.clientX<=56&&!event.target.closest('textarea,input,button,a')?{x:touch.clientX,y:touch.clientY,at:Date.now()}:null;
+ gaBackSwipe=touch.clientX<=56&&!event.target.closest('textarea,input,button,a')
+  ? {x:touch.clientX,y:touch.clientY,at:Date.now(),postId:state.detailPostId,view:state.detailMode,nav:gaNavChangeCount}
+  : null;
 },{passive:true});
 $('gaPostModal').addEventListener('touchend',event=>{
- if(!gaBackSwipe||event.changedTouches.length!==1)return;
- const touch=event.changedTouches[0],dx=touch.clientX-gaBackSwipe.x,dy=touch.clientY-gaBackSwipe.y;
- if(dx>85&&Math.abs(dy)<Math.abs(dx)*.65&&Date.now()-gaBackSwipe.at<1200){
-  event.preventDefault();requestPostBack();
- }
- gaBackSwipe=null;
-},{passive:false});
-$('gaPostModal').addEventListener('touchcancel',()=>gaBackSwipe=null,{passive:true});
+ const swipe=gaBackSwipe;gaBackSwipe=null;
+ if(!swipe||event.changedTouches.length!==1)return;
+ const touch=event.changedTouches[0],dx=touch.clientX-swipe.x,dy=touch.clientY-swipe.y;
+ if(dx<=85||Math.abs(dy)>=Math.abs(dx)*.65||Date.now()-swipe.at>=1200)return;
+ // Native gesture navigation normally reports popstate immediately after touchend.
+ // If it does, the handler cancels this fallback; one swipe = one Back.
+ cancelSwipeFallback();
+ gaSwipeFallbackTimer=setTimeout(()=>{
+  gaSwipeFallbackTimer=null;
+  if(gaNavChangeCount!==swipe.nav||state.detailPostId!==swipe.postId||state.detailMode!==swipe.view||$('gaPostModal').hidden)return;
+  requestPostBack();
+ },500);
+},{passive:true});
+$('gaPostModal').addEventListener('touchcancel',()=>{gaBackSwipe=null;cancelSwipeFallback();},{passive:true});
 
 function renderCard(p,inPostModal=false){
  const card=node('article','ga-card'+(inPostModal?' ga-detail-card':''));card.dataset.gaPost=p.id;

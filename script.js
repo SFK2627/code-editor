@@ -6015,6 +6015,20 @@ async function confirmProtectedAppExit() {
   return true;
 }
 
+// One confirmed Exit should not land on an older G8Code history entry (which
+// causes a second Back / Exit prompt after returning from Announcements).
+// Browsers prevent ordinary websites from closing user-opened tabs, so attempt
+// native window closing first and replace the document with a neutral page as
+// the deterministic fallback. This does not sign the student out.
+function finishConfirmedAppExit() {
+  appExitGuardState.allowNextUnload = true;
+  appExitGuardState.armed = false;
+  appExitGuardState.bypassNextPop = false;
+  try { window.close(); } catch (error) { console.info('Window close unavailable:', error); }
+  try { window.location.replace('about:blank'); }
+  catch (error) { console.warn('Unable to leave app after confirmed exit:', error); }
+}
+
 async function handleProtectedBackNavigation() {
   if (appExitGuardState.bypassNextPop) {
     appExitGuardState.bypassNextPop = false;
@@ -6041,11 +6055,10 @@ async function handleProtectedBackNavigation() {
   try {
     const confirmed = await confirmProtectedAppExit();
     if (confirmed) {
-      appExitGuardState.allowNextUnload = true;
-      appExitGuardState.armed = false;
-      // We are currently on the base entry after the guard entry was popped.
-      // One more Back leaves the app / PWA instead of showing the prompt again.
-      try { history.back(); } catch (_) {}
+      // Do not history.back(): after a visit to Announcements (or other
+      // subpages), the previous entry may still be inside G8Code. That left
+      // the page visible and required another Exit gesture.
+      finishConfirmedAppExit();
     } else {
       // Restore the guard entry without creating another duplicate history item.
       try {
@@ -39492,6 +39505,9 @@ function installWireframeMakerEvents() {
   window.addEventListener('beforeunload', event => {
     if (!wireframeMakerState.dirty) return;
     persistWireframeRecovery({ urgent: true });
+    // The student has already chosen Exit. Preserve the recovery snapshot,
+    // but do not show a second native browser leave confirmation.
+    if (appExitGuardState?.allowNextUnload) return;
     event.preventDefault();
     event.returnValue = '';
   });
