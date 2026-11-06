@@ -23573,11 +23573,7 @@ function updateInstallButtonVisibility() {
 function registerPWAServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    // Same script URL as the Phone Notifications registration. Different URLs
-    // for one scope can continuously replace each other and reload the app.
-    const hadControllerBeforeRegistration = Boolean(navigator.serviceWorker.controller);
-    navigator.serviceWorker.register('./service-worker.js?v=680-background-check', {
-      scope: './',
+    navigator.serviceWorker.register('./service-worker.js?v=677-learning-notifications', {
       updateViaCache: 'none'
     }).then(registration => {
       let lastCheckedAt = 0;
@@ -23592,12 +23588,11 @@ function registerPWAServiceWorker() {
       window.addEventListener('online', checkForUpdates, { passive: true });
       document.addEventListener('visibilitychange', checkForUpdates, { passive: true });
 
-      // A controller change is NOT a reason to force navigation/reload.
-      // Push setup and an app update may change the controller while the
-      // student is signed in. Only the user may request a manual refresh.
+      // Do not reload students out of an unfinished coding/project session.
+      // On an idle dashboard the new version can safely reload automatically.
       if (!window.__ict8SwControllerChangeBound) {
         window.__ict8SwControllerChangeBound = true;
-        let updateNoticeShown = false;
+        let refreshingForNewBuild = false;
         const showDeferredUpdateNotice = () => {
           let notice = document.getElementById('g8codePendingBuildNotice');
           if (notice) return;
@@ -23622,12 +23617,18 @@ function registerPWAServiceWorker() {
           document.body.appendChild(notice);
         };
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          // Ignore the first worker taking control on a fresh installation.
-          if (!hadControllerBeforeRegistration || updateNoticeShown) return;
-          updateNoticeShown = true;
-          showDeferredUpdateNotice();
-          // Never reload automatically: doing so during push registration may
-          // replay the writing splash repeatedly and interrupt the session.
+          if (refreshingForNewBuild) return;
+          refreshingForNewBuild = true;
+          const projectUnsafe = studentProjectDirty || studentProjectSaveInFlight
+            || (typeof wireframeMakerState !== 'undefined' && wireframeMakerState?.dirty);
+          const hasActiveEditor = appSession.mode === 'student'
+            && (!studentDashboard || studentDashboard.classList.contains('hidden'));
+          const adminIsWorking = appSession.mode === 'teacher' || appSession.mode === 'admin';
+          if (projectUnsafe || hasActiveEditor || adminIsWorking) {
+            showDeferredUpdateNotice();
+          } else {
+            window.location.reload();
+          }
         });
       }
     }).catch(error => {
@@ -27854,13 +27855,18 @@ async function publishLessonFromAdmin() {
     else lessonLibraryState.lessons.push(record);
     setLessonAdminStatus('Publishing lesson list...', 'loading');
     await saveLessonLibraryToCloud();
-    const lessonBadgeResult = await window.G8CodeLearningBadges?.publish?.('lessons', record);
-    if (lessonBadgeResult && !lessonBadgeResult.ok) console.warn('Lesson notification index was not updated:', lessonBadgeResult.error);
+    const lessonBadgeResult = window.G8CodeLearningBadges?.publish
+      ? await window.G8CodeLearningBadges.publish('lessons', record)
+      : { ok:false, error:'Learning notification module unavailable. Check g8code-learning-badges.js on this Admin page.' };
+    if (!lessonBadgeResult?.ok) console.warn('Lesson alert index not saved:',lessonBadgeResult?.error);
     if (existing?.fileId && newlyUploadedFileId && existing.fileId !== newlyUploadedFileId) {
       deleteLessonDriveFile(existing.fileId).catch(error => console.warn('Old Drive lesson file was not deleted.', error));
     }
     resetLessonAdminEditor({ keepTerm: true });
-    setLessonAdminStatus(lessonBadgeResult && !lessonBadgeResult.ok ? 'Lesson saved. Notification badge could not sync; check RTDB notification rules.' : (existing ? 'Lesson updated successfully.' : 'Lesson published successfully.'), lessonBadgeResult && !lessonBadgeResult.ok ? 'warning' : 'success');
+    const lessonAlertIssue=!lessonBadgeResult?.ok ? 'Lesson saved, but NEW badge failed: '+(lessonBadgeResult?.error||'Check Firebase Rules.')
+      : (!existing&&lessonBadgeResult?.published&&!lessonBadgeResult.pushQueued) ? 'Lesson saved and NEW badge indexed, but phone push was NOT queued. Check push config and outbox Rules.'
+      : lessonBadgeResult?.metadataSaved===false ? 'Lesson saved and push requested, but title metadata failed. Publish the learningMeta RTDB Rules for named alerts.' : '';
+    setLessonAdminStatus(lessonAlertIssue || (existing ? 'Lesson updated successfully.' : 'Lesson published successfully. NEW badge + phone alert queued.'), lessonAlertIssue ? 'warning' : 'success');
     setStatus(existing ? 'Lesson updated' : 'Lesson published');
   } catch (error) {
     console.error('Could not publish lesson.', error);
@@ -29343,11 +29349,16 @@ async function publishGivenActivityFromAdmin() {
     else givenActivityState.items.push(record);
     setGivenActivityAdminStatus('Publishing activity list...', 'loading');
     await saveGivenActivitiesToCloud();
-    const activityBadgeResult = await window.G8CodeLearningBadges?.publish?.('activities', record);
-    if (activityBadgeResult && !activityBadgeResult.ok) console.warn('Activity notification index was not updated:', activityBadgeResult.error);
+    const activityBadgeResult = window.G8CodeLearningBadges?.publish
+      ? await window.G8CodeLearningBadges.publish('activities', record)
+      : { ok:false, error:'Learning notification module unavailable. Check g8code-learning-badges.js on this Admin page.' };
+    if (!activityBadgeResult?.ok) console.warn('Activity alert index not saved:',activityBadgeResult?.error);
     resetGivenActivityAdminEditor({ keepTerm: true });
     renderAdminGivenActivityList();
-    setGivenActivityAdminStatus(activityBadgeResult && !activityBadgeResult.ok ? `${record.title} saved, but notification badge could not sync. Check RTDB rules.` : `${record.title} saved ${record.published ? 'and published' : 'as a draft'}.`, activityBadgeResult && !activityBadgeResult.ok ? 'warning' : 'success');
+    const activityAlertIssue=!activityBadgeResult?.ok ? `Activity saved, but NEW badge failed: ${activityBadgeResult?.error||'Check Firebase Rules.'}`
+      : record.published&&activityBadgeResult.published&&!activityBadgeResult.pushQueued ? 'Activity saved and NEW badge indexed, but phone push was NOT queued. Check push config and outbox Rules.'
+      : record.published&&activityBadgeResult.metadataSaved===false ? 'Activity saved, but notification title metadata failed. Publish the learningMeta RTDB Rule.' : '';
+    setGivenActivityAdminStatus(activityAlertIssue || `${record.title} saved ${record.published ? (existing ? 'and updated.' : 'and published. NEW badge + phone alert queued.') : 'as a draft.'}`, activityAlertIssue ? 'warning' : 'success');
   } catch (error) {
     console.warn('Could not save Activity Given.', error);
     setGivenActivityAdminStatus(error?.message || 'Could not save the activity.', 'error');
@@ -29414,8 +29425,14 @@ async function toggleGivenActivityPublished(activityId = '') {
   item.updatedAt = new Date().toISOString();
   try {
     await saveGivenActivitiesToCloud();
-    void window.G8CodeLearningBadges?.publish?.('activities', item);
-    setGivenActivityAdminStatus(`${item.title} is now ${item.published ? 'published' : 'a draft'}.`, 'success');
+    const alertResult=window.G8CodeLearningBadges?.publish
+      ? await window.G8CodeLearningBadges.publish('activities',item)
+      : {ok:false,error:'Learning notification module unavailable.'};
+    if(!alertResult?.ok||item.published&&alertResult.published&&!alertResult.pushQueued){
+      setGivenActivityAdminStatus(`${item.title} visibility saved, but notification failed: ${alertResult?.error||'Push was not queued. Check RTDB Rules and push configuration.'}`,'warning');
+    }else{
+      setGivenActivityAdminStatus(`${item.title} is now ${item.published ? 'published' : 'a draft'}.`+(item.published&&alertResult?.published?' NEW badge and phone alert queued.':''),'success');
+    }
   } catch (error) {
     item.visibility = previous;
     item.published = previous === 'published';

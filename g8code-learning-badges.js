@@ -10,7 +10,7 @@
  const $=id=>document.getElementById(id);
  const state={uid:'',isTeacher:false,section:'',catalog:{lessons:{},activities:{}},seen:{lessons:{},activities:{}},ready:{lessons:false,activities:false,seen:false},dirty:false,teardown:[],sdk:null,db:null,auth:null};
  const safeId=value=>/^[A-Za-z0-9_-]{1,128}$/.test(String(value||''))?String(value):'';
- const safeSection=value=>String(value||'').trim().toLowerCase();
+ const safeSection=value=>String(value||'').trim().toLowerCase().replace(/^(?:grade\s*8|g8|8)\s*(?:[-:|]\s*)?/,'').replace(/saint\b/g,'st').replace(/[^a-z0-9]/g,'');
  const stamp=()=>Date.now();
  let renderQueued=false;
  function studentProfile(){
@@ -24,8 +24,9 @@
   if(!item||item.active!==true||!(Number(item.version)>0))return false;
   if(type==='lessons')return true;
   const section=safeSection(studentProfile()?.section);
-  const audience=safeSection(item.audienceSection||'all');
-  return audience==='all'||(section&&audience===section);
+  const rawAudience=String(item.audienceSection||'all').trim().toLowerCase();
+  const audience=safeSection(rawAudience);
+  return rawAudience==='all'||Boolean(section&&audience===section);
  }
  function unread(type,id,item){return isRelevant(type,item)&&Number(state.seen?.[type]?.[id]||0)!==Number(item.version||0);}
  function getCount(type){
@@ -42,7 +43,7 @@
   const selector=[`#studentHomeScreen [data-home-action="${type}"]`, `[data-learning-action="${type}"]`].join(',');
   document.querySelectorAll(selector).forEach(el=>{
    const badge=makeBadge(el);
-   badge.hidden=count===0;badge.textContent=count>99?'99+':String(count);
+   badge.hidden=count===0;badge.textContent=el.classList.contains('sh-quick-card')?`${Math.min(count,99)}${count>99?'+':''} NEW`:(count>99?'99+':String(count));
    const simple=type==='lessons'?'lesson':'activity';
    const text=count?`${count} new ${simple}${count===1?'':'s'}`:'';
    el.dataset.g8nTitle=text;
@@ -103,7 +104,9 @@
    const dbRoot=state.sdk.ref(state.db);
    const metadataPath=`g8PushV1/learningMeta/${type}/${id}`;
    if(type==='activities'&&record.published!==true){
-    await state.sdk.update(dbRoot,{[`${BASE}/catalog/${type}/${id}`]:null,[metadataPath]:null});
+    await state.sdk.remove(path);
+    try{await state.sdk.remove(state.sdk.ref(state.db,metadataPath));}
+    catch(metaError){console.warn('Old learning title cleanup pending:',metaError?.message||metaError);}
     return {ok:true,published:false};
    }
    // A published record already in this catalog is an EDIT, not a new post.
@@ -116,33 +119,39 @@
    const title=String(record.title|| (type==='lessons'?'Lesson':'Activity'))
     .replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
    if(!title)return {ok:false,error:'Learning notification title missing'};
-   // Atomic catalog+private-metadata update. Metadata is teacher-readable only;
-   // students in other sections cannot inspect restricted activity titles.
-   await state.sdk.update(dbRoot,{
-    [`${BASE}/catalog/${type}/${id}`]:{active:true,version,term,audienceSection},
-    [metadataPath]:{title,version,term,audienceSection,updatedAtMs:stamp()}
-   });
-   // Only after the saved source content + notification catalog are confirmed.
-   if(newlyPublished){
-    const queued=await window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection,catalogVersion:version});
-    if(!queued)console.warn('New learning item was saved, but push was not queued.');
-    return {ok:true,published:true,pushQueued:Boolean(queued)};
+   // Save the student-readable badge catalog FIRST. If private learningMeta
+   // rules were not deployed, badge visibility must not fail with the title.
+   await state.sdk.set(path,{active:true,version,term,audienceSection});
+   let metadataSaved=true;
+   try{
+    await state.sdk.set(state.sdk.ref(state.db,metadataPath),
+      {title,version,term,audienceSection,updatedAtMs:stamp()});
+   }catch(metaError){
+    metadataSaved=false;
+    console.warn('Lesson/activity title metadata not saved; install the V3.7 learningMeta RTDB rule:',metaError?.message||metaError);
    }
-   return {ok:true,published:false,pushQueued:false};
+   // Only after the main item and badge catalog are saved.
+   if(newlyPublished){
+    let queued=false;
+    try{queued=Boolean(await window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection,catalogVersion:version}));}
+    catch(pushError){console.warn('Learning push queue error:',pushError);}
+    if(!queued)console.warn('Learning item saved and badge indexed, but push was not queued. Check Admin V2 script versions, g8PushV1/outbox Rules, and Push V3 config.');
+    return {ok:true,published:true,pushQueued:queued,metadataSaved};
+   }
+   return {ok:true,published:false,pushQueued:false,metadataSaved};
   }catch(err){return {ok:false,error:err?.message||'RTDB notification write failed'};}
  }
  async function remove(type,itemId){
   const id=safeId(itemId),user=state.auth?.currentUser;
   if(!TYPES.includes(type)||!id||!state.db||!state.sdk||!user||!TEACHER_EMAILS().has(String(user.email||'').toLowerCase()))return {ok:false};
   try{
-   await state.sdk.update(state.sdk.ref(state.db),{
-    [`${BASE}/catalog/${type}/${id}`]:null,
-    [`g8PushV1/learningMeta/${type}/${id}`]:null
-   });
+   await state.sdk.remove(state.sdk.ref(state.db,`${BASE}/catalog/${type}/${id}`));
+   try{await state.sdk.remove(state.sdk.ref(state.db,`g8PushV1/learningMeta/${type}/${id}`));}
+   catch(metaError){console.warn('Old title metadata cleanup pending:',metaError?.message||metaError);}
    return {ok:true};
   }catch(err){console.warn('Notification removal:',err.message);return {ok:false};}
  }
- window.G8CodeLearningBadges=Object.freeze({publish,remove,markViewed,refresh:scheduleRender,getCount});
+ window.G8CodeLearningBadges=Object.freeze({publish,remove,markViewed,refresh:scheduleRender,getCount,diagnostics:()=>({connected:Boolean(state.sdk&&state.db),uidPresent:Boolean(state.uid),teacher:state.isTeacher,ready:{...state.ready},counts:{lessons:getCount('lessons'),activities:getCount('activities')}})});
  // Handle lesson/activity rerender without observing subtree changes caused by our own badges.
  const grids=['lessonLibraryGrid','givenActivitiesGrid'];
  function observeCards(){for(const id of grids){const el=$(id);if(el)new MutationObserver(mutations=>{

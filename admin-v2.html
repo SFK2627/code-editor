@@ -7787,7 +7787,7 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=20261105-v532-learning-notification-index"></script>
+  <script src="script.js?v=38-learning-delivery"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
@@ -8237,14 +8237,7 @@ try {
   exitLink.title='Return to original G8Code';exitLink.setAttribute('aria-label','Exit Admin V2');
   exitLink.innerHTML=ico('x',19);
   const identity=el('span','adm-user-chip');identity.innerHTML=ico('unlock',15)+'<span>Teacher</span>';
-  const adviserPushBtn=el('button','adm-icon-btn');
-  adviserPushBtn.type='button';adviserPushBtn.hidden=true;
-  adviserPushBtn.dataset.g8pushTeacherToggle='';
-  adviserPushBtn.title='Receive student messages on this phone, even while closed';
-  adviserPushBtn.textContent='🔕 Enable Adviser Alerts';
-  adviserPushBtn.style.cssText='width:auto;min-width:0;max-width:192px;padding:7px 10px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-  topActions.append(mobileSearch,themeWrap,adviserPushBtn,identity,exitLink);
-  window.G8CodePush?.refresh?.();
+  topActions.append(mobileSearch,themeWrap,identity,exitLink);
   bar.append(menuBtn,crumb,globalSearch,topActions);
   const workspace=el('div','adm-workspace');
   const stage=el('main','adm-content');stage.id='admV2Content';
@@ -9413,8 +9406,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 <script defer src="messages-bridge.js?v=51"></script>
 <script defer src="announcements-admin-attach.js?v=521"></script>
-<script defer src="g8code-learning-badges.js?v=1"></script>
+<link rel="stylesheet" href="g8code-learning-badges.css?v=38" />
+<script defer src="g8code-learning-badges.js?v=38"></script>
 <script defer src="g8code-push-config.js?v=2"></script>
-<script defer src="g8code-push.js?v=712-adviser-fast-v32"></script>
+<script defer src="g8code-push.js?v=38"></script>
 </body>
 </html>
