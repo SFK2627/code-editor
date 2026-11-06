@@ -94,8 +94,22 @@
    for(const type of TYPES){const incoming=val?.[type]||{};for(const [id,version] of Object.entries(incoming)){const n=Number(version)||0;if(n>Number(state.seen[type]?.[id]||0))state.seen[type][id]=n;}}state.ready.seen=true;localHydrate();
   }));
  }
+ async function publishViaVerifiedSender(type,record){
+  if(!window.G8CodePush?.publishLearningThroughSender)return {ok:false,error:'Secure notification sender is unavailable. Verify deployment and teacher login.'};
+  const requested=await window.G8CodePush.publishLearningThroughSender({type,
+   itemId:record.id,title:record.title,term:record.term||'term1',
+   audienceSection:type==='lessons'?'all':record.audienceSection||'all',
+   published:type==='lessons'||record.published===true,queueMissing:record.queueMissing===true});
+  // Cross-origin Apps Script replies are opaque. A request is NOT proof that
+  // the catalog or push was saved; report pending explicitly.
+  return requested?{ok:true,pending:true,published:record.published===true||type==='lessons',pushQueued:false,
+   metadataSaved:false}:{ok:false,error:'Learning badge RTDB write was denied and secure sender request was unavailable.'};
+ }
  async function publish(type,record){
-  if(!TYPES.includes(type)||!record||!state.sdk||!state.db)return {ok:false,error:'Notification connection unavailable'};
+  if(!TYPES.includes(type)||!record)return {ok:false,error:'Invalid Lesson or Activity'};
+  // If RTDB initialization is blocked or delayed, the verified teacher-only
+  // immediate endpoint can still create the badge and queued notification.
+  if(!state.sdk||!state.db)return publishViaVerifiedSender(type,record);
   const user=state.auth?.currentUser;
   if(!user||!TEACHER_EMAILS().has(String(user.email||'').toLowerCase()))return {ok:false,error:'Teacher authentication required'};
   const id=safeId(record.id);if(!id)return {ok:false,error:'Invalid item ID'};
@@ -104,7 +118,8 @@
    const dbRoot=state.sdk.ref(state.db);
    const metadataPath=`g8PushV1/learningMeta/${type}/${id}`;
    if(type==='activities'&&record.published!==true){
-    await state.sdk.remove(path);
+    try{await state.sdk.remove(path);}
+    catch(error){console.warn('Learning draft cleanup needs verified sender:',error?.message||error);return publishViaVerifiedSender(type,record);}
     try{await state.sdk.remove(state.sdk.ref(state.db,metadataPath));}
     catch(metaError){console.warn('Old learning title cleanup pending:',metaError?.message||metaError);}
     return {ok:true,published:false};
@@ -113,7 +128,10 @@
    // Preserve its version (and students' seen badges); do NOT re-notify.
    let prior;
    try{prior=(await state.sdk.get(path)).val();}
-   catch(error){return {ok:false,error:`NEW badge catalog READ failed at ${BASE}/catalog/${type}: ${error?.message||error}. Check RTDB Rules, Firebase teacher login, and deployed database URL.`};}
+   catch(error){
+    console.warn('Learning catalog read denied; using verified teacher sender:',error?.message||error);
+    return publishViaVerifiedSender(type,record);
+   }
    const newlyPublished=!prior||prior.active!==true;
    const version=newlyPublished?stamp():Number(prior.version||stamp());
    const audienceSection=type==='lessons'?'all':String(record.audienceSection||'all').trim().slice(0,100)||'all';
@@ -124,7 +142,10 @@
    // Save the student-readable badge catalog FIRST. If private learningMeta
    // rules were not deployed, badge visibility must not fail with the title.
    try{await state.sdk.set(path,{active:true,version,term,audienceSection});}
-   catch(error){return {ok:false,error:`NEW badge catalog WRITE failed at ${BASE}/catalog/${type}: ${error?.message||error}. Publish the updated full RTDB Rules from the V3.9 ZIP and confirm the Admin Firebase account is authorized.`};}
+   catch(error){
+    console.warn('Learning catalog write denied; using verified teacher sender:',error?.message||error);
+    return publishViaVerifiedSender(type,record);
+   }
    let metadataSaved=true;
    try{
     await state.sdk.set(state.sdk.ref(state.db,metadataPath),
@@ -135,10 +156,22 @@
    }
    // Only after the main item and badge catalog are saved.
    if(newlyPublished){
+    // The actual title must be saved BEFORE FCM sends the alert. When title
+    // metadata is denied, let the verified server repair it and queue the push
+    // together; otherwise the phone would display a misleading generic title.
+    if(!metadataSaved){
+     const server=await publishViaVerifiedSender(type,{...record,queueMissing:true});
+     if(server.ok)return {...server,metadataSaved:false};
+     console.warn('Named alert repair not confirmed:',server.error);
+    }
     let queued=false;
     try{queued=Boolean(await window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection,catalogVersion:version}));}
     catch(pushError){console.warn('Learning push queue error:',pushError);}
-    if(!queued)console.warn('Learning item saved and badge indexed, but push was not queued. Check Admin V2 script versions, g8PushV1/outbox Rules, and Push V3 config.');
+    if(!queued){
+     const server=await publishViaVerifiedSender(type,{...record,queueMissing:true});
+     if(server.ok)return {...server,metadataSaved};
+     console.warn('Learning badge indexed; notification queue not confirmed:',server.error);
+    }
     return {ok:true,published:true,pushQueued:queued,metadataSaved};
    }
    return {ok:true,published:false,pushQueued:false,metadataSaved};
@@ -152,7 +185,10 @@
    try{await state.sdk.remove(state.sdk.ref(state.db,`g8PushV1/learningMeta/${type}/${id}`));}
    catch(metaError){console.warn('Old title metadata cleanup pending:',metaError?.message||metaError);}
    return {ok:true};
-  }catch(err){console.warn('Notification removal:',err.message);return {ok:false};}
+  }catch(err){
+   console.warn('Notification removal needs verified teacher sender:',err.message);
+   return publishViaVerifiedSender(type,{id,title:type==='lessons'?'Lesson':'Activity',published:false});
+  }
  }
  window.G8CodeLearningBadges=Object.freeze({publish,remove,markViewed,refresh:scheduleRender,getCount,diagnostics:()=>({connected:Boolean(state.sdk&&state.db),uidPresent:Boolean(state.uid),teacher:state.isTeacher,ready:{...state.ready},subscriptionError:state.subscriptionError||null,counts:{lessons:getCount('lessons'),activities:getCount('activities')}})});
  // Handle lesson/activity rerender without observing subtree changes caused by our own badges.

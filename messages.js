@@ -1567,6 +1567,10 @@ async function reactToMessage(id,emoji){
    // Real reaction to the OTHER person's actual saved message, never a menu tap.
    const original=messageById(id);
    if(original&&String(original.senderUid||'')!==String(user.uid)){
+    if(teacher&&original.senderRole==='student'){
+     void runTransaction(ref(rtdb,`${summaryPath(uid)}/unreadStudent`),count=>Math.min(9999,Math.max(0,Number(count||0))+1))
+      .catch(badgeError=>console.warn('Reaction saved; student Messenger badge update pending:',badgeError?.message||badgeError));
+    }
     void window.G8CodePush?.queueMessageReaction?.({chatUid:uid,messageId:id,emoji})
      .catch(()=>{});
    }
@@ -3295,6 +3299,11 @@ async function acknowledge(messageId,st){
  if(previous===st)return;
  try{
   await set(ref(rtdb,`${studentPath(uid)}/acks/${messageId}`),{status:st,atMs:serverTimestamp(),byUid:user.uid});
+  // V4.1: An ACK is a real teacher interaction, not a new message. Count it
+  // in the existing STUDENT homepage Messenger unread badge once per change.
+  // Saving the ACK always takes priority; a denied badge sync cannot undo it.
+  void runTransaction(ref(rtdb,`${summaryPath(uid)}/unreadStudent`),count=>Math.min(9999,Math.max(0,Number(count||0))+1))
+   .catch(badgeError=>console.warn('Acknowledgment saved; student Messenger badge update pending:',badgeError?.message||badgeError));
   // Received/Checked is a Messenger acknowledgment, not a grade. Send an
   // event only after the saved acknowledgment can be verified by the server.
   // Never block the acknowledgment if the push service is unavailable.

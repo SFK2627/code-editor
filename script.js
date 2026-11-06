@@ -27863,7 +27863,8 @@ async function publishLessonFromAdmin() {
       deleteLessonDriveFile(existing.fileId).catch(error => console.warn('Old Drive lesson file was not deleted.', error));
     }
     resetLessonAdminEditor({ keepTerm: true });
-    const lessonAlertIssue=!lessonBadgeResult?.ok ? 'Lesson saved, but NEW badge failed: '+(lessonBadgeResult?.error||'Check Firebase Rules.')
+    const lessonAlertIssue=!lessonBadgeResult?.ok ? 'Lesson saved, but the NEW badge and phone alert could not be confirmed. Check the notification setup.'
+      : lessonBadgeResult.pending ? 'Lesson saved. NEW badge and notification sent for server verification.'
       : (!existing&&lessonBadgeResult?.published&&!lessonBadgeResult.pushQueued) ? 'Lesson saved and NEW badge indexed, but phone push was NOT queued. Check push config and outbox Rules.'
       : lessonBadgeResult?.metadataSaved===false ? 'Lesson saved and push requested, but title metadata failed. Publish the learningMeta RTDB Rules for named alerts.' : '';
     setLessonAdminStatus(lessonAlertIssue || (existing ? 'Lesson updated successfully.' : 'Lesson published successfully. NEW badge + phone alert queued.'), lessonAlertIssue ? 'warning' : 'success');
@@ -28415,10 +28416,39 @@ async function saveGivenActivitiesToCloud() {
   if (!ready) throw new Error(firebaseSync.lastError || 'The service is not ready.');
   const { setDoc, serverTimestamp } = firebaseSync.modules;
   const items = givenActivityState.items.map((item, index) => normalizeGivenActivity(item, index));
-  await withTimeout(setDoc(getCloudActivitiesDocRef(), {
-    givenActivities: items,
-    givenActivitiesUpdatedAt: serverTimestamp()
-  }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Publishing Activities Given took too long. Check the connection and try again.');
+  try {
+    await withTimeout(setDoc(getCloudActivitiesDocRef(), {
+      givenActivities: items,
+      givenActivitiesUpdatedAt: serverTimestamp()
+    }, { merge: true }), APP_NETWORK_TIMEOUT_MS, 'Activity publish confirmation took longer than expected.');
+  } catch (writeError) {
+    // A Firestore write can commit on the server AFTER a client-side timeout.
+    // Before telling a teacher it failed (and prompting a duplicate retry),
+    // verify the exact edited/new activity against a fresh server snapshot.
+    let confirmed = false;
+    try {
+      const readServer = firebaseSync.modules.getDocFromServer;
+      if (typeof readServer === 'function') {
+        const snap = await withTimeout(readServer(getCloudActivitiesDocRef()), 9000,
+          'Activity verification is still pending.');
+        const remote = snap.exists() ? snap.data()?.givenActivities : null;
+        const expected = items.map(item => ({id:item.id,updatedAt:item.updatedAt,title:item.title,visibility:item.visibility}));
+        const actual = Array.isArray(remote) ? remote.map(item => ({id:item.id,updatedAt:item.updatedAt,title:item.title,visibility:item.visibility})) : [];
+        confirmed = expected.length===actual.length && expected.every((item,index)=>
+          item.id===actual[index]?.id && item.updatedAt===actual[index]?.updatedAt &&
+          item.title===actual[index]?.title && item.visibility===actual[index]?.visibility);
+      }
+    } catch (verificationError) {
+      console.warn('Activity save confirmation pending:', verificationError?.message||verificationError);
+    }
+    if (!confirmed) {
+      console.warn('Activity save not confirmed. Do not create another item with a new ID.', writeError?.message||writeError);
+      const pendingError=new Error('Activity confirmation is pending. Check Saved Activities before trying again; do not create a duplicate.');
+      pendingError.code='g8-activity-unconfirmed';
+      throw pendingError;
+    }
+    console.info('Activity publication confirmed by server despite a client timeout.');
+  }
   clearSelectiveFirestoreCache('rootDocument:');
   givenActivityState.items = items;
   givenActivityState.loaded = true;
@@ -29279,6 +29309,8 @@ async function publishGivenActivityFromAdmin() {
     setGivenActivityAdminStatus('Quiz links must be PDF or Image, not an external website.', 'error'); return;
   }
   const buttonText = givenActivityPublishBtn?.textContent || 'Save Activity';
+  let attemptedRecordId = '';
+  let activityCloudSaved = false;
   if (givenActivityPublishBtn) givenActivityPublishBtn.disabled = true;
   try {
     if (givenActivityState.sourceMode === 'upload') {
@@ -29345,23 +29377,35 @@ async function publishGivenActivityFromAdmin() {
       createdAt: existing?.createdAt || nowIso,
       updatedAt: nowIso
     });
+    attemptedRecordId = record.id;
     if (existing) givenActivityState.items = givenActivityState.items.map(item => item.id === existing.id ? record : item);
     else givenActivityState.items.push(record);
     setGivenActivityAdminStatus('Publishing activity list...', 'loading');
     await saveGivenActivitiesToCloud();
+    activityCloudSaved = true;
     const activityBadgeResult = window.G8CodeLearningBadges?.publish
       ? await window.G8CodeLearningBadges.publish('activities', record)
       : { ok:false, error:'Learning notification module unavailable. Check g8code-learning-badges.js on this Admin page.' };
     if (!activityBadgeResult?.ok) console.warn('Activity alert index not saved:',activityBadgeResult?.error);
     resetGivenActivityAdminEditor({ keepTerm: true });
     renderAdminGivenActivityList();
-    const activityAlertIssue=!activityBadgeResult?.ok ? `Activity saved, but NEW badge failed: ${activityBadgeResult?.error||'Check Firebase Rules.'}`
+    const activityAlertIssue=!activityBadgeResult?.ok ? 'Activity saved, but the NEW badge and phone alert could not be confirmed. Check the notification setup.'
+      : activityBadgeResult.pending ? 'Activity saved. NEW badge and notification have been sent for server verification; check the student view shortly.'
       : record.published&&activityBadgeResult.published&&!activityBadgeResult.pushQueued ? 'Activity saved and NEW badge indexed, but phone push was NOT queued. Check push config and outbox Rules.'
-      : record.published&&activityBadgeResult.metadataSaved===false ? 'Activity saved, but notification title metadata failed. Publish the learningMeta RTDB Rule.' : '';
+      : record.published&&activityBadgeResult.metadataSaved===false ? 'Activity saved, but notification title metadata failed. Check the learningMeta permissions.' : '';
     setGivenActivityAdminStatus(activityAlertIssue || `${record.title} saved ${record.published ? (existing ? 'and updated.' : 'and published. NEW badge + phone alert queued.') : 'as a draft.'}`, activityAlertIssue ? 'warning' : 'success');
   } catch (error) {
-    console.warn('Could not save Activity Given.', error);
-    setGivenActivityAdminStatus(error?.message || 'Could not save the activity.', 'error');
+    console.warn('Activity publish flow interrupted:', error);
+    // Keep the SAME record ID for a retry. The online write may have finished
+    // even if the client timed out, so never generate a duplicate Activity.
+    if (attemptedRecordId && !activityCloudSaved) givenActivityState.editingId = attemptedRecordId;
+    if (activityCloudSaved) {
+      setGivenActivityAdminStatus('Activity is saved. The follow-up notification or screen refresh needs another check; see Saved Activities.', 'warning');
+    } else {
+      setGivenActivityAdminStatus(error?.code==='g8-activity-unconfirmed'
+        ? 'Activity save is not yet confirmed. Check Saved Activities first; retry with the same activity, not a duplicate.'
+        : (error?.message || 'Could not confirm the activity save.'), 'warning');
+    }
   } finally {
     if (givenActivityPublishBtn) {
       givenActivityPublishBtn.disabled = false;
@@ -29423,20 +29467,25 @@ async function toggleGivenActivityPublished(activityId = '') {
   item.visibility = item.published ? 'draft' : 'published';
   item.published = item.visibility === 'published';
   item.updatedAt = new Date().toISOString();
+  let cloudCommitted=false;
   try {
     await saveGivenActivitiesToCloud();
+    cloudCommitted=true;
     const alertResult=window.G8CodeLearningBadges?.publish
       ? await window.G8CodeLearningBadges.publish('activities',item)
       : {ok:false,error:'Learning notification module unavailable.'};
-    if(!alertResult?.ok||item.published&&alertResult.published&&!alertResult.pushQueued){
-      setGivenActivityAdminStatus(`${item.title} visibility saved, but notification failed: ${alertResult?.error||'Push was not queued. Check RTDB Rules and push configuration.'}`,'warning');
+    if(!alertResult?.ok||alertResult.pending||item.published&&alertResult.published&&!alertResult.pushQueued){
+      setGivenActivityAdminStatus(`${item.title} visibility saved; ${alertResult.pending?'NEW badge and phone alert sent for verification.':'NEW badge or phone alert is not confirmed. Check the notification setup.'}`,'warning');
     }else{
       setGivenActivityAdminStatus(`${item.title} is now ${item.published ? 'published' : 'a draft'}.`+(item.published&&alertResult?.published?' NEW badge and phone alert queued.':''),'success');
     }
   } catch (error) {
-    item.visibility = previous;
-    item.published = previous === 'published';
-    setGivenActivityAdminStatus(error?.message || 'Could not change visibility.', 'error');
+    if (!cloudCommitted) {
+      item.visibility = previous;
+      item.published = previous === 'published';
+      setGivenActivityAdminStatus('Publication could not be confirmed yet. Check Saved Activities before retrying.', 'warning');
+    } else setGivenActivityAdminStatus('Publication saved. Notification confirmation pending.', 'warning');
+    console.warn('Activity visibility follow-up:',error);
   }
 }
 

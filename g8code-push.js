@@ -310,6 +310,29 @@ async function queueAnnouncementEngagement(event){
  }catch(_){console.info('Announcement alert not queued; saved engagement is unaffected.');return false;}
 }
 
+async function publishLearningThroughSender(event){
+ try{
+  await (state.ready||init());
+  const account=state.auth?.currentUser;
+  const endpoint=immediateUrl();
+  if(!account||!teacherEmails().has(String(account.email||'').toLowerCase())||!endpoint)return false;
+  const type=String(event?.type||''),itemId=String(event?.itemId||'');
+  if(!['lessons','activities'].includes(type)||!validId(itemId))return false;
+  const title=String(event?.title||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').trim().slice(0,160);
+  if(!title)return false;
+  const token=await account.getIdToken();
+  if(account.uid!==state.auth?.currentUser?.uid)return false;
+  const body=new URLSearchParams({action:'learningCatalog',idToken:token,
+   type,itemId,title,term:String(event.term||'term1').slice(0,20),
+   audienceSection:safeSection(event.audienceSection||'all'),
+   published:event.published===false?'false':'true',
+   queueMissing:event.queueMissing===true?'true':'false'});
+  // Opaque redirect: this confirms REQUEST only, never a successful server write.
+  await fetch(endpoint,{method:'POST',mode:'no-cors',credentials:'omit',
+   redirect:'follow',cache:'no-store',body,keepalive:true});
+  return true;
+ }catch(err){console.warn('Server-side learning alert request unavailable:',err?.message||err);return false;}
+}
 async function queueTeacherEvent(event){
  try{
   await (state.ready||init());
@@ -394,6 +417,6 @@ async function init(){
  })().catch(err=>{state.lastError=err?.message||'Push setup unavailable';render();});
  return state.ready;
 }
-window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,queueMessageReaction,queueAnnouncementEngagement,refresh:render});
+window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,queueMessageReaction,queueAnnouncementEngagement,publishLearningThroughSender,refresh:render});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{void init();},{once:true});else void init();
 })();
