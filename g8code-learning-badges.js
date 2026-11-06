@@ -165,7 +165,7 @@
      console.warn('Named alert repair not confirmed:',server.error);
     }
     let queued=false;
-    try{queued=Boolean(await window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection,catalogVersion:version}));}
+    try{queued=Boolean(await window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection,catalogVersion:version,title}));}
     catch(pushError){console.warn('Learning push queue error:',pushError);}
     if(!queued){
      const server=await publishViaVerifiedSender(type,{...record,queueMissing:true});

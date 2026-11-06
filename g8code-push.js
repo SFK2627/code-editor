@@ -359,6 +359,13 @@ async function queueTeacherEvent(event){
    const version=Number(event.catalogVersion);
    if(!Number.isSafeInteger(version)||version<=0)return false;
    record.catalogVersion=version;
+   // Keep the teacher-authored title in the private, teacher-readable outbox.
+   // The sender still validates catalog version and audience before delivery.
+   // This prevents missing/stale learningMeta from silently producing generic alerts.
+   const learningTitle=String(event.title||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+    .replace(/\s+/g,' ').trim().slice(0,160);
+   if(!learningTitle)return false;
+   record.learningTitle=learningTitle;
   }
   if(targetUid)record.targetUid=targetUid;
   if(audienceSection)record.audienceSection=audienceSection;
