@@ -14962,12 +14962,24 @@ async function openStudentProject(projectId) {
   if (!appSession.student || !projectId) return;
   try {
     if (projectDashboardStatus) projectDashboardStatus.textContent = 'Opening project...';
-    const project = await getStudentProject(projectId);
+    const cachedProject = (appSession.projects || []).find(item => String(item.id || '') === String(projectId));
+    // Opening a cached coding project does not need a preliminary Firestore read.
+    // Studio V2 revalidates its exact document after navigation.
+    const codeProjectInCache = cachedProject && String(cachedProject.projectType || 'code').toLowerCase() !== 'wireframe';
+    const project = codeProjectInCache ? cachedProject : await getStudentProject(projectId);
     if (!project) throw new Error('Project not found.');
     // The official Code Editor is Studio V2; Wireframe Maker remains a separate tool.
     if (String(project.projectType || 'code').toLowerCase() !== 'wireframe') {
       const params = new URLSearchParams({ project: String(projectId) });
       if (project.petaActivityId) params.set('peta', String(project.petaActivityId));
+      // One-time same-tab handoff, restricted by UID and project ID in Studio.
+      try {
+        if (project.codeByActivity && appSession.student?.uid) {
+          sessionStorage.setItem('g8code.studio.projectHandoff.v1', JSON.stringify({
+            uid: appSession.student.uid, at: Date.now(), project
+          }));
+        }
+      } catch (cacheError) { console.info('Project handoff unavailable; Studio will load from cloud.', cacheError); }
       window.ICT8AppExitGuard?.allowNextUnload?.();
       window.location.assign('editor-v2.html?' + params.toString());
       return;

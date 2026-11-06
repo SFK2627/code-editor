@@ -919,7 +919,11 @@ function watchStudioAdminSettings(){
   },err=>console.warn('Studio admin theme/settings live updates unavailable:',err));
  }catch(err){console.warn('Studio settings watcher:',err)}
 }
-async function initFirebase(){const firebase=window.firebase;if(!firebase?.initializeApp||!window.MCS_FIREBASE_CONFIG){status('Guest · Firebase SDK unavailable');return}try{const app=firebase.apps.length?firebase.app():firebase.initializeApp(window.MCS_FIREBASE_CONFIG);db=firebase.firestore(app);auth=firebase.auth(app);auth.onAuthStateChanged(async user=>{if(!user&&state.collab)stopCollab();state.auth=user;state.guest=!user||STUDIO_FORCE_GUEST;state.profile=null;$('authPill').textContent=user&&!STUDIO_FORCE_GUEST?'Student connected':'Guest mode';document.body.classList.toggle('studio-guest-mode',!user||STUDIO_FORCE_GUEST);if(user&&!STUDIO_FORCE_GUEST){try{const snap=await profileRef().get();if(snap.exists){state.profile=snap.data()||{};$('authPill').textContent=state.profile.name||state.profile.firstName||'Student connected';status('● Connected to G8Code');}else{status('Signed in · no student profile');toast('Your Firebase account has no student profile. Open G8Code for verification.','error')}}catch(err){status('Signed in · profile unavailable');console.warn(err)}await cloudRoot();watchStudioAdminSettings();const parameter=new URLSearchParams(location.search);if(parameter.get('project'))await loadProject(parameter.get('project'));else if(!state.dirty)restoreStudentRecovery(user.uid);if(parameter.get('join')&&state.profile&&!studioJoinHandoffStarted){studioJoinHandoffStarted=true;await joinCollab(parameter.get('join'));}}else{if(studioAdminSettingsUnsub){studioAdminSettingsUnsub();studioAdminSettingsUnsub=null}status('● Guest practice · local only');await cloudRoot();if(STUDIO_PARAMS.get('return')==='admin'&&STUDIO_FORCE_GUEST){try{const saved=JSON.parse(sessionStorage.getItem(DRAFT)||'null');if(saved?.code&&Date.now()-Number(saved.updated||0)<86400000){state.code=normalizeCode(saved.code);state.projectId='';state.project=null;state.lastPracticeCheck=saved.practiceCheck||null;title(saved.name||'Guest draft');state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);state.dirty=!!saved.dirty;runPreview();status('✓ Guest draft restored after Admin');}}catch(e){console.warn('Guest Admin-return draft could not be restored',e)}}if(STUDIO_PARAMS.get('project')&&!STUDIO_FORCE_GUEST){toast('Sign in to open your saved G8Code project.','error');setTimeout(openAccount,180)}}renderResultQuick();});}catch(err){console.error(err);status('Guest practice · cloud unavailable');toast('Firebase could not connect. Local practice remains available.','error')}}
+async function initFirebase(){const firebase=window.firebase;if(!firebase?.initializeApp||!window.MCS_FIREBASE_CONFIG){status('Guest · Firebase SDK unavailable');return}try{const app=firebase.apps.length?firebase.app():firebase.initializeApp(window.MCS_FIREBASE_CONFIG);db=firebase.firestore(app);auth=firebase.auth(app);auth.onAuthStateChanged(async user=>{if(!user&&state.collab)stopCollab();state.auth=user;state.guest=!user||STUDIO_FORCE_GUEST;state.profile=null;$('authPill').textContent=user&&!STUDIO_FORCE_GUEST?'Student connected':'Guest mode';document.body.classList.toggle('studio-guest-mode',!user||STUDIO_FORCE_GUEST);if(user&&!STUDIO_FORCE_GUEST){try{const snap=await profileRef().get();if(snap.exists){state.profile=snap.data()||{};$('authPill').textContent=state.profile.name||state.profile.firstName||'Student connected';status('● Connected to G8Code');}else{status('Signed in · no student profile');toast('Your Firebase account has no student profile. Open G8Code for verification.','error')}}catch(err){status('Signed in · profile unavailable');console.warn(err)}const parameter=new URLSearchParams(location.search);if(parameter.get('project')){
+  // Root settings are a large document; never block an explicitly selected project on it.
+  void cloudRoot().then(()=>watchStudioAdminSettings());
+  await loadProject(parameter.get('project'));
+ }else{await cloudRoot();watchStudioAdminSettings();if(!state.dirty)restoreStudentRecovery(user.uid);}if(parameter.get('join')&&state.profile&&!studioJoinHandoffStarted){studioJoinHandoffStarted=true;await joinCollab(parameter.get('join'));}}else{if(studioAdminSettingsUnsub){studioAdminSettingsUnsub();studioAdminSettingsUnsub=null}status('● Guest practice · local only');await cloudRoot();if(STUDIO_PARAMS.get('return')==='admin'&&STUDIO_FORCE_GUEST){try{const saved=JSON.parse(sessionStorage.getItem(DRAFT)||'null');if(saved?.code&&Date.now()-Number(saved.updated||0)<86400000){state.code=normalizeCode(saved.code);state.projectId='';state.project=null;state.lastPracticeCheck=saved.practiceCheck||null;title(saved.name||'Guest draft');state.previewPage=state.code.activeHtmlPage;switchFile('html',state.code.activeHtmlPage);state.dirty=!!saved.dirty;runPreview();status('✓ Guest draft restored after Admin');}}catch(e){console.warn('Guest Admin-return draft could not be restored',e)}}if(STUDIO_PARAMS.get('project')&&!STUDIO_FORCE_GUEST){toast('Sign in to open your saved G8Code project.','error');setTimeout(openAccount,180)}}renderResultQuick();});}catch(err){console.error(err);status('Guest practice · cloud unavailable');toast('Firebase could not connect. Local practice remains available.','error')}}
 // Guest sign-in uses the same trusted Student ID -> Firebase account lookup as the main app.
 // No passwords are persisted, and no new Auth account is created from the Studio modal.
 let studioGuestSaveAfterLogin=false;
@@ -1038,7 +1042,62 @@ async function signInStudent(){
 }
 async function listProjects(){if(!requireAccount('Project library'))return;openDialog('My G8Code Projects','<p class="subtext">Loading your saved code projects…</p>',[{label:'Close',action:closeDialog}]);try{const snap=await projectsRef().orderBy('updatedAt','desc').limit(70).get().catch(()=>projectsRef().limit(70).get());state.projects=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.projectType!=='wireframe');renderProjectsModal()}catch(err){$('dialogContent').innerHTML=`<p>${escapeHTML(err.message)}</p>`}}
 function renderProjectsModal(){const rows=state.projects.length?state.projects.map(p=>`<div class="record-row"><div class="record-title"><strong>${escapeHTML(p.name||'Untitled Project')}</strong><small>${escapeHTML(p.activityTitle||p.petaActivityTitle||'HTML · CSS · JS')} · ${p.lastResult?`Rubric score ${p.lastResult.score??'?'} / ${p.lastResult.possible??'?'}`:p.studioPracticeCheck?`Practice ${p.studioPracticeCheck.score??'?'}/${p.studioPracticeCheck.checkedMax??'?'} · not official`:'In progress'}</small></div><button data-project-open="${escapeHTML(p.id)}">Open</button></div>`).join(''):'<p class="subtext">No code projects found. Create your first project in Studio V2.</p>';$('dialogContent').innerHTML=`<div class="record-list">${rows}</div>`;$('dialogFooter').innerHTML='';const cancel=document.createElement('button');cancel.className='secondary';cancel.textContent='Close';cancel.onclick=closeDialog;const create=document.createElement('button');create.className='primary';create.textContent='New project';create.onclick=()=>{closeDialog();newProject()};$('dialogFooter').append(cancel,create)}
-async function loadProject(id){if(!requireAccount('Open project'))return false;const startup=STUDIO_PARAMS.get('project')===id; if(startup)document.body.classList.add('studio-loading-project');try{status('Loading selected project…');const doc=await projectsRef().doc(id).get();if(!doc.exists)throw Error('Project does not exist.');const project={id,...doc.data()};if(project.projectType==='wireframe')throw Error('This is a Wireframe project. Open it in the original G8Code app.');if(state.dirty&&!startup&&!await confirmAction('Unsaved changes will be replaced. Open this project?','Open project'))return false;editHistory?.reset();clearSourceDiagnostics();state.project=project;state.projectId=id;state.lastPracticeCheck=project.studioPracticeCheck||null;state.lastAutoResult=null;state.code=normalizeProject(project);state.previewPage=state.code.activeHtmlPage;state.lang='html';title(project.name);switchFile('html',state.code.activeHtmlPage);state.dirty=false;status('● Project loaded');renderResultQuick();closeDialog();runPreview();const linkedPeta=String(STUDIO_PARAMS.get('peta')||project.petaActivityId||'');if(linkedPeta){const activity=state.given.find(a=>String(a.id)===linkedPeta);if(activity)showReferenceDock(activity);}toast('Opened '+state.name);return true}catch(err){status('Open failed');toast(err.message||'Cannot load project','error');if(startup)openDialog('Project could not load',`<p>${escapeHTML(err.message||'Please check your connection and open the project again.')}</p>`,[{label:'My Projects',action:()=>goToStudioDestination('projects')},{label:'Retry',kind:'primary',action:()=>{closeDialog();loadProject(id)}}]);return false}finally{if(startup)document.body.classList.remove('studio-loading-project')}}
+// One-time same-tab handoff from My Projects: eliminates the extra full-document
+// round-trip before the editor can render, while revalidating against Firestore.
+const STUDIO_PROJECT_HANDOFF_KEY='g8code.studio.projectHandoff.v1';
+function takeStudioProjectHandoff(id){
+ try{
+  const raw=sessionStorage.getItem(STUDIO_PROJECT_HANDOFF_KEY);
+  sessionStorage.removeItem(STUDIO_PROJECT_HANDOFF_KEY);
+  if(!raw)return null;
+  const data=JSON.parse(raw);
+  if(String(data.uid)!==String(state.auth?.uid)||String(data.project?.id)!==String(id)||Date.now()-Number(data.at)>120000||Date.now()-Number(data.at)<0)return null;
+  if(!data.project?.codeByActivity||typeof data.project.codeByActivity!=='object')return null;
+  return data.project;
+ }catch{return null;}
+}
+function applyStudioLoadedProject(project,id){
+ editHistory?.reset();clearSourceDiagnostics();state.project=project;state.projectId=id;
+ state.lastPracticeCheck=project.studioPracticeCheck||null;state.lastAutoResult=null;
+ state.code=normalizeProject(project);state.previewPage=state.code.activeHtmlPage;state.lang='html';
+ title(project.name);switchFile('html',state.code.activeHtmlPage);state.dirty=false;
+ status('● Project loaded');renderResultQuick();closeDialog();runPreview();
+ const linkedPeta=String(STUDIO_PARAMS.get('peta')||project.petaActivityId||'');
+ if(linkedPeta){const activity=state.given.find(a=>String(a.id)===linkedPeta);if(activity)showReferenceDock(activity);}
+}
+function studioProjectReadWithTimeout(ref,ms=8500){
+ return Promise.race([ref.get(),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Cloud is slow; please retry.')),ms))]);
+}
+async function loadProject(id){
+ if(!requireAccount('Open project'))return false;
+ const startup=STUDIO_PARAMS.get('project')===id;
+ if(startup)document.body.classList.add('studio-loading-project');
+ const handoff=startup?takeStudioProjectHandoff(id):null;
+ let shownFromCache=false;
+ try{
+  status('Loading selected project…');
+  if(handoff&&handoff.projectType!=='wireframe'){
+   applyStudioLoadedProject(handoff,id);shownFromCache=true;
+   document.body.classList.remove('studio-loading-project');
+   status('● Project opened · checking latest cloud version');
+  }
+  const doc=await studioProjectReadWithTimeout(projectsRef().doc(id));
+  if(!doc.exists)throw Error('Project does not exist.');
+  const project={id,...doc.data()};
+  if(project.projectType==='wireframe')throw Error('This is a Wireframe project. Open it in the original G8Code app.');
+  if(state.dirty&&!startup&&!await confirmAction('Unsaved changes will be replaced. Open this project?','Open project'))return false;
+  // Never discard edits typed while a cached project is being revalidated.
+  if(!shownFromCache||!state.dirty){applyStudioLoadedProject(project,id);status('● Project loaded');}
+  else {state.project={...state.project,...project};status('● Latest project checked · your new edits kept');}
+  toast('Opened '+state.name);return true;
+ }catch(err){
+  if(shownFromCache){status('● Project opened from local cache · cloud check unavailable');console.warn('Editor cloud project revalidation unavailable:',err);return true;}
+  status('Open failed');toast(err.message||'Cannot load project','error');
+  if(startup)openDialog('Project could not load',`<p>${escapeHTML(err.message||'Please check your connection and open the project again.')}</p>`,[{label:'My Projects',action:()=>goToStudioDestination('projects')},{label:'Retry',kind:'primary',action:()=>{closeDialog();loadProject(id)}}]);
+  return false;
+ }finally{if(startup)document.body.classList.remove('studio-loading-project');}
+}
+
 function currentSavePayload(){const current=state.code;const key=state.project?.selectedActivityId||'scratch';const preserve={...((state.project?.codeByActivity)||{})};preserve[key]={...clone(current),html:current.pages[current.activeHtmlPage]||'',css:current.cssFiles[current.activeCssFile]||'',js:current.jsFiles[current.activeJsFile]||''};return {projectType:'code',name:state.name||'Untitled Project',nameLower:(state.name||'Untitled Project').toLowerCase(),status:state.project?.status||'in-progress',codeByActivity:preserve,selectedActivityId:state.project?.selectedActivityId||'',activityTitle:state.project?.activityTitle||'',petaActivityId:state.project?.petaActivityId||'',petaActivityTitle:state.project?.petaActivityTitle||'',isPetaProject:state.project?.isPetaProject===true,fileNames:{html:current.activeHtmlPage,css:current.activeCssFile,js:current.activeJsFile},runCount:state.project?.runCount||0,...(state.lastPracticeCheck?{studioPracticeCheck:clone(state.lastPracticeCheck)}:{}),...(state.lastAutoResult?{lastResult:clone(state.lastAutoResult),status:state.lastAutoResult.passed?'passed':'checked'}:{})}}
 // Studio V2 and the original G8Code app intentionally share the same project
 // collection AND My Projects index/cache format. Do not create a V2-only library.
@@ -2052,7 +2111,7 @@ function undoStudioFormat(){
 // is cached BEFORE the toolbar receives focus (critical for touch selection).
 let autoCssHTMLSelection=null, pendingAutoCss=null;
 function captureAutoCssSelection(){
- if(state.lang!=='html')return;
+ if(state.lang!=='html'||document.activeElement!==input)return;
  autoCssHTMLSelection={codeRef:state.code,projectId:state.projectId,name:fileName('html'),source:fileContent('html'),start:input.selectionStart,end:input.selectionEnd};
 }
 function updateAutoCssToolbar(){
@@ -2114,8 +2173,12 @@ function autoCssStart(){
  if(!state.autoCssEnabled||!assistantAllowed('superStudio')){toast('Enable Auto CSS in Super Studio.','error');return}
  if(state.lang!=='html'){toast('Open an HTML file and select a tag first.','error');return}
  if(input.readOnly||(state.collab&&!liveCollab?.canEdit())){toast('This collaboration is view-only.','error');return}
- const selection=autoCssHTMLSelection;
- if(!selection||selection.codeRef!==state.code||selection.name!==fileName('html')||selection.source!==fileContent('html')){toast('Select a current HTML tag or an id/class attribute first.','error');return}
+ let selection=autoCssHTMLSelection;
+ if(!selection||selection.codeRef!==state.code||selection.name!==fileName('html')||selection.source!==fileContent('html')){
+   // Cached cursor coordinates can lag behind a single mouse/touch tap.
+   // Recover directly from the live textarea when the cache is stale.
+   selection={codeRef:state.code,projectId:state.projectId,name:fileName('html'),source:fileContent('html'),start:input.selectionStart,end:input.selectionEnd};
+ }
  const tool=window.G8CodeStudioAutoCSS;
  const result=tool?.resolve(selection.source,selection.start,selection.end);
  if(!result||result.error){toast(result?.error||'Auto CSS is unavailable.','error');return}
@@ -2131,9 +2194,13 @@ function openSuperStudio(){
 }
 function bindEvents(){
 installStudioConsole();installMobileCoding();
-$('studioAutoCss')?.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')e.preventDefault();});
+$('studioAutoCss')?.addEventListener('pointerdown',e=>{
+  // Save the live cursor before button focus/selection changes, on mouse AND touch.
+  if(state.lang==='html'&&document.activeElement===input)captureAutoCssSelection();
+  if(e.pointerType==='mouse')e.preventDefault();
+ });
 $('studioAutoCss')?.addEventListener('click',autoCssStart);
-input.addEventListener('select',captureAutoCssSelection);input.addEventListener('pointerup',captureAutoCssSelection);input.addEventListener('keyup',captureAutoCssSelection);
+input.addEventListener('select',captureAutoCssSelection);input.addEventListener('pointerup',captureAutoCssSelection);input.addEventListener('keyup',captureAutoCssSelection);input.addEventListener('click',captureAutoCssSelection);input.addEventListener('touchend',()=>requestAnimationFrame(captureAutoCssSelection),{passive:true});
 window.addEventListener('storage',e=>{
  if(e.key!==STUDIO_SHARED_APPEARANCE&&e.key!==STUDIO_ORIGINAL_APPEARANCE)return;
  const settings=state.root?.loginReminderSettings||fromJSON('studentCodeStudio.loginReminderSettings.v1',{});

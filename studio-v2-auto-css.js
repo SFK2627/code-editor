@@ -67,10 +67,12 @@
   if(!Number.isInteger(start)||!Number.isInteger(end)||start<0||end<start||end>code.length)return {error:'Select an HTML tag or an id/class attribute first.'};
   const tags=tokenize(code);
   if(end>start)return attributeChoice(code,tags,start,end);
-  const tag=tags.find(t=>start>=t.nameStart&&start<=t.nameEnd);
+  const tag=tags.find(t=>start>=t.start&&start<t.end && (start<=t.nameEnd || t.closing && start<=t.nameEnd));
   if(!tag)return {error:'Tap the HTML tag name (for example h1) or highlight a complete id="..." / class="...".'};
   if(tag.void&&tag.closing)return {error:'This HTML void tag does not use a closing tag.'};
-  if(!tag.void&&!tag.partner)return {error:'Add a matching closing </'+tag.name+'> tag before using Auto CSS.'};
+  // The selector belongs to the tag name regardless of whether its matching
+  // closing tag has been typed yet. Do not block legitimate in-progress HTML.
+  // Opening and closing tags both resolve on the first tap.
   return {selectors:[tag.name],source:'tag',tag:tag.name};
  }
  function findExisting(css,selector){
