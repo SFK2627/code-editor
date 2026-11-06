@@ -100,17 +100,47 @@
   const id=safeId(record.id);if(!id)return {ok:false,error:'Invalid item ID'};
   const path=state.sdk.ref(state.db,`${BASE}/catalog/${type}/${id}`);
   try{
-   if(type==='activities'&&record.published!==true){await state.sdk.remove(path);return {ok:true};}
-   await state.sdk.set(path,{active:true,version:stamp(),term:String(record.term||'term1').slice(0,20),audienceSection:type==='lessons'?'all':String(record.audienceSection||'all').slice(0,100)});
-   // Only after confirmed class publish. No notification failure can roll back Firestore.
-   void window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection:type==='lessons'?'all':String(record.audienceSection||'all')});
-   return {ok:true};
+   const dbRoot=state.sdk.ref(state.db);
+   const metadataPath=`g8PushV1/learningMeta/${type}/${id}`;
+   if(type==='activities'&&record.published!==true){
+    await state.sdk.update(dbRoot,{[`${BASE}/catalog/${type}/${id}`]:null,[metadataPath]:null});
+    return {ok:true,published:false};
+   }
+   // A published record already in this catalog is an EDIT, not a new post.
+   // Preserve its version (and students' seen badges); do NOT re-notify.
+   const prior=(await state.sdk.get(path)).val();
+   const newlyPublished=!prior||prior.active!==true;
+   const version=newlyPublished?stamp():Number(prior.version||stamp());
+   const audienceSection=type==='lessons'?'all':String(record.audienceSection||'all').trim().slice(0,100)||'all';
+   const term=String(record.term||'term1').slice(0,20);
+   const title=String(record.title|| (type==='lessons'?'Lesson':'Activity'))
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
+   if(!title)return {ok:false,error:'Learning notification title missing'};
+   // Atomic catalog+private-metadata update. Metadata is teacher-readable only;
+   // students in other sections cannot inspect restricted activity titles.
+   await state.sdk.update(dbRoot,{
+    [`${BASE}/catalog/${type}/${id}`]:{active:true,version,term,audienceSection},
+    [metadataPath]:{title,version,term,audienceSection,updatedAtMs:stamp()}
+   });
+   // Only after the saved source content + notification catalog are confirmed.
+   if(newlyPublished){
+    const queued=await window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection,catalogVersion:version});
+    if(!queued)console.warn('New learning item was saved, but push was not queued.');
+    return {ok:true,published:true,pushQueued:Boolean(queued)};
+   }
+   return {ok:true,published:false,pushQueued:false};
   }catch(err){return {ok:false,error:err?.message||'RTDB notification write failed'};}
  }
  async function remove(type,itemId){
   const id=safeId(itemId),user=state.auth?.currentUser;
   if(!TYPES.includes(type)||!id||!state.db||!state.sdk||!user||!TEACHER_EMAILS().has(String(user.email||'').toLowerCase()))return {ok:false};
-  try{await state.sdk.remove(state.sdk.ref(state.db,`${BASE}/catalog/${type}/${id}`));return {ok:true};}catch(err){console.warn('Notification removal:',err.message);return {ok:false};}
+  try{
+   await state.sdk.update(state.sdk.ref(state.db),{
+    [`${BASE}/catalog/${type}/${id}`]:null,
+    [`g8PushV1/learningMeta/${type}/${id}`]:null
+   });
+   return {ok:true};
+  }catch(err){console.warn('Notification removal:',err.message);return {ok:false};}
  }
  window.G8CodeLearningBadges=Object.freeze({publish,remove,markViewed,refresh:scheduleRender,getCount});
  // Handle lesson/activity rerender without observing subtree changes caused by our own badges.

@@ -292,6 +292,11 @@ async function queueTeacherEvent(event){
    audience='section';audienceSection=safeSection(event.audienceSection);
   }
   const record={type,itemId,createdByUid:account.uid,createdAtMs:Date.now(),audience,status:'pending'};
+  if(type==='lessons'||type==='activities'){
+   const version=Number(event.catalogVersion);
+   if(!Number.isSafeInteger(version)||version<=0)return false;
+   record.catalogVersion=version;
+  }
   if(targetUid)record.targetUid=targetUid;
   if(audienceSection)record.audienceSection=audienceSection;
   if(recipientUids)record.recipientUids=recipientUids;

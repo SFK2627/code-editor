@@ -189,7 +189,8 @@ self.addEventListener('push',event=>{
   // The Admin Dashboard (including while open) should show OS notifications.
   const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
   if(windows.some(c=>c.visibilityState==='visible'&&c.focused&&
-    (recipientRole==='student'||(type==='messages'&&/\/messages\.html(?:[?#]|$)/.test(c.url))))){
+    ((recipientRole==='student'&&['messages','announcements'].includes(type))||
+     (recipientRole==='teacher'&&type==='messages'&&/\/messages\.html(?:[?#]|$)/.test(c.url))))){
    await writePushAudit('in-app-foreground',receivedAtMs);return;
   }
   const itemId=String(data.itemId||'');
@@ -229,9 +230,18 @@ self.addEventListener('push',event=>{
   const adviserBody=adviserKind==='project'?'Shared a project with you.'
    :adviserKind==='photo'?(photoCount>1?`Sent you ${photoCount} photos.`:'Sent you a photo.')
    :'Sent you a message.';
+  // Lesson/activity titles are supplied by server-verified teacher-only metadata.
+  const learningTitle=recipientRole==='student'&&['lessons','activities'].includes(type)
+   ?String(data.learningTitle||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
+     .replace(/\s+/g,' ').trim().slice(0,160):'';
+  const learningAlert=recipientRole==='student'&&['lessons','activities'].includes(type);
+  const noticeTitle=recipientRole==='teacher'?adviserTitle:
+   learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):'G8Code';
+  const noticeBody=recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):
+   (learningTitle||pushLabels[type]);
   try{
-  await self.registration.showNotification(recipientRole==='teacher'?adviserTitle:'G8Code',{
-   body:recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):pushLabels[type],icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
+  await self.registration.showNotification(noticeTitle,{
+   body:noticeBody,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
    tag:`g8code-${type}-${eventId}`,renotify:false,
    data:{destination,type,targetUid},silent:false
   });
