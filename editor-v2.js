@@ -76,7 +76,7 @@ function normalizeProject(raw){
 }
 function setDirty(){state.dirty=true;state.changeRevision=(state.changeRevision||0)+1;state.unsavedSince=Date.now();status(state.guest?'● Unsaved local draft':'● Unsaved changes');safeLocalDraft();if(state.autoRun)scheduleRun();if(!state.collab&&!state.guest&&state.root?.studentAssistanceSettings?.enabled!==false&&state.root?.studentAssistanceSettings?.autoSave!==false){clearTimeout(cloudTimer);cloudTimer=setTimeout(()=>saveProject({quiet:true}),15000)}}
 function safeLocalDraft(){try{const key=state.guest?DRAFT:`${DRAFT}.${state.auth?.uid||'auth'}`;sessionStorage.setItem(key,JSON.stringify({name:state.name,code:state.code,projectId:state.projectId,practiceCheck:state.lastPracticeCheck||null,dirty:state.dirty,updated:Date.now()}))}catch{}}
-function switchFile(lang,name){if(!fileMap(lang)?.hasOwnProperty(name))return;state.lang=lang;renderMobileSymbols();state.code[ACTIVE[lang]]=name;input.value=fileContent();$('activeFileLabel').textContent=name;all('#languageTabs button').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));renderFiles();refreshLineNumbers();refreshCursor();input.focus();renderCollabCursors();scheduleCollabCursor();updateUndoButtons();updateAutoCssToolbar();if(lang==='html')captureAutoCssSelection();scheduleSourceDiagnostics();}
+function switchFile(lang,name){if(!fileMap(lang)?.hasOwnProperty(name))return;state.lang=lang;renderMobileSymbols();state.code[ACTIVE[lang]]=name;input.value=fileContent();$('activeFileLabel').textContent=name;all('#languageTabs button').forEach(b=>b.classList.toggle('active',b.dataset.lang===lang));renderFiles();refreshLineNumbers();refreshCursor();if(!matchMedia('(max-width:920px)').matches)input.focus({preventScroll:true});renderCollabCursors();scheduleCollabCursor();updateUndoButtons();updateAutoCssToolbar();if(lang==='html')captureAutoCssSelection();scheduleSourceDiagnostics();}
 function renderFiles(){
  const groups=[['html','HTML pages','⌘'],['css','Stylesheets','◈'],['js','JavaScript','◇']];
  $('fileExplorer').innerHTML=groups.map(([lang,label,icon])=>{
@@ -245,7 +245,7 @@ function normalizePreviewLink(raw,currentPage=state.previewPage){
 }
 // V2.41: diagnostics are sourced from the opaque preview iframe only.
 // Never execute a student's logs or permit diagnostics to access the parent app.
-const studioConsole={entries:[],diagnostics:new Map(),errors:0,open:false,run:0,limit:90,raf:0};
+const studioConsole={entries:[],diagnostics:new Map(),errors:0,open:false,run:0,limit:90,raf:0,filter:'all'};
 let diagnosticTimer=null;
 function explainStudioIssue(message){
  const s=String(message||'');
@@ -357,9 +357,10 @@ function renderStudioConsole(){
  studioConsole.raf=0;
  const log=$('studioConsoleLog');if(!log)return;
  const frag=document.createDocumentFragment();
- if(!studioConsole.entries.length&&![...studioConsole.diagnostics.values()].some(x=>x.length)){const el=document.createElement('p');el.className='studio-console-empty';el.textContent='No messages yet. Run your code or interact with the preview.';frag.append(el)}
  const diagnostics=[...studioConsole.diagnostics.values()].flat();
- const combined=[...diagnostics,...studioConsole.entries];
+ const everything=[...diagnostics,...studioConsole.entries];
+ const combined=everything.filter(item=>studioConsole.filter==='all'||(item.language||'js')===studioConsole.filter);
+ if(!combined.length){const el=document.createElement('p');el.className='studio-console-empty';el.textContent=everything.length?'No '+studioConsole.filter.toUpperCase()+' messages. Try All.':'No issues found. Edit a file or run the preview to check again.';frag.append(el)}
  for(const item of combined){
   const row=document.createElement('div');row.className='studio-console-entry level-'+item.level;
   const heading=document.createElement('div');heading.className='studio-console-entry-head';
@@ -392,19 +393,27 @@ function renderStudioConsole(){
 }
 function scheduleStudioConsolePaint(){if(!studioConsole.raf)studioConsole.raf=requestAnimationFrame(renderStudioConsole)}
 function clearStudioConsole(){
- // Keep live source diagnostics visible; Clear clears runtime messages only.
+ // Clear runtime logs without erasing source diagnostics.
  studioConsole.entries=[];studioConsole.run=previewRunToken;scheduleStudioConsolePaint();
 }
 function scheduleSourceDiagnostics(immediate=false){
  if(!editAssist)return;
  clearTimeout(diagnosticTimer);
- const lang=state.lang,name=fileName(),text=fileContent();
- if(!name)return;
  diagnosticTimer=setTimeout(()=>{
-  const diagnostics=lang==='html'?editAssist.diagnoseHTML(text,name):lang==='css'?editAssist.diagnoseCSS(text,name):[];
-  studioConsole.diagnostics.set(lang+':'+name,diagnostics);
+  // Diagnose every file, not just the active tab. Shared/collaboration changes
+  // are inspected without writing to Firebase or executing student code.
+  const next=new Map();
+  for(const lang of ['html','css','js']){
+   const names=fileMap(lang)||{};
+   for(const [name,raw] of Object.entries(names)){
+    const value=lang===state.lang&&name===fileName()?input.value:raw;
+    const result=lang==='html'?editAssist.diagnoseHTML(value,name):lang==='css'?editAssist.diagnoseCSS(value,name):editAssist.diagnoseJS?.(value,name)||[];
+    next.set(lang+':'+name,result);
+   }
+  }
+  studioConsole.diagnostics=next;
   scheduleStudioConsolePaint();
- },immediate?0:340);
+ },immediate?0:430);
 }
 function clearSourceDiagnostics(){clearTimeout(diagnosticTimer);studioConsole.diagnostics.clear();scheduleSourceDiagnostics(true)}
 function jumpToDiagnostic(lang,name,line){
@@ -423,7 +432,7 @@ function pushStudioConsole(entry){
  const message=String(entry.message||'').slice(0,1200);
  if(!message)return;
  if(studioConsole.entries.length>=studioConsole.limit){studioConsole.entries.shift();}
- studioConsole.entries.push({level,message,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})});
+ studioConsole.entries.push({level,language:'js',message,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})});
  studioConsole.errors=studioConsole.entries.filter(e=>e.level==='error').length;
  scheduleStudioConsolePaint();
 }
@@ -434,6 +443,7 @@ function setStudioConsoleOpen(open){
  if(studioConsole.open){if(matchMedia('(max-width:700px)').matches && state.mobileTab==='preview' && !document.body.dataset.immersive)setMobileTab('code');scheduleStudioConsolePaint()}
 }
 function installStudioConsole(){
+ $('studioConsoleFilter')?.addEventListener('change',e=>{studioConsole.filter=e.target.value;scheduleStudioConsolePaint()});
  $('studioConsoleToggle')?.addEventListener('click',()=>setStudioConsoleOpen(!studioConsole.open));
  $('studioPreviewConsoleToggle')?.addEventListener('click',()=>setStudioConsoleOpen(true));
  $('studioConsoleClose')?.addEventListener('click',()=>setStudioConsoleOpen(false));

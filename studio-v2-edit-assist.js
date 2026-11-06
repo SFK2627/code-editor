@@ -136,5 +136,70 @@
     }
     return out.slice(0, 16);
   }
-  host.G8StudioEditAssist = { LocalHistory, diagnoseHTML, diagnoseCSS };
+  // Advisory spellcheck for familiar HTML5 names; custom elements (with a dash)
+  // and SVG/XML names are deliberately excluded.
+  const knownTags = new Set(('html head title body meta link base style script noscript template slot main section article header footer nav aside div span p br hr a img picture source figure figcaption audio video track canvas svg iframe embed object param form input button label select option optgroup textarea fieldset legend datalist output progress meter table caption thead tbody tfoot tr td th col colgroup ul ol li dl dt dd h1 h2 h3 h4 h5 h6 strong em b i u s small mark code pre samp kbd var blockquote q cite abbr address time data details summary dialog ruby rt rp sup sub ins del wbr map area').split(' '));
+  const knownAttrs = new Set(('id class style title lang dir hidden tabindex role href src alt target rel type name value placeholder disabled checked selected required readonly multiple for action method enctype autocomplete autofocus accept min max step minlength maxlength width height loading decoding sizes srcset media charset content http-equiv viewbox aria-label').split(' '));
+  const optionalTags = new Set(('li dt dd p rt rp optgroup option colgroup thead tbody tfoot tr td th html head body').split(' '));
+  const lev=(a,b)=>{ if(Math.abs(a.length-b.length)>2)return 9;let prev=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){const next=[i];for(let j=1;j<=b.length;j++)next[j]=Math.min(next[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]!==b[j-1]));prev=next;}return prev[b.length];};
+  const suggestion=(word,choices)=>{let best='',d=9;for(const candidate of choices){const n=lev(word,candidate);if(n<d){best=candidate;d=n;}}return d<=(word.length>=3?2:1)?best:'';};
+  const previousHTML = diagnoseHTML;
+  diagnoseHTML = function(source,file='index.html'){
+    const html=String(source||''),found=previousHTML(source,file);
+    if(!html.trim()||html.length>150000)return found;
+    const stripped=html.replace(/<!--[\s\S]*?-->|<script\b[^>]*>[\s\S]*?<\/script\s*>|<style\b[^>]*>[\s\S]*?<\/style\s*>/gi,m=>' '.repeat(m.length));
+    const tags=/<\/?\s*([A-Za-z][\w:-]*)\b([^<>]*?)>/g;let m;
+    while((m=tags.exec(stripped))&&found.length<25){
+      const name=m[1].toLowerCase(),pos=m.index;
+      if(!knownTags.has(name)&&!name.includes('-')&&!name.includes(':')){
+        const maybe=suggestion(name,knownTags);if(maybe)found.push(issue('html',file,'warn',`Unknown HTML5 tag <${name}>`,`Did you mean <${maybe}>? Custom elements should contain a hyphen.`,html,pos));
+      }
+      if(m[0].startsWith('</'))continue;
+      const attrs=m[2].replace(/"[^"]*"|'[^']*'/g,'""');
+      for(const a of attrs.matchAll(/(?:^|\s)([A-Za-z][\w:-]*)(?=\s*(?:=|\s|$))/g)){
+        const key=a[1].toLowerCase();if(knownAttrs.has(key)||key.startsWith('data-')||key.startsWith('aria-')||key.startsWith('on')||key.includes(':')||key.startsWith('x-'))continue;
+        const maybe=suggestion(key,knownAttrs);if(maybe)found.push(issue('html',file,'warn',`Unrecognized attribute "${key}"`,`Did you mean "${maybe}"?`,html,pos));
+        if(found.length>=25)break;
+      }
+      // A stray opening tag syntax (missing >) is reported separately below.
+    }
+    const stray=/<[A-Za-z][^<>\n]*$/gm;while((m=stray.exec(stripped))&&found.length<25){found.push(issue('html',file,'warn','Possible missing > in HTML tag','Complete the opening tag with >.',html,m.index));}
+    return found.slice(0,25);
+  };
+  const previousCSS = diagnoseCSS;
+  diagnoseCSS=function(source,file='style.css'){
+    const css=String(source||''),found=previousCSS(source,file);if(!css.trim()||css.length>150000)return found;
+    if((css.match(/\/\*/g)||[]).length>(css.match(/\*\//g)||[]).length)found.push(issue('css',file,'warn','Unclosed CSS comment','Finish the comment with */.',css,css.lastIndexOf('/*')));
+    // A conservative scan of simple declaration blocks only, respecting strings.
+    const simple=/([^{}]+)\{([^{}]*)\}/g;let block;
+    while((block=simple.exec(css))&&found.length<25){
+      const selector=block[1].trim();if(selector.startsWith('@')||selector.includes('/*'))continue;
+      const body=block[2],bodyStart=block.index+block[0].indexOf('{')+1;
+      const masked=body.replace(/"[^"]*"|'[^']*'/g,m=>' '.repeat(m.length));
+      const lines=masked.split(/;(?![^()]*\))/);
+      for(let k=0;k<lines.length;k++){
+        const decl=lines[k].trim();if(!decl||decl.startsWith('/*'))continue;
+        const at=bodyStart+masked.indexOf(lines[k]);
+        // A newline followed by another property: suggests a missing semicolon.
+        const next=/\n\s*[\w-]+\s*:/.exec(decl);
+        if(next&&decl.includes(':'))found.push(issue('css',file,'warn','Possible missing semicolon between CSS declarations','Separate property declarations with ;.',css,at+next.index));
+        if(!decl.includes(':')&&/^[a-z-]+\s+[\w#.(]/i.test(decl))found.push(issue('css',file,'warn','CSS declaration may be missing a colon','Use property: value;.',css,at));
+        if(found.length>=25)break;
+      }
+    }
+    return found.slice(0,25);
+  };
+  function diagnoseJS(source,file='script.js'){
+    const js=String(source||'');if(!js.trim()||js.length>150000)return [];
+    // Compile only; NEVER execute student code. CSP can prohibit dynamic
+    // compilation, in which case silently defer to the sandbox preview.
+    if(/(^|\n)\s*(?:import|export)\s/m.test(js))return [];
+    try{new Function(js);return [];}catch(err){
+      if(err&&err.name==='EvalError')return [];
+      const message=String(err?.message||'JavaScript syntax issue');
+      if(/unsafe-eval|content security policy|refused to evaluate|CSP/i.test(message))return [];
+      return [issue('js',file,'error','JavaScript syntax: '+message.slice(0,150),'Check braces, quotes, parentheses, and punctuation. Runtime problems appear when you run the preview.',js,0)];
+    }
+  }
+  host.G8StudioEditAssist = { LocalHistory, diagnoseHTML, diagnoseCSS, diagnoseJS };
 })(typeof window === 'object' ? window : globalThis);

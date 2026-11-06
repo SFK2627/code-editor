@@ -106,3 +106,9 @@ body[data-appearance="dark"] .studio-console-trigger.has-errors{color:#ffacba}
  .code-panel .pane-actions #renameFile,.code-panel .pane-actions #deleteFile,.code-panel .pane-actions #clearTab{display:none}
 }
 @media(max-width:370px){.code-panel .pane-actions .studio-auto-css-btn:not([hidden]){width:35px;min-width:35px}}
+
+/* V2.7 language filter: compact on phones and accessible in all themes */
+.studio-console-filter-label{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);white-space:nowrap}
+.studio-console-filter-label select{min-height:28px;max-width:108px;padding:3px 5px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:inherit}
+.studio-console-header #studioConsoleSummary{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:520px){.studio-console-filter-label{font-size:0}.studio-console-filter-label select{font-size:11px;max-width:100px}.studio-console-header{gap:5px;padding:6px}.studio-console-header #studioConsoleSummary{font-size:10px}}
