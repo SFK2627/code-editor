@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v740-smart-replies-reactions';
+const CACHE_NAME = 'ict8-connect-v742-specific-notification-payloads';
 const APP_SHELL = [
   './',
   './index.html',
@@ -239,8 +239,9 @@ self.addEventListener('push',event=>{
    :reactionCode==='love'?'❤️ Loved your announcement'+announcementRef+'.'
    :reactionCode==='care'?'🤗 Reacted with care to your announcement'+announcementRef+'.'
    :'👍 Liked your announcement'+announcementRef+'.';
-  const adviserBody=eventKind==='reaction'&&reactionEmoji
-   ?`Reacted ${reactionEmoji} to your ${kindObject(reactedObject)}.`
+  const adviserBody=eventKind==='reaction'
+   ?(reactionEmoji?`Reacted ${reactionEmoji} to your ${kindObject(reactedObject)}.`
+     :`Reacted to your ${kindObject(reactedObject)}.`)
    :eventKind==='reply'?`Replied to your ${kindObject(replyObject)}.`
    :adviserKind==='project'?'Shared a project with you.'
    :adviserKind==='photo'?(photoCount>1?`Sent you ${photoCount} photos.`:'Sent you a photo.')
@@ -252,7 +253,7 @@ self.addEventListener('push',event=>{
   const learningAlert=recipientRole==='student'&&['lessons','activities'].includes(type);
   // Every student-facing caption below is derived from server-verified saved
   // messages, acknowledgments, or published announcement records.
-  const ackStatus=String(data.notificationKind||'')==='ack'&&['received','checked'].includes(String(data.ackStatus||''))
+  const ackStatus=eventKind==='ack'&&['received','checked'].includes(String(data.ackStatus||''))
    ?String(data.ackStatus):'';
   const studentKind=['message','photo','project'].includes(String(data.messageKind||''))?String(data.messageKind):'message';
   const projectName=String(data.projectName||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
@@ -266,17 +267,20 @@ self.addEventListener('push',event=>{
    :studentKind==='project'?'Your teacher shared a project with you.':pushLabels.messages;
   const ackObject=studentKind==='project'?(projectName?`Your activity “${projectName}”`:'Your shared activity')
    :(studentPhotoCount>1?'Your photos':'Your photo');
-  const studentAckBody=ackStatus==='checked'?`${ackObject} was marked Checked. Check Messenger for your teacher’s score or feedback.`
+  // Checked photos AND shared projects point to Messenger for feedback/score.
+  // Received is only an acknowledgment; it must not promise a score.
+  const studentAckBody=ackStatus==='checked'?`${ackObject} was marked Checked. Check Messenger for your teacher’s feedback or score.`
    :`${ackObject} was marked Received by your teacher.`;
-  const studentEventBody=eventKind==='reaction'&&reactionEmoji
-   ?`Your teacher reacted ${reactionEmoji} to your ${kindObject(reactedObject)}.`
+  const studentEventBody=eventKind==='reaction'
+   ?(reactionEmoji?`Your teacher reacted ${reactionEmoji} to your ${kindObject(reactedObject)}.`
+     :`Your teacher reacted to your ${kindObject(reactedObject)}.`)
    :eventKind==='reply'?`Your teacher replied to your ${kindObject(replyObject)}.`
    :studentMessageBody;
   // Explicit acknowledgment beats the source object's photo/project category.
   // If an ack-tagged event is missing its verified status, never mislabel it
   // as a new photo or project share.
   const safeStudentAckBody=(eventKind==='ack'&&!ackStatus)
-   ?'Your teacher updated a submission in Messenger.':studentAckBody;
+   ?'Your submission acknowledgment was updated. Open Messenger to see its status.':studentAckBody;
   const noticeTitle=recipientRole==='teacher'?adviserTitle:
    learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):
    type==='announcements'?'New Announcement Posted!':ackStatus?(ackStatus==='checked'?'Submission Checked':'Submission Received'):eventKind==='ack'?'Submission Updated':'G8Code Messages';
