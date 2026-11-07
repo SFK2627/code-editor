@@ -2575,6 +2575,94 @@ html.g8-admin-next #adminOverlay :is(#givenActivityUploadPanel,#givenActivityLin
 </style>
 
 <link rel="stylesheet" href="messages-bridge.css?v=51" />
+<!-- Badge position fix: each badge is anchored to its own control, never the
+     Admin header, close (X) button, or the entire sidebar. -->
+<style id="g8-admin-v34-badge-anchor-fix">
+html.g8-admin-next #adminOverlay .adm-shell .adm-notifications-trigger,
+html.g8-admin-next #adminOverlay .adm-shell .adm-badged-nav,
+html.g8-admin-next #adminOverlay .adm-shell .adm-bottom-btn.g8-messages-more {
+  position:relative!important;
+}
+html.g8-admin-next #adminOverlay .adm-shell .adm-notifications-trigger {
+  display:grid!important;
+  place-items:center!important;
+  width:39px!important;
+  min-width:39px!important;
+  max-width:39px!important;
+  height:39px!important;
+  min-height:39px!important;
+  padding:0!important;
+  flex:0 0 39px!important;
+  border:1px solid var(--adm-line)!important;
+  border-radius:11px!important;
+  background:var(--adm-soft)!important;
+  color:var(--adm-ink)!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+  isolation:isolate;
+}
+html.g8-admin-next #adminOverlay .adm-shell .adm-notifications-trigger > span {
+  display:none!important;
+}
+html.g8-admin-next #adminOverlay .adm-shell .g8-admin-msg-badge {
+  display:inline-grid;
+  place-items:center;
+  box-sizing:border-box!important;
+  width:auto!important;
+  min-width:17px!important;
+  max-width:38px!important;
+  height:17px!important;
+  padding:0 4px!important;
+  margin:0!important;
+  border:0!important;
+  border-radius:999px!important;
+  background:#e83f67!important;
+  color:#fff!important;
+  font:800 9px/17px Inter,system-ui,sans-serif!important;
+  white-space:nowrap!important;
+  text-align:center!important;
+  pointer-events:none!important;
+  z-index:3;
+}
+html.g8-admin-next #adminOverlay .adm-shell .g8-admin-msg-badge[hidden] {
+  display:none!important;
+}
+/* Bell: badge follows the bell itself, not the nearby Exit/X action. */
+html.g8-admin-next #adminOverlay .adm-shell .adm-notifications-trigger > .g8-admin-msg-badge {
+  position:absolute!important;
+  inset:-4px -4px auto auto!important;
+  transform:none!important;
+  box-shadow:0 0 0 2px var(--adm-paper,#fff)!important;
+}
+/* Sidebar: keep both Notifications and Messages counts in their own rows. */
+html.g8-admin-next #adminOverlay .adm-shell .adm-badged-nav {
+  padding-right:54px!important;
+}
+html.g8-admin-next #adminOverlay .adm-shell .adm-badged-nav > .g8-admin-msg-badge {
+  position:absolute!important;
+  top:50%!important;
+  right:12px!important;
+  bottom:auto!important;
+  left:auto!important;
+  transform:translateY(-50%)!important;
+  box-shadow:none!important;
+}
+/* Phone bottom More: preserve its existing Messenger unread indicator. */
+html.g8-admin-next #adminOverlay .adm-shell .adm-bottom-btn.g8-messages-more > .g8-admin-msg-badge {
+  position:absolute!important;
+  top:2px!important;
+  right:max(3px,calc(50% - 25px))!important;
+  bottom:auto!important;
+  left:auto!important;
+  transform:none!important;
+  box-shadow:0 0 0 2px var(--adm-paper,#fff)!important;
+}
+@media(max-width:380px){
+  html.g8-admin-next #adminOverlay .adm-shell .adm-notifications-trigger > .g8-admin-msg-badge {
+    top:-3px!important;right:-3px!important;
+  }
+}
+</style>
 </head>
 <body class="entry-gate-active admin-v2-standalone">
 <div id="admV2StartupShield" role="status" aria-live="polite">
@@ -8214,8 +8302,8 @@ try {
     if(p.group)nav.append(el('span','adm-nav-group',p.group));
     const b=btn(p.label,'adm-nav-btn',()=>navigate(p.id),p.icon);
     b.dataset.page=p.id; b.setAttribute('aria-current','false');
-    if(p.id==='messages'){const badge=el('b','g8-admin-msg-badge');badge.dataset.msgInboxBadge='';badge.hidden=true;b.append(badge);}
-    if(p.id==='notifications'){const badge=el('b','g8-admin-msg-badge');badge.dataset.adminActivityBadge='';badge.hidden=true;b.append(badge);}
+    if(p.id==='messages'){b.classList.add('adm-badged-nav');const badge=el('b','g8-admin-msg-badge');badge.dataset.msgInboxBadge='';badge.hidden=true;b.append(badge);}
+    if(p.id==='notifications'){b.classList.add('adm-badged-nav');const badge=el('b','g8-admin-msg-badge');badge.dataset.adminActivityBadge='';badge.hidden=true;b.append(badge);}
     navMap.set(p.id,b);nav.append(b);
   });
   sidebarScroll.append(nav);
@@ -8241,7 +8329,7 @@ try {
   exitLink.title='Return to original G8Code';exitLink.setAttribute('aria-label','Exit Admin V2');
   exitLink.innerHTML=ico('x',19);
   const identity=el('span','adm-user-chip');identity.innerHTML=ico('unlock',15)+'<span>Teacher</span>';
-  const notificationsLink=btn('Notifications','adm-icon-btn',()=>navigate('notifications'),'bell');
+  const notificationsLink=btn('Notifications','adm-icon-btn adm-notifications-trigger',()=>navigate('notifications'),'bell');
   notificationsLink.title='Open Notification Center';notificationsLink.setAttribute('aria-label','Notification Center');
   const notificationBadge=el('b','g8-admin-msg-badge');notificationBadge.dataset.adminActivityBadge='';notificationBadge.hidden=true;notificationsLink.append(notificationBadge);
   topActions.append(mobileSearch,notificationsLink,themeWrap,identity,exitLink);
