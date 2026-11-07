@@ -8,6 +8,7 @@
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
 <link rel="stylesheet" href="messages.css?v=526-watermark-only-v4c21a" />
+<link rel="stylesheet" href="messages-chat-styles.css?v=5-0-20261107" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js?v=ik-default-20261105"></script>
 <style>
@@ -24,7 +25,7 @@
   <header class="g8m-top">
     <a class="g8m-back" id="g8mBack" href="index.html" aria-label="Go back to G8Code">‹</a>
     <div class="g8m-brand"><span class="g8m-logo">8<span>›</span></span><span><strong>G8Code <em>Messages</em></strong><small id="g8mHeaderNote">Private teacher–student conversations</small></span></div>
-    <div class="g8m-top-actions"><button type="button" data-g8push-teacher-toggle hidden aria-label="Enable Adviser Phone Alerts" style="border-radius:10px;padding:7px 9px;font:inherit;font-size:11px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer">🔕 Enable Adviser Alerts</button><button id="g8mTheme" type="button" aria-label="Toggle light or dark theme" title="Toggle light or dark theme">☼</button><span id="g8mConnection" class="g8m-connection">Connecting…</span></div>
+    <div class="g8m-top-actions"><button id="g8mTheme" type="button" aria-label="Toggle light or dark theme" title="Toggle light or dark theme">☼</button><span id="g8mConnection" class="g8m-connection">Connecting…</span></div>
   </header>
   <section class="g8m-gate" id="g8mGate" role="status" aria-live="polite">
     <span class="g8m-gate-icon">✉</span><h1>Opening Messages</h1>
@@ -54,7 +55,7 @@
       <div class="g8m-tablet-filter"><label for="g8mTabletSectionSelect">Section</label><select id="g8mTabletSectionSelect" aria-label="Select section"><option value="*">All Sections</option></select></div><div id="g8mStudentList" class="g8m-student-list"></div>
     </aside>
     <main class="g8m-conversation" id="g8mConversation" aria-label="Conversation">
-      <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatPresence" class="g8m-presence-line" aria-live="polite">Checking activity…</small><small id="g8mChatMeta" class="g8m-chat-extra">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" id="g8mAdminToolsOpen" class="g8m-admin-tools-open" title="Search conversation, shared photos and projects" aria-label="Open conversation search and shared media" hidden>⌕ <span>Search &amp; Media</span></button><button type="button" class="g8m-chat-theme" id="g8mChatTheme" title="Toggle light or dark theme" aria-label="Toggle light or dark theme">☼</button><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
+      <div class="g8m-chat-head"><button id="g8mChatBack" class="g8m-mobile-back" type="button" aria-label="Back to inbox">‹</button><div class="g8m-avatar" id="g8mChatAvatar">T</div><div class="g8m-chat-identity"><strong id="g8mChatName">Your ICT Teacher</strong><small id="g8mChatPresence" class="g8m-presence-line" aria-live="polite">Checking activity…</small><small id="g8mChatMeta" class="g8m-chat-extra">Private conversation</small></div><span class="g8m-lock" title="Private student–teacher chat" aria-label="Private chat">⌑ Private</span><button type="button" id="g8mAdminToolsOpen" class="g8m-admin-tools-open" title="Search conversation, shared photos and projects" aria-label="Open conversation search and shared media" hidden>⌕ <span>Search &amp; Media</span></button><button type="button" class="g8m-chat-style-toggle" id="g8mChatStyleToggle" aria-controls="g8mChatStyleSheet" aria-haspopup="dialog" aria-expanded="false" aria-label="Choose Chat Style" title="Chat Style"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1.4a2 2 0 0 0 1.5-3.3c-.6-.7.1-1.7 1-1.7H18a4 4 0 0 0 4-4C22 7 17.5 3 12 3Z"/><circle cx="7.2" cy="10" r="1"/><circle cx="11.2" cy="6.8" r="1"/><circle cx="16.1" cy="9" r="1"/><circle cx="8.8" cy="15" r="1"/></svg><span>Chat Style</span></button><button type="button" class="g8m-chat-theme" id="g8mChatTheme" title="Toggle light or dark theme" aria-label="Toggle light or dark theme">☼</button><button type="button" class="g8m-refresh" id="g8mRefresh" title="Refresh chat" aria-label="Refresh chat">↻</button></div>
       <div class="g8m-capture-watermark" id="g8mChatScreenshotWatermark" aria-hidden="true" hidden><span>G8Code</span><span>STUDENT VIEW</span></div>
       <div class="g8m-feed-state" id="g8mFeedState" role="status" aria-live="polite" hidden></div><div class="g8m-messages" id="g8mMessages" role="log" aria-live="polite" aria-relevant="additions text"><div class="g8m-empty">Select a conversation to begin.</div></div>
       <div id="g8mTypingIndicator" class="g8m-typing-indicator" hidden aria-live="polite"><span class="g8m-typing-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="g8mTypingText">Typing…</span></div>
@@ -190,7 +191,19 @@
  <footer class="g8m-admin-tools-footer"><span id="g8mAdminToolsCount"></span><button type="button" id="g8mAdminToolsRetry" hidden>Try Again</button></footer>
 </section>
 <script defer src="g8code-push-config.js?v=2"></script>
-<script defer src="g8code-push.js?v=41"></script>
-<script defer src="messages.js?v=41-badge-reactions-acks"></script>
+<script defer src="g8code-push.js?v=2"></script>
+<div class="g8m-chat-style-mask" id="g8mChatStyleMask" hidden></div>
+<section class="g8m-chat-style-sheet" id="g8mChatStyleSheet" role="dialog" aria-modal="true" aria-labelledby="g8mChatStyleHeading" hidden>
+  <header class="g8m-style-head"><div><strong id="g8mChatStyleHeading">Choose Chat Style</strong><small>Personalize how your messages look</small></div><button class="g8m-style-dismiss" id="g8mChatStyleClose" type="button" aria-label="Close Chat Style picker">×</button></header>
+  <div class="g8m-style-list" role="radiogroup" aria-label="Messenger chat appearance">
+    <button type="button" class="g8m-style-option" role="radio" aria-checked="true" data-style="default"><span class="g8m-style-emblem" aria-hidden="true">✦</span><span><strong>Default</strong><small>Original G8Code Messenger layout</small></span><span class="g8m-style-check" aria-hidden="true">✓</span></button>
+    <button type="button" class="g8m-style-option" role="radio" aria-checked="false" data-style="messenger"><span class="g8m-style-emblem" aria-hidden="true">↗</span><span><strong>Messenger</strong><small>Gradient bubbles and friendly chat cards</small></span><span class="g8m-style-check" aria-hidden="true">✓</span></button>
+    <button type="button" class="g8m-style-option" role="radio" aria-checked="false" data-style="instagram"><span class="g8m-style-emblem" aria-hidden="true">◎</span><span><strong>Instagram DM</strong><small>Minimal conversation with soft gradients</small></span><span class="g8m-style-check" aria-hidden="true">✓</span></button>
+    <button type="button" class="g8m-style-option" role="radio" aria-checked="false" data-style="tiktok"><span class="g8m-style-emblem" aria-hidden="true">♪</span><span><strong>TikTok</strong><small>High-contrast, playful message capsules</small></span><span class="g8m-style-check" aria-hidden="true">✓</span></button>
+    <button type="button" class="g8m-style-option" role="radio" aria-checked="false" data-style="discord"><span class="g8m-style-emblem" aria-hidden="true">☷</span><span><strong>Discord</strong><small>Compact message rows and conversation groups</small></span><span class="g8m-style-check" aria-hidden="true">✓</span></button>
+  </div>
+</section>
+<script defer src="messages.js?v=push-v2-watermark-v4c21a"></script>
+<script defer src="messages-chat-styles.js?v=5-0-20261107"></script>
 </body>
 </html>

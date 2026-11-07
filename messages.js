@@ -50,10 +50,6 @@ const BASE = 'g8MessagesV1';
 // Entry source is explicit, not inferred from history or the signed-in role.
 // from=login: learn shortcut (teacher-only). from=admin: Admin V2.
 const g8mEntrySource = new URLSearchParams(location.search).get('from');
-let g8mPendingPushFocus = (()=>{
- const id=new URLSearchParams(location.search).get('g8mFocus')||'';
- return /^[A-Za-z0-9_-]{6,120}$/.test(id)?id:'';
-})();
 const g8mTeacherShortcut = g8mEntrySource === 'login';
 const g8mTeacherEntry = g8mEntrySource === 'admin' || g8mTeacherShortcut;
 // Accept original images up to 30 MB; optimize large photos client-side before
@@ -217,7 +213,7 @@ function syncMobileMessageMetaVisibility(){
 const short = (v,n=60) => String(v || '').slice(0,n);
 const isTeacher = account => teacherEmails.includes(String(account?.email || '').toLowerCase());
 function status(message, error=false){ const el=$('g8mSendStatus'); el.textContent=message; el.classList.toggle('error',error); }
-function showGate(title,detail,login=false){gate.hidden=false;workspace.hidden=true;gate.querySelector('h1').textContent=title;$('g8mGateText').textContent=detail;$('g8mQuickLogin').hidden=!login;}
+function showGate(title,detail,login=false){root.dataset.mode='gate';root.dataset.chatStyleOwner='';gate.hidden=false;workspace.hidden=true;gate.querySelector('h1').textContent=title;$('g8mGateText').textContent=detail;$('g8mQuickLogin').hidden=!login;}
 function setConnection(ok,detail){const el=$('g8mConnection'); el.textContent=detail || (ok?'Live':'Offline'); el.classList.toggle('online',Boolean(ok));}
 function notice(text){const el=document.createElement('div');el.className='g8m-empty';el.textContent=text;return el;}
 function textEl(tag,className,text){const x=document.createElement(tag);if(className)x.className=className;x.textContent=text??'';return x;}
@@ -485,7 +481,7 @@ function installSmartBackNavigation(){
   if(window.history?.pushState){
     try{
       window.history.pushState({g8MessagesRoleBack:true},'',window.location.href);
-      window.addEventListener('popstate',()=>leaveMessages());
+      window.addEventListener('popstate',()=>{if(window.G8MChatStyles?.handlePopState?.())return;leaveMessages();});
     }catch(error){console.info('Browser navigation guard unavailable; in-page Back remains available.',error);}
   }
 }
@@ -639,7 +635,7 @@ function friendlyError(error){let e=String(error?.message||error||'Could not con
  return e;
 }
 async function initWorkspace(){
- gate.hidden=true;workspace.hidden=false;workspace.classList.toggle('student',!teacher);root.dataset.mode=role();syncThemeForRole();
+ gate.hidden=true;workspace.hidden=false;workspace.classList.toggle('student',!teacher);root.dataset.mode=role();root.dataset.chatStyleOwner=teacher?'':String(user?.uid||'');syncThemeForRole();
  $('g8mBack').href=roleDestination();
  installSmartBackNavigation();
  $('g8mHeaderNote').textContent=teacher?'Teacher inbox · Private per student':'Official ICT teacher conversation';
@@ -929,11 +925,6 @@ function openChat(uid){
   if(uid!==openedUid)return;
   try{
    displayMessagesFromSnapshot(snap,uid);
-   if(g8mPendingPushFocus){
-    const focusId=g8mPendingPushFocus;g8mPendingPushFocus='';
-    // The message timeline is rendered before selecting the referenced bubble.
-    setTimeout(()=>{if(openedUid===uid)void jumpToQuotedMessage(focusId);},400);
-   }
    markSeen(uid).catch(err=>console.warn('Seen sync:',err));
   }catch(error){
    console.error('Messages render error:',error);
@@ -1561,20 +1552,7 @@ async function reactToMessage(id,emoji){
  const old=activeReactions[id]?.[user.uid]||'';
  closeReactionPicker();
  try{
-  if(old===emoji)await remove(refPath);
-  else{
-   await set(refPath,emoji);
-   // Real reaction to the OTHER person's actual saved message, never a menu tap.
-   const original=messageById(id);
-   if(original&&String(original.senderUid||'')!==String(user.uid)){
-    if(teacher&&original.senderRole==='student'){
-     void runTransaction(ref(rtdb,`${summaryPath(uid)}/unreadStudent`),count=>Math.min(9999,Math.max(0,Number(count||0))+1))
-      .catch(badgeError=>console.warn('Reaction saved; student Messenger badge update pending:',badgeError?.message||badgeError));
-    }
-    void window.G8CodePush?.queueMessageReaction?.({chatUid:uid,messageId:id,emoji})
-     .catch(()=>{});
-   }
-  }
+  if(old===emoji)await remove(refPath);else await set(refPath,emoji);
  }catch(error){status(`Could not save reaction: ${friendlyError(error)}`,true);}
 }
 reactionPicker.addEventListener('click',event=>{
@@ -3299,18 +3277,7 @@ async function acknowledge(messageId,st){
  if(previous===st)return;
  try{
   await set(ref(rtdb,`${studentPath(uid)}/acks/${messageId}`),{status:st,atMs:serverTimestamp(),byUid:user.uid});
-  // V4.1: An ACK is a real teacher interaction, not a new message. Count it
-  // in the existing STUDENT homepage Messenger unread badge once per change.
-  // Saving the ACK always takes priority; a denied badge sync cannot undo it.
-  void runTransaction(ref(rtdb,`${summaryPath(uid)}/unreadStudent`),count=>Math.min(9999,Math.max(0,Number(count||0))+1))
-   .catch(badgeError=>console.warn('Acknowledgment saved; student Messenger badge update pending:',badgeError?.message||badgeError));
-  // Received/Checked is a Messenger acknowledgment, not a grade. Send an
-  // event only after the saved acknowledgment can be verified by the server.
-  // Never block the acknowledgment if the push service is unavailable.
-  void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:String(messageId),targetUid:uid,ackStatus:st})
-   .then(queued=>{if(!queued)console.info('Acknowledgment saved; phone alert pending or unavailable.');})
-   .catch(()=>console.info('Acknowledgment saved; phone alert fallback unavailable.'));
-  if(uid===openedUid)status(st==='checked'?'Marked Checked. Share any score or feedback separately in Messenger.':'Marked Received. Share any score or feedback separately in Messenger.');
+  if(uid===openedUid)status(st==='checked'?'Marked Checked — no grade was changed.':'Marked Received — no grade was changed.');
   if((previous==='checked') !== (st==='checked')){
    try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.max(0,Math.min(9999,Number(n||0)+(st==='checked'?-1:1))));}
    catch(error){console.warn('Needs Checking sync pending:',error);}
@@ -3669,15 +3636,11 @@ async function processPhotoJob(job){
    };
    await set(messageRef,payload);
    photoMessageWasJustCreated=true;
-   // A resolved Firebase set() means the message is committed on the server.
-   // Begin adviser push now; don't wait for a second network GET or photo UI.
-   if(job.senderRole==='student')void window.G8CodePush?.queueStudentMessage?.({itemId:job.id,chatUid:job.uid});
    confirmed=await get(messageRef);
   }
   if(!confirmed.exists()||confirmed.val()?.senderUid!==job.senderUid)
    throw new Error('Photo uploaded, but the chat message could not be confirmed. Retry safely.');
-  if(photoMessageWasJustCreated && job.senderRole==='teacher')
-   void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:job.id,targetUid:job.uid});
+  if(photoMessageWasJustCreated&&job.senderRole==='teacher')void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:job.id,targetUid:job.uid});
   // Reuse the LOCAL preview as a temporary sender-side Drive thumbnail.
   // There is no unnecessary second Drive download after a verified send.
   for(let i=0;i<job.uploaded.length;i++){
@@ -3747,10 +3710,6 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   // must never roll back a reply or make messages appear to silently disappear.
   const messageRef=ref(rtdb,`${studentPath(uid)}/messages/${key}`);
   await set(messageRef,payload);
-  // Server-acknowledged Firebase write is already a confirmed persisted
-  // message. Queue the adviser alert while the optional GET checks the UI.
-  // RTDB Rules and the Apps Script revalidate the saved message separately.
-  if(senderRole==='student')void window.G8CodePush?.queueStudentMessage?.({itemId:key,chatUid:uid});
   const confirmed=await get(messageRef);
   if(!confirmed.exists()||confirmed.val()?.senderUid!==user.uid)throw new Error('Message write could not be verified. Please retry.');
   if(senderRole==='teacher')void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:key,targetUid:uid});

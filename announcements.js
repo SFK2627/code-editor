@@ -27,6 +27,78 @@ function alertStatus(message,bad=false){$('gaComposeStatus').textContent=gaFrien
 let toastTimer;function toast(message,bad=false){const t=$('gaToast');t.textContent=gaFriendlyNotice(message);t.classList.toggle('error',bad);t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,5500);}
 function gate(title,message,login=true){$('gaGateTitle').textContent=title;$('gaGateText').textContent=gaFriendlyNotice(message);$('gaGate').hidden=false;$('gaWorkspace').hidden=true;$('gaLogin').hidden=!login;}
 function setLive(label){$('gaConnection').textContent=gaFriendlyNotice(label);}
+// Student-only feed presentation. Keep one RTDB feed and one set of post listeners;
+// switching CSS presentation never reloads/re-renders the feed or loses a draft.
+const GA_FEED_STYLE_NAMES={default:'Default',facebook:'Facebook',threads:'Threads',x:'X'};
+const GA_FEED_STYLE_KEY='g8code-announcements-feed-style-v1:';
+function closeFeedStyleMenu(restoreFocus=false,fromHistory=false){
+ const menu=$('gaFeedStyleMenu'),button=$('gaFeedStyleButton');
+ if(!menu)return;
+ const open=!menu.hidden;
+ menu.hidden=true;$('gaFeedStyleBackdrop').hidden=true;
+ document.body.classList.remove('ga-feed-style-menu-open');
+ button.setAttribute('aria-expanded','false');
+ if(open&&restoreFocus&&document.activeElement&&menu.contains(document.activeElement))button.focus({preventScroll:true});
+ // Remove the temporary sheet history entry when closed by tapping an option/X.
+ // A phone Back gesture handles its own popstate; do not go Back twice.
+ if(open&&!fromHistory&&state.backGuardInstalled&&history.state?.[GA_NAV_KEY]?.view==='style')history.back();
+}
+function applyFeedStyle(name,persist=false){
+ if(!Object.prototype.hasOwnProperty.call(GA_FEED_STYLE_NAMES,name))name='default';
+ state.feedStyle=name;
+ document.body.dataset.gaFeedStyle=state.teacher?'default':name;
+ $('gaFeedStyleCurrent').textContent=GA_FEED_STYLE_NAMES[name];
+ for(const btn of document.querySelectorAll('[data-ga-feed-style-option]')){
+  const active=btn.dataset.gaFeedStyleOption===name;
+  btn.setAttribute('aria-pressed',String(active));btn.classList.toggle('selected',active);
+ }
+ if(persist&&state.user&&!state.teacher){
+  try{localStorage.setItem(GA_FEED_STYLE_KEY+state.user.uid,name);}catch{}
+ }
+}
+function initStudentFeedStyle(){
+ const show=!!state.user&&!state.teacher;
+ $('gaFeedStyleControl').hidden=!show;
+ closeFeedStyleMenu();
+ let saved='default';
+ if(show){try{saved=localStorage.getItem(GA_FEED_STYLE_KEY+state.user.uid)||'default';}catch{}}
+ applyFeedStyle(saved);
+}
+function openFeedStyleMenu(){
+ if(!state.user||state.teacher)return;
+ const menu=$('gaFeedStyleMenu'),opening=menu.hidden;
+ if(!opening){closeFeedStyleMenu();return;}
+ menu.hidden=false;$('gaFeedStyleBackdrop').hidden=false;
+ document.body.classList.add('ga-feed-style-menu-open');
+ gaPushView('style');
+ $('gaFeedStyleButton').setAttribute('aria-expanded','true');
+ // No input is focused: mobile keyboard must never pop up for style selection.
+ const active=menu.querySelector('[aria-pressed="true"]');
+ if(active&&matchMedia('(min-width:691px)').matches)active.focus({preventScroll:true});
+}
+$('gaFeedStyleButton').addEventListener('click',openFeedStyleMenu);
+$('gaFeedStyleClose').addEventListener('click',()=>closeFeedStyleMenu(true));
+$('gaFeedStyleBackdrop').addEventListener('click',()=>closeFeedStyleMenu());
+for(const btn of document.querySelectorAll('[data-ga-feed-style-option]')){
+ btn.addEventListener('click',()=>{
+  if(!state.user||state.teacher)return;
+  applyFeedStyle(btn.dataset.gaFeedStyleOption,true);
+  closeFeedStyleMenu();
+  $('gaFeedStyleButton').focus({preventScroll:true});
+ });
+}
+document.addEventListener('keydown',event=>{
+ if($('gaFeedStyleMenu').hidden)return;
+ if(event.key==='Escape'){
+  event.preventDefault();event.stopImmediatePropagation();closeFeedStyleMenu(true);
+ }else if(event.key==='Tab'){
+  const items=[...$('gaFeedStyleMenu').querySelectorAll('button:not([disabled])')];
+  const first=items[0],last=items.at(-1);
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+  else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+ }
+},true);
+
 function currentUser(){if(!state.user)throw Error('Please sign in to G8Code first.');return state.user;}
 function cleanLink(raw){try{const u=new URL(raw,location.href);return /^https?:$/.test(u.protocol)?u.href:'';}catch{return '';}}
 function youtubeId(raw){try{const u=new URL(raw);if(u.hostname==='youtu.be')return /^[\w-]{11}$/.test(u.pathname.slice(1))?u.pathname.slice(1):'';if(/(^|\.)youtube\.com$/.test(u.hostname)||u.hostname==='www.youtube-nocookie.com'){const id=u.searchParams.get('v')||u.pathname.split('/').filter(Boolean).at(-1);return /^[\w-]{11}$/.test(id)?id:'';}}catch{}return '';}
@@ -67,8 +139,14 @@ function handleAnnouncementPop(event){
  const route=event.state?.[GA_NAV_KEY];
  if(route?.owner!==GA_NAV_OWNER||route.view==='root'){goBack();return;}
  if(route.view==='feed'){
+  closeFeedStyleMenu(false,true);
   if(!$('gaViewerModal').hidden)closeViewer();
   closePostDialog();return;
+ }
+ if(route.view==='style'&&state.user&&!state.teacher){
+  $('gaFeedStyleMenu').hidden=false;$('gaFeedStyleBackdrop').hidden=false;
+  document.body.classList.add('ga-feed-style-menu-open');
+  $('gaFeedStyleButton').setAttribute('aria-expanded','true');return;
  }
  if((route.view==='post'||route.view==='comments')&&route.postId){
   if(!$('gaViewerModal').hidden)closeViewer();
@@ -87,7 +165,7 @@ function installSmartBack(){
  }catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentSending={};state.commentJustPosted={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);initStudentFeedStyle();state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentSending={};state.commentJustPosted={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
 async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Announcements are temporarily unavailable. Please try again later.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
  $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
  if(state.teacher){loadTeacher();loadCatalog();
@@ -761,7 +839,7 @@ function renderCard(p,inPostModal=false){
    });
    totals.append(emojis,countButton);
    const selected=reactions[state.user.uid]||'';
-   reactButton.textContent=selected?selected+' '+reactionLabel(selected):'👍 Like';
+   reactButton.textContent=selected?selected+' '+reactionLabel(selected):'👍 Like';reactButton.dataset.gaReactionGlyph=selected||'♡';reactButton.dataset.gaReactionCaption=selected?reactionLabel(selected):'React';
    reactButton.classList.toggle('active',!!selected);
    popup.querySelectorAll('[data-ga-choice]').forEach(btn=>btn.classList.toggle('active',btn.dataset.gaChoice===selected));
   }
