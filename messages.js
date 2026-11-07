@@ -51,9 +51,7 @@ const BASE = 'g8MessagesV1';
 // from=login: learn shortcut (teacher-only). from=admin: Admin V2.
 const g8mEntrySource = new URLSearchParams(location.search).get('from');
 const g8mTeacherShortcut = g8mEntrySource === 'login';
-const g8mTeacherEntry = ['admin','notifications'].includes(g8mEntrySource) || g8mTeacherShortcut;
-const g8mNotificationTarget=(new URLSearchParams(location.search).get('message')||'').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,128);
-let g8mNotificationJumpDone=false;
+const g8mTeacherEntry = g8mEntrySource === 'admin' || g8mTeacherShortcut;
 // Accept original images up to 30 MB; optimize large photos client-side before
 // transport so Apps Script receives a much smaller image and chats load quickly.
 const MAX_FILES = 3, MAX_SIZE = 30 * 1024 * 1024;
@@ -410,7 +408,7 @@ for(const id of ['g8mTheme','g8mChatTheme']){
 }
 // G8Code V5.0 photo viewer handlers are installed below.
 
-
+// Admin Notification Center: existing RTDB-only activity logging retained.
 function g8mLogAdminEvent(action,targetId,extra={}){
  if(teacher||!user||!window.G8CodeAdminActivity)return;
  const actor=profile||{};
@@ -472,7 +470,6 @@ $('g8mAdminScreenshotToggle')?.addEventListener('change',e=>{void g8mSaveScreens
 const summaryPath = uid => `${BASE}/summary/${uid}`;
 function role(){return teacher?'teacher':'student';}
 function roleDestination(){
- if(teacher&&g8mEntrySource==='notifications')return 'admin-notifications.html';
  if(g8mTeacherShortcut) return 'index.html';
  return teacher?'admin-v2.html?g8mBack=overview':'index.html?g8mBack=student';
 }
@@ -913,19 +910,6 @@ function openChat(uid){
  else $('g8mMessages').replaceChildren(notice('Loading messages…'));
  switchMobile('chat');
  g8mJumpLatest({settle:true});
- if(teacher&&g8mNotificationTarget&&!g8mNotificationJumpDone){
-  g8mNotificationJumpDone=true;
-  // Direct RTDB fetch of the exact message only. No Firestore project fetch.
-  const requested=String(new URLSearchParams(location.search).get('student')||uid);
-  get(ref(rtdb,`${studentPath(requested)}/messages/${g8mNotificationTarget}`)).then(s=>{
-   if(!s.exists()||!teacher||!openedUid)return;
-   const item={...s.val(),id:g8mNotificationTarget,__threadUid:requested,__historical:requested!==openedUid};
-   g8mAdminFocusedMessages=[item];g8mFollowLatest=false;renderMessages();switchMobile('chat');
-   const focus=()=>{const row=[...$('g8mMessages').querySelectorAll('.g8m-message[data-chat-key]')].find(e=>e.dataset.chatKey===`message:${requested}:${g8mNotificationTarget}`);
-    if(!row)return;row.scrollIntoView({block:'center',behavior:'smooth'});row.classList.add('g8m-jump-focus');setTimeout(()=>row.classList.remove('g8m-jump-focus'),2600);};
-   requestAnimationFrame(()=>requestAnimationFrame(focus));
-  }).catch(e=>console.warn('Notification message lookup:',e));
- }
  status('');
  updateChatFeedState(warm?'Showing recent messages · Syncing…':'Loading conversation…');
  // A single per-conversation listener is enough for instant student updates.
@@ -1601,7 +1585,11 @@ async function reactToMessage(id,emoji){
  const old=activeReactions[id]?.[user.uid]||'';
  closeReactionPicker();
  try{
-  if(old===emoji)await remove(refPath);else{await set(refPath,emoji);g8mLogAdminEvent('message_reaction',id,{emoji,preview:short(messageReferenceText(messageById(id))||'Message',140)});}
+  if(old===emoji)await remove(refPath);else {await set(refPath,emoji);
+   g8mLogAdminEvent('message_reaction',id,{emoji,preview:short(messageReferenceText(messageById(id))||'Message',140)});
+   const original=messageById(id);
+   if(original?.senderRole!==role())void window.G8CodePush?.queueMessageReaction?.({messageId:id,chatUid:uid,emoji});
+  }
  }catch(error){status(`Could not save reaction: ${friendlyError(error)}`,true);}
 }
 reactionPicker.addEventListener('click',event=>{
@@ -3349,6 +3337,7 @@ async function acknowledge(messageId,st){
  if(previous===st)return;
  try{
   await set(ref(rtdb,`${studentPath(uid)}/acks/${messageId}`),{status:st,atMs:serverTimestamp(),byUid:user.uid});
+  void window.G8CodePush?.queueTeacherAck?.({messageId,chatUid:uid,status:st});
   if(uid===openedUid)status(st==='checked'?'Marked Checked — no grade was changed.':'Marked Received — no grade was changed.');
   if((previous==='checked') !== (st==='checked')){
    try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.max(0,Math.min(9999,Number(n||0)+(st==='checked'?-1:1))));}
@@ -3740,7 +3729,9 @@ async function processPhotoJob(job){
   }
   if(job.uid===openedUid)status(`Photo sent ✓ · Saved and confirmed in ${((performance.now()-job.startedAtMs)/1000).toFixed(1)}s.`);
   // A badge failure can never roll back an already-confirmed photo message.
-  void updatePhotoInbox(job);
+  void updatePhotoInbox(job).finally(()=>{
+   if(photoMessageWasJustCreated&&job.senderRole==='student')void window.G8CodePush?.queueStudentMessage?.({messageId:job.id});
+  });
  }catch(error){
   console.error('Photo send could not be confirmed:',error);
   job.state='failed';job.error=friendlyError(error);
@@ -3820,6 +3811,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
     [`${BASE}/directory/${uid}/studentId`]:data.studentId,
     [`${BASE}/directory/${uid}/section`]:data.section
    });}catch(error){syncIssue=true;console.warn('Directory sync pending',error);}
+   void window.G8CodePush?.queueStudentMessage?.({messageId:key});
   }
   if(!teacher && (attachments.length || sharedProject)){try{await runTransaction(ref(rtdb,`${summaryPath(uid)}/needsChecking`),n=>Math.min(9999,Number(n||0)+1));}catch(error){syncIssue=true;console.warn('Shared item saved; Needs Checking badge sync pending',error);}}
  $('g8mTextInput').value='';$('g8mTextInput').style.height='38px';selections.forEach(x=>URL.revokeObjectURL(x.url));selections=[];selectedProject=null;renderSelections();renderProjectSelection();reply=null;renderReply();

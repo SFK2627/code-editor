@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v745-specific-acknowledgments';
+const CACHE_NAME = 'ict8-connect-v752-two-way-notifications';
 const APP_SHELL = [
   './',
   './index.html',
@@ -150,6 +150,10 @@ self.addEventListener('message',event=>{
    try{await pushIdentity(uid);ok=true;}catch(_){}
    try{event.ports?.[0]?.postMessage({ok});}catch(_){}
   })());
+ }else if(request.type==='G8PUSH_FOREGROUND_ALERT'){
+  // FCM onMessage() handoff: same identity check, exact same server-sourced
+  // titles and deep links as the background notification handler.
+  event.waitUntil(handleG8PushPayload(request.payload||{},Date.now()));
  }else if(request.type==='G8PUSH_INSPECT'){
   event.waitUntil((async()=>{
    const uid=await pushIdentity().catch(()=>null);
@@ -161,14 +165,8 @@ self.addEventListener('message',event=>{
  }
 });
 const pushLabels={messages:'You have a new private message.',announcements:'A new announcement is available.',lessons:'A new lesson is available.',activities:'A new activity is available.'};
-self.addEventListener('push',event=>{
- event.waitUntil((async()=>{
-  // Audit whether the browser woke this worker at all (even with a closed tab).
-  const receivedAtMs=Date.now();
-  // Do not delay user-visible notification display on a diagnostic IDB write.
-  // Failure paths still write an audit; successful delivery audits after show.
-  let raw={};try{raw=event.data?.json()||{};}catch(_){await writePushAudit('invalid-payload',receivedAtMs);return;}
-  const data=raw.data||raw.message?.data||raw;
+async function handleG8PushPayload(raw,receivedAtMs=Date.now()){
+  const data=raw?.data||raw?.message?.data||raw;
   const type=String(data.type||'').toLowerCase();
   const targetUid=String(data.targetUid||'');
   if(!pushLabels[type]||!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)){await writePushAudit('unknown-payload',receivedAtMs);return;}
@@ -184,16 +182,8 @@ self.addEventListener('push',event=>{
   if(recipientRole==='teacher' && !(type==='announcements'||(type==='messages'&&/^[A-Za-z0-9_-]{1,128}$/.test(chatUid)))){
    await writePushAudit('unknown-chat',receivedAtMs);return;
   }
-  // Messenger itself already shows the incoming message live. Do not send a
-  // redundant OS alert when the focused tab is the current conversation.
-  // The Admin Dashboard (including while open) should show OS notifications.
-  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
-  if(windows.some(c=>c.visibilityState==='visible'&&c.focused&&
-    ((recipientRole==='student'&&type==='messages'&&/\/messages\.html(?:[?#]|$)/.test(c.url))||
-     (recipientRole==='student'&&type==='announcements'&&/\/announcements\.html(?:[?#]|$)/.test(c.url))||
-     (recipientRole==='teacher'&&type==='messages'&&/\/messages\.html(?:[?#]|$)/.test(c.url))))){
-   await writePushAudit('in-app-foreground',receivedAtMs);return;
-  }
+  // Requested: keep OS notification visible even while G8Code is open.
+  // A message reaction or reply still arrives as a distinct Android notification.
   const itemId=String(data.itemId||'');
   const validItem=/^[A-Za-z0-9_-]{1,128}$/.test(itemId);
   // Older sender versions sometimes omitted acknowledgment metadata. Its fixed
@@ -207,7 +197,10 @@ self.addEventListener('push',event=>{
   const kindObject=kind=>kind==='photo'?'photo':kind==='project'?'shared project':'message';
   const focusId=String(data.focusMessageId||'');
   const focusQuery=/^[A-Za-z0-9_-]{6,120}$/.test(focusId)?`&g8mFocus=${encodeURIComponent(focusId)}`:'';
-  const destination=recipientRole==='teacher'&&type==='announcements'?`./announcements.html?from=admin&gaPost=${encodeURIComponent(itemId)}&gaEngagement=${String(data.engagementType||'')==='comment'?'comment':'reaction'}`
+  const engagementType=String(data.engagementType||'');
+  const postCommentId=/^[A-Za-z0-9_-]{1,128}$/.test(String(data.commentId||''))?String(data.commentId):'';
+  const commentQuery=postCommentId?'&gaComment='+encodeURIComponent(postCommentId):'';
+  const destination=recipientRole==='teacher'&&type==='announcements'?`./announcements.html?from=admin&gaPost=${encodeURIComponent(itemId)}&gaEngagement=${['comment','comment_reply','comment_reaction'].includes(engagementType)?'comment':'reaction'}${commentQuery}`
     :recipientRole==='teacher'?`./messages.html?from=admin&student=${encodeURIComponent(chatUid)}${focusQuery}`
     :type==='messages'?`./messages.html?from=student${focusQuery?'?'+focusQuery.slice(1):''}`
     :type==='announcements'?'./announcements.html?from=student'
@@ -234,7 +227,10 @@ self.addEventListener('push',event=>{
    .replace(/\s+/g,' ').trim().slice(0,75);
   const announcementRef=announcementTitle?' “'+announcementTitle+'”':'';
   const reactionCode=String(data.reactionCode||'');
-  const announcementBody=String(data.engagementType||'')==='comment'
+  const announcementBody=engagementType==='comment_reaction'
+   ?'❤️ Reacted to a comment on your announcement'+announcementRef+'.'
+   :engagementType==='comment_reply'?'💬 Replied to a comment on your announcement'+announcementRef+'.'
+   :engagementType==='comment'
    ?'💬 Commented on your announcement'+announcementRef+'.'
    :reactionCode==='love'?'❤️ Loved your announcement'+announcementRef+'.'
    :reactionCode==='care'?'🤗 Reacted with care to your announcement'+announcementRef+'.'
@@ -294,14 +290,19 @@ self.addEventListener('push',event=>{
    .replace(/\s+/g,' ').trim().slice(0,140);
   const verifiedAckBody=String(data.ackNoticeBody||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ')
    .replace(/\s+/g,' ').trim().slice(0,300);
+  const reactedProject=String(data.reactedProjectName||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').replace(/\s+/g,' ').trim().slice(0,100);
+  const reactedLabel=reactedObject==='project'&&reactedProject?`project “${reactedProject}”`:kindObject(reactedObject);
   const studentEventBody=eventKind==='reaction'
-   ?(reactionEmoji?`Your teacher reacted ${reactionEmoji} to your ${kindObject(reactedObject)}.`
-     :`Your teacher reacted to your ${kindObject(reactedObject)}.`)
+   ?(reactionEmoji?`Your teacher reacted ${reactionEmoji} to your ${reactedLabel}.`
+     :`Your teacher reacted to your ${reactedLabel}.`)
    :eventKind==='reply'?`Your teacher replied to your ${kindObject(replyObject)}.`
    :studentMessageBody;
   const noticeTitle=recipientRole==='teacher'?adviserTitle:
    learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):
-   type==='announcements'?'New Announcement Posted!':eventKind==='ack'?(verifiedAckTitle||ackTitle):'G8Code Messages';
+   type==='announcements'?'New Announcement Posted!':eventKind==='ack'?(verifiedAckTitle||ackTitle):
+   eventKind==='reaction'?`Teacher reacted ${reactionEmoji||'💬'}`:
+   eventKind==='reply'?'Teacher replied to you':
+   studentKind==='photo'?'Photo from your teacher':studentKind==='project'?'Project shared by your teacher':'New message from your teacher';
   const noticeBody=recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):
    learningAlert?learningTitle:
    type==='announcements'?(studentAnnouncementTitle||pushLabels.announcements):
@@ -309,11 +310,16 @@ self.addEventListener('push',event=>{
   try{
   await self.registration.showNotification(noticeTitle,{
    body:noticeBody,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
-   tag:`g8code-${type}-${eventId}`,renotify:false,
+   tag:`g8code-${recipientRole}-${type}-${eventId}`,renotify:false,
    data:{destination,type,targetUid},silent:false
   });
    await writePushAudit('notification-shown',receivedAtMs);
   }catch(_){await writePushAudit('notification-error',receivedAtMs);}
+}
+self.addEventListener('push',event=>{
+ event.waitUntil((async()=>{
+  let raw={};try{raw=event.data?.json()||{};}catch(_){await writePushAudit('invalid-payload',Date.now());return;}
+  await handleG8PushPayload(raw,Date.now());
  })());
 });
 self.addEventListener('notificationclick',event=>{

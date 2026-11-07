@@ -972,7 +972,7 @@ function drawComments(id,card,p){
    heart.addEventListener('click',async()=>{
     try{currentUser();const reactionRef=path(`commentReactions/${id}/${rid}/${state.user.uid}`);
      if(liked)await state.sdk.remove(reactionRef);
-     else{await state.sdk.set(reactionRef,'❤️');if(!state.teacher)gaLogAdminEvent('comment_reaction',id,{contextId:rid,emoji:'❤️',preview:txt(c.text,130)});}
+     else{await state.sdk.set(reactionRef,'❤️');if(!state.teacher){gaLogAdminEvent('comment_reaction',id,{contextId:rid,emoji:'❤️',preview:txt(c.text,130)});void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'comment_reaction',commentId:rid});}}
     }catch(error){toast('Could not react to comment: '+error.message,true);}
    });tools.append(heart);
    if(p.allowReplies||state.teacher){
