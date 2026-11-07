@@ -182,3 +182,10 @@ body[data-ga-feed-style="x"] #gaFeed .ga-comments{padding:10px 0 8px 48px}
  .ga-feed-style-trigger svg{width:15px;height:15px}
 }
 @media(prefers-reduced-motion:reduce){.ga-feed-style-chevron,body[data-ga-feed-style] #gaFeed .ga-card{transition:none}}
+
+/* Notification Center: focused comment & reaction tap targets */
+.ga-comment.ga-notification-focus{outline:3px solid #6679ec;outline-offset:5px;border-radius:12px;animation:ga-notify-pulse 1.1s ease 2}
+@keyframes ga-notify-pulse{50%{background:rgba(104,110,236,.11)}}
+.ga-comment-tools .ga-comment-react{min-width:42px;min-height:28px;font-weight:650;color:var(--ga-text,#39445f);border-radius:8px}
+.ga-comment-tools .ga-comment-react[aria-pressed="true"]{color:#d83465}
+@media(max-width:600px){.ga-comment-tools .ga-comment-react{min-width:48px;min-height:34px}}

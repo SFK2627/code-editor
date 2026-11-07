@@ -7,7 +7,7 @@ const gaPhotos=window.G8AnnouncementsPhotoCache;
 const SRC=new URLSearchParams(location.search).get('from');
 const teacherShortcut=SRC==='login'; // Matches the verified Teacher Messages Admin Code entry.
 const teachers=new Set((window.MCS_TEACHER_EMAILS||[]).map(x=>String(x).toLowerCase()));
-const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentDrafts:{},commentSending:{},commentJustPosted:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},detailPostId:"",detailMode:"post",detailViewScroll:{post:0,comments:0},detailScrollY:0,detailTrigger:null,detailPreviousOverflow:"",detailUnsubs:[],catalog:{},pickerType:'lesson',backGuardInstalled:false};
+const state={sdk:null,auth:null,db:null,user:null,teacher:false,profile:null,posts:{},seen:{},directory:{},messageSummaries:{},directoryLoaded:false,summaryLoaded:false,audienceLoadError:false,audienceDiagnostics:null,reactions:{},comments:{},unsubs:[],postUnsubs:[],filter:'all',search:'',audienceFilter:'all',reactorsPostId:'',reactorsFilter:'all',reactorsSearch:'',peopleCache:null,editingId:'',editingBase:null,files:[],selectedSections:new Set(),selectedStudents:new Set(),composerBusy:false,transferBusy:false,viewerUrl:'',viewerFile:null,viewerGallery:[],viewerIndex:0,viewerPost:null,viewerRequest:0,blobOwner:'',commentExpanded:new Set(),commentReactions:{},commentDrafts:{},commentSending:{},commentJustPosted:{},markObserver:null,displayedIds:[],commentOpen:new Set(),replyTargets:{},detailPostId:"",detailMode:"post",detailViewScroll:{post:0,comments:0},detailScrollY:0,detailTrigger:null,detailPreviousOverflow:"",detailUnsubs:[],catalog:{},pickerType:'lesson',backGuardInstalled:false};
 function node(tag,cls,text){const x=document.createElement(tag);if(cls)x.className=cls;if(text!=null)x.textContent=text;return x;}
 function stamp(ms){return ms?new Intl.DateTimeFormat('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(ms)):'';}
 function txt(v,n=200){return String(v??'').trim().slice(0,n);}
@@ -27,6 +27,12 @@ function alertStatus(message,bad=false){$('gaComposeStatus').textContent=gaFrien
 let toastTimer;function toast(message,bad=false){const t=$('gaToast');t.textContent=gaFriendlyNotice(message);t.classList.toggle('error',bad);t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,5500);}
 function gate(title,message,login=true){$('gaGateTitle').textContent=title;$('gaGateText').textContent=gaFriendlyNotice(message);$('gaGate').hidden=false;$('gaWorkspace').hidden=true;$('gaLogin').hidden=!login;}
 function setLive(label){$('gaConnection').textContent=gaFriendlyNotice(label);}
+function gaLogAdminEvent(action,id,extra={}){
+ if(state.teacher||!state.user||!window.G8CodeAdminActivity)return;
+ const p=state.posts[id]||{};
+ void window.G8CodeAdminActivity.emitSDK({actorUid:state.user.uid,actorName:state.profile?.name||'Student',section:state.profile?.section||'Unassigned',studentId:state.profile?.studentId||'',category:'announcements',action,targetId:id,title:p.title||'Announcement',...extra},{db:state.db,ref:state.sdk.ref,push:state.sdk.push,set:state.sdk.set});
+}
+
 // Student-only feed presentation. Keep one RTDB feed and one set of post listeners;
 // switching CSS presentation never reloads/re-renders the feed or loses a draft.
 const GA_FEED_STYLE_NAMES={default:'Default',facebook:'Facebook',threads:'Threads',x:'X'};
@@ -119,7 +125,7 @@ $('gaTheme').addEventListener('click',theme);try{if(localStorage.getItem('g8-ann
 function backDestination(){
  if(!state.user)return 'index.html';
  if(!state.teacher)return 'index.html?g8mBack=student'; // Existing verified Student Homepage resume.
- return SRC==='login'?'index.html':'admin-v2.html?g8mBack=overview';
+ return SRC==='notifications'?'admin-notifications.html':SRC==='login'?'index.html':'admin-v2.html?g8mBack=overview';
 }
 function goBack(){cleanup();location.replace(backDestination());}
 // Protect native Android/iOS/browser Back from exiting the whole G8Code app
@@ -165,7 +171,7 @@ function installSmartBack(){
  }catch(error){console.info('Announcements browser Back guard:',error);}
 }
 $('gaBack').addEventListener('click',e=>{e.preventDefault();goBack();});
-function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);initStudentFeedStyle();state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentDrafts={};state.commentSending={};state.commentJustPosted={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
+function accountReset(account){cleanup();state.user=account;state.teacher=isTeacher(account);initStudentFeedStyle();state.posts={};state.seen={};state.directory={};state.messageSummaries={};state.directoryLoaded=false;state.summaryLoaded=false;state.audienceLoadError=false;state.audienceDiagnostics=null;state.peopleCache=null;state.audienceFilter='all';state.reactorsPostId='';state.reactorsFilter='all';state.reactorsSearch='';$('gaReactorsModal').hidden=true;state.catalog={};state.reactions={};state.comments={};state.commentReactions={};state.commentDrafts={};state.commentSending={};state.commentJustPosted={};state.commentExpanded.clear();state.commentOpen.clear();state.replyTargets={};state.displayedIds=[];state.restoredPosition=false;$('gaFeed').replaceChildren();state.blobOwner=account?.uid||'';gaPhotos.setOwner(state.blobOwner);}
 async function boot(){try{if(!window.MCS_FIREBASE_CONFIG||!window.MCS_FIREBASE_DATABASE_URL)throw Error('Announcements are temporarily unavailable. Please try again later.');await sdk();state.sdk.onAuthStateChanged(state.auth,async account=>{accountReset(account);if(!account){setLive('Sign in required');if(teacherShortcut)gate('Teacher Announcements · Admin Code','Enter your existing teacher account password (Admin Code) to open the announcement creator.',true);else gate('Sign in to Announcements','Use your existing G8Code account to continue.',true);return;}if(teacherShortcut&&!state.teacher){setLive('Teacher sign-in required');gate('Teacher Announcements · Admin Code','A student session is active. Enter your teacher Admin Code to switch securely to the authorized admin account.',true);return;}state.profile={uid:account.uid,name:account.displayName||'Student',section:'Unassigned',studentId:''};if(!state.teacher){try{const row=(await state.sdk.get(state.sdk.ref(state.db,'g8MessagesV1/directory/'+account.uid))).val()||{};if(row.accountStatus==='disabled')throw Error('This student account is disabled.');state.profile={...state.profile,name:row.name||account.displayName||'Student',section:row.section||'Unassigned',studentId:row.studentId||''};}catch(err){if(/disabled/.test(err.message)){gate('Account disabled',err.message,false);return;}console.info('Profile not yet synced:',err.message);}}
  $('gaGate').hidden=true;$('gaWorkspace').hidden=false;installSmartBack();document.querySelectorAll('.ga-teacher-only').forEach(x=>x.hidden=!state.teacher);$('gaHeaderSubtitle').textContent=state.teacher?'Teacher publishing studio':'Your official classroom updates';$('gaGreeting').textContent=state.teacher?'TEACHER COMMUNICATION CENTER':txt(state.profile.section,70).toUpperCase();$('gaTitle').textContent=state.teacher?'Manage announcements':'Class announcements';$('gaSubtitle').textContent=state.teacher?'Create, edit, and target announcements by recipient.':'Only updates intended for your account appear here.';setLive('Live');
  if(state.teacher){loadTeacher();loadCatalog();
@@ -462,6 +468,11 @@ function focusPushPost(){
  requestAnimationFrame(()=>{
   if(gaLink.get('gaEngagement')==='comment'&&!state.commentExpanded.has(gaTarget))
    card.querySelector('.ga-reply-total')?.click();
+  const commentId=gaLink.get('gaComment');
+  if(commentId){
+   const pick=()=>[...document.querySelectorAll('.ga-comment[data-ga-comment-id]')].find(x=>x.dataset.gaCommentId===commentId);
+   let tries=0;const timer=setInterval(()=>{const target=pick();if(!target&&++tries<16)return;clearInterval(timer);if(target){target.scrollIntoView({block:'center',behavior:'smooth'});target.classList.add('ga-notification-focus');setTimeout(()=>target.classList.remove('ga-notification-focus'),3500);}},200);
+  }
   card.scrollIntoView({block:'center',behavior:'smooth'});
   card.style.outline='3px solid #4c89ec';card.style.outlineOffset='5px';
   setTimeout(()=>{if(card.isConnected){card.style.outline='';card.style.outlineOffset='';}},3500);
@@ -483,7 +494,7 @@ function ensurePushPostVisible(){
  }else if(post.audience.type==='all')state.audienceFilter='everyone';
  updateAudienceFilterOptions();
 }
-function render(){ensurePushPostVisible();renderBadges();while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();const feed=$('gaFeed');feed.replaceChildren();const rows=allIds();state.displayedIds=rows.map(r=>r.id);$('gaFeedStatus').textContent=`${rows.length} post${rows.length===1?'':'s'}`;if(!rows.length){if(state.detailPostId){refreshPostDialog();ensureDetailSubscriptions(false);}const empty=node('div','ga-empty');empty.append(node('strong','',state.filter==='unread'?'All caught up!':'No announcements here yet.'),node('span','',state.teacher?'No posts match this view. Try another section or audience.':'Your teacher’s announcements will appear here.'));feed.append(empty);return;}for(const p of rows)feed.append(renderCard(p));if(state.detailPostId){refreshPostDialog();ensureDetailSubscriptions(rows.some(r=>r.id===state.detailPostId));}focusPushPost();if(!state.teacher){state.markObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const id=entry.target.dataset.gaPost;setTimeout(()=>{if(!state.user||!entry.target.isConnected||!state.markObserver)return;const r=entry.target.getBoundingClientRect();if(r.top<innerHeight*.8&&r.bottom>innerHeight*.25&&!state.seen[id])state.sdk.set(path(`seen/${state.user.uid}/${id}`),{atMs:Date.now(),publishedAtMs:Number(state.posts[id]?.publishedAtMs||0)}).catch(e=>console.warn('Mark read:',e.message));},900);state.markObserver.unobserve(entry.target);}}},{threshold:.55});for(const card of feed.querySelectorAll('[data-ga-post]'))state.markObserver.observe(card);}}
+function render(){ensurePushPostVisible();renderBadges();while(state.postUnsubs.length){try{state.postUnsubs.pop()();}catch{}}state.markObserver?.disconnect();const feed=$('gaFeed');feed.replaceChildren();const rows=allIds();state.displayedIds=rows.map(r=>r.id);$('gaFeedStatus').textContent=`${rows.length} post${rows.length===1?'':'s'}`;if(!rows.length){if(state.detailPostId){refreshPostDialog();ensureDetailSubscriptions(false);}const empty=node('div','ga-empty');empty.append(node('strong','',state.filter==='unread'?'All caught up!':'No announcements here yet.'),node('span','',state.teacher?'No posts match this view. Try another section or audience.':'Your teacher’s announcements will appear here.'));feed.append(empty);return;}for(const p of rows)feed.append(renderCard(p));if(state.detailPostId){refreshPostDialog();ensureDetailSubscriptions(rows.some(r=>r.id===state.detailPostId));}focusPushPost();if(!state.teacher){state.markObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){const id=entry.target.dataset.gaPost;setTimeout(()=>{if(!state.user||!entry.target.isConnected||!state.markObserver)return;const r=entry.target.getBoundingClientRect();if(r.top<innerHeight*.8&&r.bottom>innerHeight*.25&&!state.seen[id])state.sdk.set(path(`seen/${state.user.uid}/${id}`),{atMs:Date.now(),publishedAtMs:Number(state.posts[id]?.publishedAtMs||0)}).then(()=>gaLogAdminEvent('post_view',id,{sourceId:`view_${id}`})).catch(e=>console.warn('Mark read:',e.message));},900);state.markObserver.unobserve(entry.target);}}},{threshold:.55});for(const card of feed.querySelectorAll('[data-ga-post]'))state.markObserver.observe(card);}}
 // Text-only announcements can use a design background. Any attachment switches
 // the post to Facebook-style text + media layout without losing saved design.
 function postBody(p){
@@ -700,6 +711,7 @@ function ensureDetailSubscriptions(isShownInFeed){
  const id=state.detailPostId;
  on(`reactions/${id}`,data=>{state.reactions[id]=data;syncPostDialogEngagement(id);},state.detailUnsubs);
  on(`replies/${id}`,data=>{state.comments[id]=data;syncPostDialogEngagement(id);},state.detailUnsubs);
+ on(`commentReactions/${id}`,data=>{state.commentReactions[id]=data;syncPostDialogEngagement(id);},state.detailUnsubs);
 }
 function syncPostDialogEngagement(id){
  if(id!==state.detailPostId)return;
@@ -847,6 +859,7 @@ function renderCard(p,inPostModal=false){
   if(!inPostModal){
    on(`reactions/${p.id}`,data=>{state.reactions[p.id]=data;updateTotals();syncPostDialogEngagement(p.id);if(state.reactorsPostId===p.id)renderReactorDialog();},state.postUnsubs);
    on(`replies/${p.id}`,data=>{state.comments[p.id]=data;updateTotals();drawComments(p.id,card,p);syncPostDialogEngagement(p.id);},state.postUnsubs);
+   on(`commentReactions/${p.id}`,data=>{state.commentReactions[p.id]=data;drawComments(p.id,card,p);syncPostDialogEngagement(p.id);},state.postUnsubs);
   }
  }
  if(state.teacher){const menu=node('div','ga-teacher-menu');for(const [label,action] of [['Edit',()=>openComposer(p)],['Duplicate',()=>openComposer(p,true)],[p.status==='published'?'Archive':p.status==='scheduled'?'Publish Now':'Publish',()=>p.status==='published'?archivePost(p):publishExisting(p)],['Delete',()=>deletePost(p)]]){const b=node('button',label==='Delete'?'danger':'',label);b.type='button';b.addEventListener('click',action);menu.append(b);}card.append(menu);}
@@ -885,7 +898,7 @@ function renderFiles(p,card,inPostModal=false){
   b.append(badge,copy,node('span','ga-attach-arrow','↗'));host.append(b);
  });card.append(host);
 }
-async function react(id,emoji){try{currentUser();const was=state.reactions[id]?.[state.user.uid]===emoji;const r=path(`reactions/${id}/${state.user.uid}`);if(was)await state.sdk.remove(r);else{await state.sdk.set(r,emoji);if(!state.teacher){const reactionCode=emoji==='❤️'?'love':emoji==='🤗'?'care':'like';void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'reaction',reactionCode});}}}catch(e){toast('Could not save reaction: '+e.message,true);}}
+async function react(id,emoji){try{currentUser();const was=state.reactions[id]?.[state.user.uid]===emoji;const r=path(`reactions/${id}/${state.user.uid}`);if(was)await state.sdk.remove(r);else{await state.sdk.set(r,emoji);if(!state.teacher){const reactionCode=emoji==='❤️'?'love':emoji==='🤗'?'care':'like';void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'reaction',reactionCode});gaLogAdminEvent('post_reaction',id,{emoji});}}}catch(e){toast('Could not save reaction: '+e.message,true);}}
 // After a successful comment write, move keyboard/scroll focus to the actual
 // new comment, not back to the composer. Works inside the fixed desktop/mobile
 // post dialog and in the teacher's inline comment list.
@@ -951,6 +964,17 @@ function drawComments(id,card,p){
    if(c.replyTo&&data[c.replyTo])bubble.append(node('span','ga-comment-inreply','↳ '+txt(data[c.replyTo].name||'Reply',50)));
    bubble.append(node('p','',txt(c.text,1200)));content.append(bubble);
    const tools=node('div','ga-comment-tools');tools.append(node('small','',stamp(c.createdAtMs)));
+   const reactors=state.commentReactions[id]?.[rid]||{};
+   const likes=Object.values(reactors).filter(v=>v==='❤️').length;
+   const liked=reactors[state.user?.uid]==='❤️';
+   const heart=node('button','ga-comment-react',`${liked?'❤️':'♡'} ${likes?`${likes} · `:''}Like`);
+   heart.type='button';heart.setAttribute('aria-pressed',String(liked));heart.title=liked?'Remove reaction':'React to this comment';
+   heart.addEventListener('click',async()=>{
+    try{currentUser();const reactionRef=path(`commentReactions/${id}/${rid}/${state.user.uid}`);
+     if(liked)await state.sdk.remove(reactionRef);
+     else{await state.sdk.set(reactionRef,'❤️');if(!state.teacher)gaLogAdminEvent('comment_reaction',id,{contextId:rid,emoji:'❤️',preview:txt(c.text,130)});}
+    }catch(error){toast('Could not react to comment: '+error.message,true);}
+   });tools.append(heart);
    if(p.allowReplies||state.teacher){
     const reply=node('button','','Reply');reply.type='button';
     reply.addEventListener('click',()=>{state.replyTargets[id]={id:rid,name:c.name};state.commentOpen.add(id);drawComments(id,card,p);(inPostModal?dock:host).querySelector('textarea')?.focus({preventScroll:true});});tools.append(reply);
@@ -985,6 +1009,7 @@ function drawComments(id,card,p){
    if(!state.teacher)comment.section=txt(state.profile?.section||'',100);
    if(state.replyTargets[id]?.id)comment.replyTo=state.replyTargets[id].id;
    await state.sdk.set(path(`replies/${id}/${key}`),comment);
+   if(!state.teacher)gaLogAdminEvent(comment.replyTo?'post_reply':'post_comment',id,{contextId:comment.replyTo||key,preview:value,sourceId:key});
    if(!state.teacher)void window.G8CodePush?.queueAnnouncementEngagement?.({postId:id,kind:'comment',commentId:key});
    if(!state.comments[id])state.comments[id]={};
    state.comments[id][key]=comment;

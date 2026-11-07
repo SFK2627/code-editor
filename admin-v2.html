@@ -7787,7 +7787,8 @@ https://example.com/song3.mp3"></textarea>
     })();
   </script>
 
-  <script src="script.js?v=41-learning-stable"></script>
+  <script src="g8code-admin-activity-events.js?v=1"></script>
+  <script src="script.js?v=20261108-admin-notifications-v1"></script>
   <script src="admin-workspace-theme.js?v=20261101-admin-v1"></script>
   <script src="student-learning-unified.js?v=20261102-v239-guest-theme-sync"></script>
   <script src="student-projects-unified.js?v=20261102-projects-header-home-v2"></script>
@@ -8173,6 +8174,7 @@ try {
     settings:'<path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2 2m8.8 8.8 2 2m0-12.8-2 2m-8.8 8.8-2 2"/><circle cx="12" cy="12" r="4"/>',
     external:'<path d="M14 4h6v6M20 4l-9 9"/><path d="M20 13v7H4V4h7"/>',
     layers:'<path d="m12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5"/>',
+    bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',
     message:'<path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 9.3 9.3 0 0 1-4-.9L3 21l1.9-5.2a8.7 8.7 0 0 1-.9-4.3A8.5 8.5 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8.5z"/>'
   };
   function ico(name, size=20) {return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icons[name]||icons.grid}</svg>`;}
@@ -8190,7 +8192,8 @@ try {
     {id:'given-activities',label:'Activities Given',sub:'Class tasks, instructions, and materials',icon:'calendar'},
     {id:'activities',label:'Rubrics & Activities',sub:'Assessment criteria and scoring controls',icon:'rubric'},
     {id:'code-explorer',label:'Code Explorer',sub:'Explorer analytics, music, certificates, and controls',icon:'code',group:'STUDIO'},
-    {id:'messages',label:'Messages',sub:'Private conversations, sections, and photo acknowledgments',icon:'message',group:'COMMUNICATION'},
+    {id:'notifications',label:'Notifications',sub:'Full student activity and notification summary',icon:'bell',group:'COMMUNICATION'},
+    {id:'messages',label:'Messages',sub:'Private conversations, sections, and photo acknowledgments',icon:'message'},
     {id:'announcements',label:'Announcements',sub:'Post rich classroom updates to all sections, selected sections, or individual students',icon:'message'}
   ];
   const legacyBank=el('div','adm-legacy-bank');
@@ -8212,6 +8215,7 @@ try {
     const b=btn(p.label,'adm-nav-btn',()=>navigate(p.id),p.icon);
     b.dataset.page=p.id; b.setAttribute('aria-current','false');
     if(p.id==='messages'){const badge=el('b','g8-admin-msg-badge');badge.dataset.msgInboxBadge='';badge.hidden=true;b.append(badge);}
+    if(p.id==='notifications'){const badge=el('b','g8-admin-msg-badge');badge.dataset.adminActivityBadge='';badge.hidden=true;b.append(badge);}
     navMap.set(p.id,b);nav.append(b);
   });
   sidebarScroll.append(nav);
@@ -8237,7 +8241,10 @@ try {
   exitLink.title='Return to original G8Code';exitLink.setAttribute('aria-label','Exit Admin V2');
   exitLink.innerHTML=ico('x',19);
   const identity=el('span','adm-user-chip');identity.innerHTML=ico('unlock',15)+'<span>Teacher</span>';
-  topActions.append(mobileSearch,themeWrap,identity,exitLink);
+  const notificationsLink=btn('Notifications','adm-icon-btn',()=>navigate('notifications'),'bell');
+  notificationsLink.title='Open Notification Center';notificationsLink.setAttribute('aria-label','Notification Center');
+  const notificationBadge=el('b','g8-admin-msg-badge');notificationBadge.dataset.adminActivityBadge='';notificationBadge.hidden=true;notificationsLink.append(notificationBadge);
+  topActions.append(mobileSearch,notificationsLink,themeWrap,identity,exitLink);
   bar.append(menuBtn,crumb,globalSearch,topActions);
   const workspace=el('div','adm-workspace');
   const stage=el('main','adm-content');stage.id='admV2Content';
@@ -8348,6 +8355,7 @@ try {
   }
   function navigate(id, internal=false){
     if(!isUnlocked() && !['overview','assistance'].includes(id)){toggleDrawer(false);return;}
+    if(id==='notifications'){window.location.assign('admin-notifications.html');return;}
     if(id==='messages'){window.location.assign('messages.html?from=admin');return;}
     if(id==='announcements'){window.location.assign('announcements.html?from=admin');return;}
     if(!pages.some(p=>p.id===id))return;
@@ -8433,6 +8441,42 @@ try {
     }
     if(e.key==='Escape'){if(!search.classList.contains('hidden'))closeSearch();else toggleDrawer(false);}
   },true);
+  // Exact-target routing from the Admin Notification Center.
+  const noteParams=new URLSearchParams(location.search),noteCategory=noteParams.get('g8Notify');
+  const noteId=(noteParams.get('g8NotifyId')||'').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,128);
+  const noteStudent=(noteParams.get('g8NotifyStudent')||'').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,128);
+  let noteTries=0,noteOpened=false,notePageEntered=false;
+  function openNotificationResource(){
+    if(!noteId||!isUnlocked()||!['lessons','activities','projects'].includes(noteCategory)||noteOpened)return;
+    if(!notePageEntered){navigate(noteCategory==='lessons'?'lessons':noteCategory==='activities'?'given-activities':'students',true);notePageEntered=true;}
+    if(noteCategory==='projects'){
+      const candidates=typeof adminStudentsCache!=='undefined'?adminStudentsCache:[];
+      const found=Array.isArray(candidates)&&candidates.some(x=>x.uid===noteStudent||(typeof getAdminStudentProfileUids==='function'&&getAdminStudentProfileUids(x).includes(noteStudent)));
+      if(!found){if(++noteTries<35)setTimeout(openNotificationResource,450);return;}
+      noteOpened=true;
+      if(typeof showAdminStudentProjects==='function'){
+        Promise.resolve(showAdminStudentProjects(noteStudent)).then(()=>{
+          const row=[...document.querySelectorAll('#adminStudentProjectsList [data-admin-project-id]')].find(x=>
+            x.dataset.adminProjectId===noteId||x.dataset.adminProjectId.endsWith('::'+noteId));
+          const button=row?.matches('button')?row:row?.querySelector('[data-admin-project-action="view"]');
+          if(button)button.click();
+        }).catch(error=>console.warn('Notification project route:',error));
+      }
+      return;
+    }
+    const selector=noteCategory==='lessons'?`[data-admin-lesson-id="${noteId}"]`:`[data-given-admin-id="${noteId}"]`;
+    const row=document.querySelector(selector);
+    if(!row){if(++noteTries<35)setTimeout(openNotificationResource,450);return;}
+    noteOpened=true;
+    row.scrollIntoView({block:'center',behavior:'smooth'});
+    row.style.outline='3px solid #6965e8';row.style.outlineOffset='4px';
+    setTimeout(()=>{if(row.isConnected){row.style.outline='';row.style.outlineOffset='';}},3800);
+    // Open the exact lesson/activity engagement panel, including the teacher's
+    // existing student-by-section breakdown; do not open a different resource.
+    row.querySelector('[data-lesson-admin-action="engagement"],[data-given-admin-action="engagement"]')?.click();
+  }
+  new MutationObserver(openNotificationResource).observe(pin,{attributes:true,attributeFilter:['class']});
+  setTimeout(openNotificationResource,800);
   // Header secondary action: contextual section search / command palette.
   updateAuth();
 
@@ -9404,11 +9448,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
-<script defer src="messages-bridge.js?v=41"></script>
+<script defer src="messages-bridge.js?v=51"></script>
 <script defer src="announcements-admin-attach.js?v=521"></script>
-<link rel="stylesheet" href="g8code-learning-badges.css?v=38" />
-<script defer src="g8code-learning-badges.js?v=44"></script>
+<script defer src="g8code-learning-badges.js?v=1"></script>
 <script defer src="g8code-push-config.js?v=2"></script>
-<script defer src="g8code-push.js?v=44"></script>
+<script defer src="g8code-push.js?v=2"></script>
+<script defer src="admin-notifications-badge.js?v=1"></script>
 </body>
 </html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#16223b"><title>G8Code Admin · Notification Center</title>
+<link rel="icon" href="favicon.png"><link rel="stylesheet" href="admin-notifications.css?v=1">
+<script src="firebase-config.js"></script><script src="admin-notifications.js?v=1" defer></script></head>
+<body>
+<div class="nc-app">
+ <aside class="nc-sidebar" aria-label="Admin navigation"><a class="nc-brand" href="admin-v2.html"><span class="nc-logo">G8</span><span><b>G8Code</b><small>ADMIN CONTROL CENTER</small></span></a>
+ <a class="nc-side-link" href="admin-v2.html">⌂ <span>Admin Overview</span></a>
+ <a class="nc-side-link nc-active" href="admin-notifications.html" aria-current="page">♧ <span>Notifications</span><b id="ncSideBadge" hidden></b></a>
+ <a class="nc-side-link" href="messages.html?from=admin">✉ <span>Messenger</span></a>
+ <a class="nc-side-link" href="announcements.html?from=admin">▣ <span>Announcements</span></a>
+ <div class="nc-side-tip">All events are logged in Realtime Database. No extra Firestore reads or writes.</div>
+ </aside>
+ <div class="nc-main">
+  <header class="nc-top"><a class="nc-back" href="admin-v2.html" aria-label="Back to Admin Overview">‹ <span>Admin Overview</span></a><span class="nc-top-label">COMMUNICATION & ACTIVITY</span><button id="ncTheme" type="button" aria-label="Toggle light/dark mode">◐</button></header>
+  <main class="nc-content">
+   <div class="nc-heading"><div><div class="nc-eyebrow">TEACHER WORKSPACE / MONITORING</div><h1>Notification Center</h1><p>Messages, announcement engagement, and learning activity in one place.</p></div><button id="ncMarkAll" type="button" disabled>✓ Mark all read</button></div>
+   <section class="nc-kpis" aria-label="Notification summary"><div><strong id="ncCountAll">—</strong><span>Unread groups</span></div><div><strong id="ncCountToday">—</strong><span>Today's events</span></div><div><strong id="ncCountLoaded">—</strong><span>Events loaded</span></div></section>
+   <section class="nc-cats" id="ncCategories" aria-label="Notification categories">
+    <button type="button" data-category="all" class="selected"><span class="nc-cat-icon">▤</span><span>All</span><b data-badge="all" hidden>0</b></button>
+    <button type="button" data-category="messages"><span class="nc-cat-icon">✉</span><span>Messenger</span><b data-badge="messages" hidden>0</b></button>
+    <button type="button" data-category="announcements"><span class="nc-cat-icon">♥</span><span>Announcements</span><b data-badge="announcements" hidden>0</b></button>
+    <button type="button" data-category="lessons"><span class="nc-cat-icon">▣</span><span>Lessons</span><b data-badge="lessons" hidden>0</b></button>
+    <button type="button" data-category="activities"><span class="nc-cat-icon">☑</span><span>Activities</span><b data-badge="activities" hidden>0</b></button>
+    <button type="button" data-category="projects"><span class="nc-cat-icon">⌘</span><span>Projects</span><b data-badge="projects" hidden>0</b></button>
+   </section>
+   <section class="nc-filter" aria-label="Filter notifications"><label>Section<select id="ncSection"><option value="all">All sections</option></select></label><label>Status<select id="ncStatus"><option value="all">All events</option><option value="unread">Unread only</option><option value="read">Read only</option></select></label><label>Time<select id="ncDate"><option value="all">Any date</option><option value="today">Today</option><option value="week">Last 7 days</option><option value="month">Last 30 days</option></select></label><label>Sort<select id="ncSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="student">Student name</option><option value="section">Section</option></select></label><label class="nc-search-wrap">Search<input id="ncSearch" type="search" placeholder="Student, section, post, lesson…" autocomplete="off"></label></section>
+   <div class="nc-results-title"><h2>Activity timeline</h2><span id="ncResultCount" aria-live="polite"></span></div>
+   <div id="ncGate" class="nc-empty" role="status">Checking your teacher session…</div>
+   <div id="ncFeed" class="nc-feed" aria-live="polite" hidden></div>
+   <div class="nc-bottom"><button id="ncLoadMore" type="button" hidden>Load older events</button><small>Notifications begin when this update is installed. Older actions are not automatically reconstructed.</small></div>
+  </main>
+ </div>
+</div>
+<div id="ncDetailBackdrop" class="nc-modal-backdrop" hidden><section class="nc-detail" role="dialog" aria-modal="true" aria-labelledby="ncDetailTitle"><header><div><h2 id="ncDetailTitle">Engagement details</h2><p id="ncDetailSubtitle"></p></div><button type="button" id="ncDetailClose" aria-label="Close details">×</button></header><div id="ncDetailItems" class="nc-detail-list"></div><footer><button type="button" id="ncDetailGo">Open original item</button></footer></section></div>
+</body></html>

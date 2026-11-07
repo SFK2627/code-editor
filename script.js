@@ -7149,6 +7149,12 @@ function utf8PayloadByteLength(value = '') {
   }
 }
 
+function g8LogActivity(category,action,title,targetId,extra={}){
+ const student=appSession.student,actor=firebaseSync.auth?.currentUser;
+ if(!student?.uid||!actor?.uid||student.uid!==actor.uid||!window.G8CodeAdminActivity)return;
+ const details={actorUid:actor.uid,actorName:student.name||'Student',section:student.section||'Unassigned',studentId:student.studentId||'',category,action,title,targetId,...extra};
+ void window.G8CodeAdminActivity.emitRest(details,(path,body)=>rtdbRestRequest(path,{method:'PUT',body}));
+}
 async function rtdbRestRequest(path = '', options = {}) {
   const baseUrl = getMcsRealtimeDatabaseUrl();
   if (!baseUrl) throw new Error('The connection is temporarily unavailable.');
@@ -14079,8 +14085,11 @@ async function finishQuizSession() {
   if (!confirmed || !quizModeState.activeActivityId) return;
   quizModeState.processing = true;
   try {
-    const row = await quizAttemptTransaction(quizModeState.activeActivityId, 'finish');
+    const finishedId=quizModeState.activeActivityId;
+    const row = await quizAttemptTransaction(finishedId, 'finish');
     if (row.status !== 'completed') throw new Error('This attempt has already ended.');
+    const finishedActivity=givenActivityState.items.find(x=>x.id===finishedId);
+    g8LogActivity('activities','activity_complete',finishedActivity?.title||'Quiz',finishedId,{sourceId:`quiz_completed_${finishedId}`});
     quizModeState.activeActivityId = '';
     quizModeState.warningCount = 0;
     quizSetLocalPending('', false);
@@ -14190,6 +14199,7 @@ function openGivenActivityEntry(activityId = '') {
   const item = givenActivityState.items.find(entry => entry.id === String(activityId || '') && entry.published && givenActivityMatchesAudience(entry));
   if (!item) return;
   window.G8CodeLearningBadges?.markViewed?.('activities', item.id);
+  if(window.G8CodeAdminActivity?.shouldLogView('activities',appSession.student?.uid,item.id))g8LogActivity('activities','activity_view',item.title,item.id);
   if (item.isQuiz) openQuizStartNotice(item.id);
   else if (item.isPeta) openPetaActionChoice(item.id);
   else openGivenActivityViewer(item.id);
@@ -14288,6 +14298,7 @@ async function saveProjectNameDialog() {
       updatedAt: serverTimestamp()
     });
     appSession.projects.unshift({ id: projectId, ...data });
+    g8LogActivity('projects','project_create',name,projectId,{sourceId:`create_${projectId}`});
     appSession.student.projectCount = Number(appSession.student.projectCount || 0) + 1;
     const projectIndex = setLocalStudentProjectIndex(appSession.projects);
     await setDoc(getStudentDocRef(appSession.student.uid), {
@@ -27449,6 +27460,7 @@ function openLessonPdfViewer(lessonId = '') {
     return;
   }
   window.G8CodeLearningBadges?.markViewed?.('lessons', lesson.id);
+  if(window.G8CodeAdminActivity?.shouldLogView('lessons',appSession.student?.uid,lesson.id))g8LogActivity('lessons','lesson_view',lesson.title,lesson.id);
   const currentProgress = getLessonProgress(lesson.id);
   updateLessonProgress(lesson.id, {
     startedAt: currentProgress.startedAt || Date.now(),
@@ -29920,7 +29932,8 @@ function bindTeacherToolsV295() {
     const activityId = givenActivityState.viewerActivityId;
     if (!activityId) return;
     const current = getGivenActivityEngagement(activityId);
-    if (!current.readAt) updateGivenActivityEngagement(activityId, { readAt: Date.now(), lastOpenedAt: Date.now() });
+    if (!current.readAt){updateGivenActivityEngagement(activityId, { readAt: Date.now(), lastOpenedAt: Date.now() });
+      g8LogActivity('activities','activity_read',givenActivityState.items.find(x=>x.id===activityId)?.title||'Activity',activityId,{sourceId:`read_${activityId}`});}
     syncGivenActivityViewerEngagementUi(activityId);
     renderStudentGivenActivities();
     syncGivenActivityEngagementToCloud(activityId, { immediate: true });
@@ -35966,7 +35979,9 @@ lessonPdfDescriptionToggle?.addEventListener('click', () => {
 lessonPdfMarkDoneBtn?.addEventListener('click', () => {
   const lessonId = lessonLibraryState.currentLessonId;
   if (!lessonId) return;
+  const wasComplete=Boolean(getLessonProgress(lessonId).completedAt);
   updateLessonProgress(lessonId, { completedAt: Date.now(), lastOpenedAt: Date.now(), percent: 100 });
+  if(!wasComplete)g8LogActivity('lessons','lesson_complete',lessonLibraryState.lessons.find(x=>x.id===lessonId)?.title||'Lesson',lessonId,{sourceId:`complete_${lessonId}`});
   syncLessonPdfProgressUi(lessonId);
   renderStudentLessonLibrary();
   renderLessonContinueReading();

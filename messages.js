@@ -51,7 +51,9 @@ const BASE = 'g8MessagesV1';
 // from=login: learn shortcut (teacher-only). from=admin: Admin V2.
 const g8mEntrySource = new URLSearchParams(location.search).get('from');
 const g8mTeacherShortcut = g8mEntrySource === 'login';
-const g8mTeacherEntry = g8mEntrySource === 'admin' || g8mTeacherShortcut;
+const g8mTeacherEntry = ['admin','notifications'].includes(g8mEntrySource) || g8mTeacherShortcut;
+const g8mNotificationTarget=(new URLSearchParams(location.search).get('message')||'').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,128);
+let g8mNotificationJumpDone=false;
 // Accept original images up to 30 MB; optimize large photos client-side before
 // transport so Apps Script receives a much smaller image and chats load quickly.
 const MAX_FILES = 3, MAX_SIZE = 30 * 1024 * 1024;
@@ -408,6 +410,12 @@ for(const id of ['g8mTheme','g8mChatTheme']){
 }
 // G8Code V5.0 photo viewer handlers are installed below.
 
+
+function g8mLogAdminEvent(action,targetId,extra={}){
+ if(teacher||!user||!window.G8CodeAdminActivity)return;
+ const actor=profile||{};
+ void window.G8CodeAdminActivity.emitSDK({actorUid:user.uid,actorName:actor.name||user.displayName||'Student',section:actor.section||'Unassigned',studentId:actor.studentId||'',category:'messages',action,targetId,...extra},{db:rtdb,ref,push,set});
+}
 const studentPath = uid => `${BASE}/chats/${uid}`;
 // Intentionally kept OUTSIDE chats/$uid, to avoid inheriting broad message-write
 // permissions. Deploy the accompanying RTDB rule fragment as part of your
@@ -464,6 +472,7 @@ $('g8mAdminScreenshotToggle')?.addEventListener('change',e=>{void g8mSaveScreens
 const summaryPath = uid => `${BASE}/summary/${uid}`;
 function role(){return teacher?'teacher':'student';}
 function roleDestination(){
+ if(teacher&&g8mEntrySource==='notifications')return 'admin-notifications.html';
  if(g8mTeacherShortcut) return 'index.html';
  return teacher?'admin-v2.html?g8mBack=overview':'index.html?g8mBack=student';
 }
@@ -904,6 +913,19 @@ function openChat(uid){
  else $('g8mMessages').replaceChildren(notice('Loading messages…'));
  switchMobile('chat');
  g8mJumpLatest({settle:true});
+ if(teacher&&g8mNotificationTarget&&!g8mNotificationJumpDone){
+  g8mNotificationJumpDone=true;
+  // Direct RTDB fetch of the exact message only. No Firestore project fetch.
+  const requested=String(new URLSearchParams(location.search).get('student')||uid);
+  get(ref(rtdb,`${studentPath(requested)}/messages/${g8mNotificationTarget}`)).then(s=>{
+   if(!s.exists()||!teacher||!openedUid)return;
+   const item={...s.val(),id:g8mNotificationTarget,__threadUid:requested,__historical:requested!==openedUid};
+   g8mAdminFocusedMessages=[item];g8mFollowLatest=false;renderMessages();switchMobile('chat');
+   const focus=()=>{const row=[...$('g8mMessages').querySelectorAll('.g8m-message[data-chat-key]')].find(e=>e.dataset.chatKey===`message:${requested}:${g8mNotificationTarget}`);
+    if(!row)return;row.scrollIntoView({block:'center',behavior:'smooth'});row.classList.add('g8m-jump-focus');setTimeout(()=>row.classList.remove('g8m-jump-focus'),2600);};
+   requestAnimationFrame(()=>requestAnimationFrame(focus));
+  }).catch(e=>console.warn('Notification message lookup:',e));
+ }
  status('');
  updateChatFeedState(warm?'Showing recent messages · Syncing…':'Loading conversation…');
  // A single per-conversation listener is enough for instant student updates.
@@ -1579,7 +1601,7 @@ async function reactToMessage(id,emoji){
  const old=activeReactions[id]?.[user.uid]||'';
  closeReactionPicker();
  try{
-  if(old===emoji)await remove(refPath);else await set(refPath,emoji);
+  if(old===emoji)await remove(refPath);else{await set(refPath,emoji);g8mLogAdminEvent('message_reaction',id,{emoji,preview:short(messageReferenceText(messageById(id))||'Message',140)});}
  }catch(error){status(`Could not save reaction: ${friendlyError(error)}`,true);}
 }
 reactionPicker.addEventListener('click',event=>{
@@ -3691,6 +3713,7 @@ async function processPhotoJob(job){
   if(!confirmed.exists()||confirmed.val()?.senderUid!==job.senderUid)
    throw new Error('Photo uploaded, but the chat message could not be confirmed. Retry safely.');
   if(photoMessageWasJustCreated&&job.senderRole==='teacher')void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:job.id,targetUid:job.uid});
+  if(photoMessageWasJustCreated&&job.senderRole==='student')g8mLogAdminEvent('photo',job.id,{preview:job.caption?'Photo with caption':'Photo attachment',sourceId:job.id});
   // Reuse the LOCAL preview as a temporary sender-side Drive thumbnail.
   // There is no unnecessary second Drive download after a verified send.
   for(let i=0;i<job.uploaded.length;i++){
@@ -3763,6 +3786,7 @@ async function sendMessage(event){event.preventDefault();if(sending||!openedUid|
   const confirmed=await get(messageRef);
   if(!confirmed.exists()||confirmed.val()?.senderUid!==user.uid)throw new Error('Message write could not be verified. Please retry.');
   if(senderRole==='teacher')void window.G8CodePush?.queueTeacherEvent?.({type:'messages',itemId:key,targetUid:uid});
+  else g8mLogAdminEvent(sharedProject?'project_share':currentReply?.id?'message_reply':'message',key,{contextId:currentReply?.id||'',title:sharedProject?.name||'',preview:sharedProject?'Shared a project':short(text,160),sourceId:key});
   // Render the verified message immediately. The onValue listener will reconcile
   // it with the other participant's updates. This also protects against UI
   // stalls when the live listener is delayed, interrupted, or showing a stale page.
