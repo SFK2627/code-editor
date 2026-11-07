@@ -39,7 +39,15 @@
       window.G8CodeInternalNav = {
         finish() { document.documentElement.classList.remove('g8code-internal-route-pending'); }
       };
-      if (!reducedMotion && !studioReturn && !route.internal) {
+      // Returning from an authenticated Admin login shortcut is navigation,
+      // not a fresh app launch. Skip the writing splash once, never on reload.
+      const adminShortcutReturn=(()=>{try{
+        const at=Number(sessionStorage.getItem('g8code.adminShortcutReturn.v1')||0);
+        sessionStorage.removeItem('g8code.adminShortcutReturn.v1');
+        const nav=performance?.getEntriesByType?.('navigation')?.[0];
+        return at>0 && Date.now()-at<3600000 && nav?.type!=='reload';
+      }catch{return false;}})();
+      if (!reducedMotion && !studioReturn && !route.internal && !adminShortcutReturn) {
         document.documentElement.classList.add('g8code-opening-intro');
       }
     })();
@@ -515,6 +523,7 @@
 <link rel="stylesheet" href="student-home-compact.css?v=529" />
 <link rel="stylesheet" href="student-modal-compact.css?v=532" />
 <link rel="stylesheet" href="mobile-student-nav-v39.css?v=20261106-v42-icon-text-color-sync" />
+<link rel="stylesheet" href="login-admin-shortcuts.css?v=20261108-v11" />
 </head>
 <body class="entry-gate-active">
   <div id="g8codePwaWritingSplash" aria-hidden="true">
@@ -566,7 +575,7 @@
           <div class="lg-brand-name"><strong>G8Code</strong><span>ICT 8 <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">CONNECT</a></span></div>
         </div>
         <p class="section-kicker ict8-brand-kicker"><span class="brand-cycle" aria-label="ICT 8 Connect. Learn. Code. Connect."><span class="brand-cycle-face brand-cycle-name">ICT 8 <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">Connect</a></span><span class="brand-cycle-face brand-cycle-tagline">Learn. Code. <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">Connect</a>.</span></span></p>
-        <h1 id="entryGateTitle">Your place to <span><a class="g8-learn-to-teacher-messages" href="messages.html?from=login" aria-label="Open Teacher Messages with Admin Code">learn</a>, <a class="g8-code-to-announcements" href="announcements.html?from=login" aria-label="Open G8Code Announcements">code</a> &amp; <a class="g8-connect-to-admin-v2" href="admin-v2.html" aria-label="Open Admin V2">connect</a>.</span></h1>
+        <h1 id="entryGateTitle">Your <a class="g8-login-word" data-g8-admin-shortcut="place" href="admin-notifications.html?from=login" aria-label="Open Admin Notification Center">place<span class="g8-login-word-badge" data-g8-login-count="place" hidden></span></a> to <span><a class="g8-login-word" data-g8-admin-shortcut="learn" href="announcements.html?from=login" aria-label="Open Admin Announcements">learn<span class="g8-login-word-badge" data-g8-login-count="learn" hidden></span></a>, <a class="g8-login-word" data-g8-admin-shortcut="code" href="admin-v2.html?from=login&amp;open=assistance" aria-label="Open Admin Settings">code<span class="g8-login-word-badge" data-g8-login-count="code" hidden></span></a> &amp; <a class="g8-login-word" data-g8-admin-shortcut="connect" href="messages.html?from=login" aria-label="Open Admin Messenger">connect<span class="g8-login-word-badge" data-g8-login-count="connect" hidden></span></a>.</span></h1>
         <p class="entry-lead">Welcome, Grade 8 MCSians! Continue your projects, explore lessons, and see your progress in one friendly space.</p>
         <div class="lg-subject-tags" aria-label="What you'll learn"><span><b>&lt;/&gt;</b> Web Development</span><span><b>⚡</b> Robotics</span><span><b>✦</b> Creativity</span></div>
         <p class="lg-brand-footer"><span class="lg-live-dot"></span> Your learning journey starts here.</p>
@@ -6069,6 +6078,7 @@ https://example.com/song3.mp3"></textarea>
   }, true);
 })();
 </script>
+<script defer src="login-admin-shortcuts.js?v=20261108-v11"></script>
 <script defer src="messages-bridge.js?v=41"></script>
 <script defer src="announcements-bridge.js?v=529"></script>
 <script defer src="g8code-learning-badges.js?v=44"></script>

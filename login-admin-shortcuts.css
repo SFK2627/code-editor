@@ -1,0 +1,7 @@
+/* V1.1: Preserve the existing "Your place to learn, code & connect" tagline. */
+#entryGateTitle a.g8-login-word{color:inherit!important;font:inherit!important;font-weight:inherit!important;letter-spacing:inherit!important;text-transform:inherit!important;text-decoration:none!important;position:relative;display:inline;white-space:nowrap;cursor:pointer;touch-action:manipulation}
+#entryGateTitle a.g8-login-word:hover{text-decoration:underline!important;text-underline-offset:.12em!important}
+#entryGateTitle a.g8-login-word:focus-visible{outline:2px solid currentColor;outline-offset:3px;border-radius:3px}
+#entryGateTitle .g8-login-word-badge{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;position:relative;top:-.38em;min-width:17px;height:17px;margin:0 3px 0 3px;padding:1px 5px;border:1.5px solid #fff;border-radius:999px;background:#e83b5d;color:#fff;font:800 10px/1 system-ui,sans-serif!important;letter-spacing:0!important;text-shadow:none;box-shadow:0 2px 7px rgba(0,0,0,.16);white-space:nowrap}
+#entryGateTitle .g8-login-word-badge[hidden]{display:none!important}
+@media(max-width:540px){#entryGateTitle .g8-login-word-badge{top:-.3em;min-width:16px;height:16px;padding:1px 4px;margin:0 2px;font-size:9px!important}}

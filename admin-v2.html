@@ -8321,6 +8321,9 @@ try {
   const originalButtons=Array.from(originalTabs.querySelectorAll('[data-admin-tab]'));
   const buttonMap=new Map(originalButtons.map(b=>[b.dataset.adminTab,b]));
   let activePage='overview', drawer=false, visited=false, initialized=false;
+  const loginSettingsRoute = new URLSearchParams(window.location.search).get('open') === 'assistance' && new URLSearchParams(window.location.search).get('from') === 'login';
+  let loginSettingsHandled = false;
+  if(loginSettingsRoute){try{sessionStorage.setItem('g8code.adminShortcutReturn.v1',String(Date.now()));}catch{}}
   function isUnlocked(){return pin.classList.contains('hidden') && !form.classList.contains('hidden');}
   function updateCounters(){
     if(!isUnlocked()) return;
@@ -8334,6 +8337,7 @@ try {
     const unlocked=isUnlocked();
     shell.dataset.locked=String(!unlocked);
     if(unlocked && !visited){visited=true;navigate('overview',true);}
+    if(unlocked && loginSettingsRoute && !loginSettingsHandled){loginSettingsHandled=true;queueMicrotask(()=>navigate('assistance',true));}
     if(!unlocked && !['overview','assistance'].includes(activePage)){activePage='overview';}
     updateCurrent();updateCounters();
     navMap.forEach((b,id)=>b.setAttribute('aria-disabled',String(!unlocked && !['overview','assistance'].includes(id))));
