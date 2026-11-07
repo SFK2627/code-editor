@@ -111,62 +111,194 @@
 .g8m-app[data-mode="student"][data-chat-style="tiktok"] .g8m-workspace.student .g8m-photo-grid button{border-radius:13px;border:1px solid var(--line)}
 .g8m-app[data-mode="student"][data-chat-style="tiktok"] .g8m-workspace.student .g8m-date-label{border:0;background:transparent;font-weight:800;letter-spacing:.025em;text-transform:uppercase}
 
-/* Discord DM: full-width rows, no speech bubbles, distinct name/metadata grouping. */
+/* Discord DM V5.1: native row-style chat. Only student presentation changes.
+   Identity, actions and metadata remain real accessible DOM; no fake avatar/name
+   pseudo-elements and no extra database subscriptions. */
+.g8m-discord-identity,.g8m-discord-more{display:none}
+.g8m-discord-picker-context[hidden]{display:none!important}
+.g8m-discord-picker-context{padding:7px 8px 11px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+.g8m-discord-picker-context strong{display:block;font-size:12px;line-height:1.5;color:var(--ink)}
+.g8m-discord-picker-context span{display:block;font-size:12px;line-height:1.5;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
 .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-conversation{
- --paper:#f2f3f5;--field:#e4e6ed;--ink:#20222b;--muted:#696c76;--line:#dadde6;--accent:#5865f2;--accent-soft:#e3e5ff;--bubble:transparent;
- color:var(--ink);background:var(--paper)}
+ --paper:#f2f3f5;--field:#e7e8ed;--ink:#25262d;--muted:#666973;--line:#dcdee5;
+ --accent:#5865f2;--accent-soft:#e2e5ff;--bubble:transparent;
+ background:var(--paper);color:var(--ink);
+}
 .g8m-app[data-theme="dark"][data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-conversation{
- --paper:#313338;--field:#404249;--ink:#f2f3f6;--muted:#b2b5be;--line:#46484f;--accent:#a6adff;--accent-soft:#42456c;--bubble:transparent}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-chat-head{background:var(--paper);border-bottom:1px solid var(--line)}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages{gap:0;background:var(--paper);padding:14px clamp(10px,2.2vw,27px) 24px}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message,
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message.own{
- align-self:stretch;align-items:stretch;width:100%;max-width:100%;min-width:0;position:relative;
- padding:3px 10px 3px 54px;margin:0;border-radius:7px;gap:0}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message:hover{background:color-mix(in srgb,var(--field) 60%,transparent)}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message:not(.g8m-group-joined){margin-top:14px;padding-top:9px}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message:not(.g8m-group-joined)::before{
- content:"Your ICT Teacher";display:block;font-size:12px;font-weight:850;line-height:1.5;color:var(--accent);padding:0 0 3px}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message.own:not(.g8m-group-joined)::before{content:"You";color:var(--ink)}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-bubble-anchor,
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own .g8m-bubble-anchor{align-items:flex-start;align-self:stretch;width:100%;max-width:100%}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-bubble-anchor .g8m-action-target,
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own .g8m-bubble-anchor .g8m-action-target{align-self:flex-start;align-items:flex-start;max-width:100%}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-text,
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own .g8m-text{
- color:var(--ink);background:transparent;border:0;border-radius:0;padding:2px 0;font-size:13px;line-height:1.55;box-shadow:none;max-width:100%}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:not(.own) .g8m-thread-avatar{left:-48px;bottom:auto;top:-5px;width:35px;height:35px;border-radius:50%;box-shadow:none}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own:not(.g8m-group-joined)::after{
- content:"Y";position:absolute;left:13px;top:5px;width:33px;height:33px;border-radius:50%;display:grid;place-items:center;
- color:#fff;font-size:13px;font-weight:850;background:#5865f2}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own .g8m-thread-avatar{display:none}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message>.g8m-msg-meta{padding:2px 0;align-self:flex-start;justify-content:flex-start;color:var(--muted)}
+ --paper:#313338;--field:#404249;--ink:#f2f3f6;--muted:#b2b5be;--line:#494b54;
+ --accent:#a6adff;--accent-soft:#444766;--bubble:transparent;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-chat-head,
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-compose{
+ background:var(--paper);border-color:var(--line);
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages{
+ background:var(--paper);gap:0;min-width:0;overflow-x:hidden;
+ padding:16px clamp(9px,2.4vw,30px) 26px;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message{
+ box-sizing:border-box;display:flex;flex-direction:column;align-self:stretch;align-items:stretch;
+ width:100%;max-width:100%;min-width:0;gap:0;
+ position:relative;margin:0!important;padding:4px 12px 4px 57px;
+ border-radius:6px;overflow:visible;isolation:isolate;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message:not(.g8m-group-joined){
+ margin-top:15px!important;padding-top:8px;padding-bottom:6px;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message.g8m-group-joined{margin-top:0!important}
+@media(hover:hover) and (pointer:fine){
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message:hover{background:var(--field)}
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message>.g8m-discord-identity{
+ display:flex;position:relative;align-items:baseline;gap:9px;min-width:0;min-height:21px;
+ padding:0 0 1px;margin:0;line-height:1.5;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.g8m-group-joined>.g8m-discord-identity{display:none!important}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-avatar{
+ position:absolute;left:-47px;top:0;width:34px;height:34px;border-radius:50%;
+ display:grid;place-items:center;font-size:13px;font-weight:800;flex:none;
+ background:#e9d8f1;color:#75439e;border:1px solid #e8cbee;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-avatar.is-mine{
+ background:#5865f2;color:#fff;border-color:#5865f2;
+}
+.g8m-app[data-theme="dark"][data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-avatar.is-teacher{
+ background:#51415d;color:#eac9fa;border-color:#63506a;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-sender{
+ min-width:0;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+ font-size:13px;font-weight:780;color:var(--accent);line-height:1.5;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own .g8m-discord-sender{color:var(--ink)}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-time{
+ font-size:10px;line-height:1.6;color:var(--muted);white-space:nowrap;flex:none;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-bubble-anchor{
+ display:flex;position:static!important;flex-direction:column;align-items:flex-start;align-self:stretch;
+ box-sizing:border-box;width:100%;max-width:100%;min-width:0;gap:2px;margin:0;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-bubble-anchor > .g8m-action-target{
+ display:flex!important;position:static!important;flex-direction:column;align-items:flex-start;align-self:flex-start;
+ width:fit-content;max-width:100%;min-width:0;isolation:auto;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-action-target > .g8m-text,
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own .g8m-action-target > .g8m-text{
+ box-sizing:border-box;background:transparent;color:var(--ink);border:0;border-radius:0;
+ padding:2px 0;line-height:1.48;font-size:13px;max-width:100%;box-shadow:none;
+ overflow-wrap:anywhere;white-space:pre-wrap;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-thread-avatar{display:none!important}
+/* Keep photo/project media at its original fitted size and never let actions resize it. */
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-action-target:has(> .g8m-photo-grid:not(.is-multiple)){
+ width:min(100%,var(--g8m-action-width,190px));
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-action-target:has(> .g8m-photo-grid.is-multiple){width:min(100%,390px)}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-action-target > .g8m-photo-grid{max-width:100%}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-photo-grid button{border-radius:9px}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-quoted{
+ background:var(--field);color:var(--muted);border-radius:5px;border-left:3px solid var(--accent);
+ margin:1px 0 3px;max-width:100%;box-sizing:border-box;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-deleted-bubble{
+ align-self:flex-start;background:transparent;border:0;color:var(--muted);font-style:italic;padding:3px 0;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.has-reaction .g8m-bubble-anchor{margin-bottom:0!important}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-action-target > .g8m-reaction-chip{
+ position:static!important;display:inline-flex;margin:4px 0 1px;align-self:flex-start;
+ background:var(--field);color:var(--ink);border:1px solid var(--line);box-shadow:none;
+ min-height:23px;max-width:100%;white-space:normal;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message>.g8m-msg-meta{
+ display:flex;align-self:flex-start;justify-content:flex-start;flex-wrap:wrap;
+ margin:1px 0 0;padding:0;min-height:0;font-size:10px;color:var(--muted);max-width:100%;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:not(.g8m-group-joined)>.g8m-msg-meta>span:first-child{display:none}
 .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.g8m-text-only:not(.g8m-meta-revealed)>.g8m-msg-meta{display:none!important}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-photo-grid button{border-radius:8px}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-date-label{font-size:10px;border-radius:6px;background:var(--field);color:var(--muted);padding:5px 10px}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-compose{background:var(--paper);border-top:1px solid var(--line);padding:12px clamp(12px,2.2vw,30px)}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-compose textarea{border-radius:9px;background:var(--field);border:1px solid var(--line);color:var(--ink)}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-date-label{
+ border-radius:6px;background:var(--field);color:var(--muted);padding:5px 10px;font-size:11px;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-compose{
+ padding:11px clamp(10px,2.4vw,28px);gap:9px;
+}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-compose textarea{
+ border:1px solid var(--line);border-radius:10px;color:var(--ink);background:var(--field);
+}
 .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-compose textarea::placeholder{color:var(--muted)}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-send{border-radius:9px;background:#5865f2;color:#fff}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-reaction-chip{background:var(--field);color:var(--ink);border-color:var(--line)}
+.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-send{
+ border-radius:10px;background:#5865f2;color:#fff;
+}
+/* Desktop tools occupy the heading's far-right area, not the content's line. */
+@media(min-width:701px) and (hover:hover) and (pointer:fine){
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-bubble-anchor .g8m-hover-actions{
+  position:absolute;top:0;right:9px;left:auto;z-index:20;transform:none;
+  padding:2px;border-radius:9px;white-space:nowrap;gap:1px;
+ }
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:hover .g8m-bubble-anchor .g8m-hover-actions,
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:focus-within .g8m-bubble-anchor .g8m-hover-actions{transform:none}
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message .g8m-discord-identity{
+  padding-right:135px;box-sizing:border-box;
+ }
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.g8m-group-joined .g8m-bubble-anchor{
+  padding-right:125px;
+ }
+}
+/* Phone: permanent More button is a tap alternative to long-press.
+   Reserve its own gutter. The message text cannot run beneath it. */
 @media(max-width:700px){
  .g8m-app[data-mode="student"][data-chat-style="instagram"] .g8m-workspace.student .g8m-messages{padding-inline:12px}
- .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages{padding-inline:7px}
- .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message,
- .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message.own{padding-left:46px;padding-right:8px;max-width:100%}
- .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:not(.own) .g8m-thread-avatar{left:-42px;width:31px;height:31px}
- .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own:not(.g8m-group-joined)::after{left:8px;width:31px;height:31px}
- .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message:not(.g8m-group-joined){margin-top:10px}
- .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message.own .g8m-bubble-anchor > .g8m-ack-chip{align-self:flex-start}
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages{padding:11px 5px 21px}
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message{
+  padding:5px 44px 5px 46px;
+ }
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-messages>.g8m-message:not(.g8m-group-joined){margin-top:10px!important}
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-avatar{
+  left:-37px;top:0;width:29px;height:29px;font-size:11px;
+ }
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-identity{flex-wrap:wrap;column-gap:8px;row-gap:0}
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-sender{font-size:12px;max-width:min(72%,180px)}
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-time{font-size:9px}
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-more{
+  display:grid;place-items:center;position:absolute;right:4px;top:4px;
+  width:36px;height:36px;border:0;border-radius:8px;background:transparent;
+  color:var(--muted);font-size:23px;line-height:1;z-index:3;
+ }
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-more:active,
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-discord-more:focus-visible{
+  background:var(--field);color:var(--accent);outline:2px solid var(--accent);outline-offset:0;
+ }
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-action-target:has(>.g8m-photo-grid.is-multiple){width:min(100%,330px)}
+ .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-compose{
+  padding:8px 9px calc(8px + env(safe-area-inset-bottom));
+ }
 }
-/* Discord-style avatars belong to the FIRST message in a run; the existing
-   Messenger avatar is attached to the LAST message, so hide it in this view. */
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:not(.own) .g8m-thread-avatar{display:none}
-.g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:not(.own):not(.g8m-group-joined)::after{
- content:"T";position:absolute;left:13px;top:6px;width:33px;height:33px;
- display:grid;place-items:center;border-radius:50%;background:#e8ceec;color:#80469b;
- border:1px solid #e8c8ed;font-size:13px;font-weight:850}
-@media(max-width:700px){
- .g8m-app[data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:not(.own):not(.g8m-group-joined)::after{left:8px;width:31px;height:31px}
+/* Fixed mobile Discord action sheet: clear, accessible React / Reply / Details,
+   no popup over message rows, media, or the keyboard/composer. */
+body:has(#g8mApp[data-mode="student"][data-chat-style="discord"]:not([data-theme="dark"])) #g8mReactionPicker[data-discord-mobile="true"]{
+ --paper:#f2f3f5;--field:#e7e8ed;--ink:#25262d;--muted:#666973;--line:#dcdee5;--accent:#5865f2;--accent-soft:#e2e5ff;
 }
-.g8m-app[data-theme="dark"][data-mode="student"][data-chat-style="discord"] .g8m-workspace.student .g8m-message:not(.own):not(.g8m-group-joined)::after{background:#51415d;color:#e2cef9;border-color:#65506e}
+body:has(#g8mApp[data-mode="student"][data-chat-style="discord"][data-theme="dark"]) #g8mReactionPicker[data-discord-mobile="true"]{
+ --paper:#313338;--field:#404249;--ink:#f2f3f6;--muted:#b2b5be;--line:#494b54;--accent:#a6adff;--accent-soft:#444766;
+}
+#g8mReactionPicker[data-discord-mobile="true"]{
+ box-sizing:border-box;position:fixed!important;left:0!important;right:0!important;top:auto!important;
+ bottom:0!important;width:100%!important;min-width:0!important;max-width:100vw!important;
+ max-height:min(65dvh,350px);overflow-y:auto;overscroll-behavior:contain;
+ border-radius:20px 20px 0 0;border-bottom:0;padding:12px 13px calc(15px + env(safe-area-inset-bottom));
+ box-shadow:0 -12px 42px #0006;color:var(--ink);background:var(--paper);z-index:6200;
+}
+#g8mReactionPicker[data-discord-mobile="true"] .g8m-reaction-options{justify-content:space-between;gap:1px}
+#g8mReactionPicker[data-discord-mobile="true"] .g8m-reaction-options button{
+ font-size:clamp(19px,6.5vw,26px);min-width:0;flex:1;padding:9px 1px;min-height:45px;
+}
+#g8mReactionPicker[data-discord-mobile="true"] .g8m-reaction-actions button{
+ font-size:13px;min-height:42px;padding:10px 9px;
+}
+#g8mReactionPicker[data-discord-mobile="true"] .g8m-reaction-delete{
+ width:100%;min-height:39px;margin-top:6px;
+}
+@media(prefers-reduced-motion:reduce){#g8mReactionPicker[data-discord-mobile="true"]{animation:none!important}}
+/* Student mode must never display teacher-only section/inbox columns even if
+   legacy author-level display:flex would override the HTML hidden attribute. */
+.g8m-app[data-mode="student"] .g8m-workspace.student > .g8m-sections,
+.g8m-app[data-mode="student"] .g8m-workspace.student > .g8m-students{display:none!important}

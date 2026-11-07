@@ -1447,10 +1447,16 @@ let focusMessageId='', focusScrollY=0;
 function stopLongPressTimer(){if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}}
 function clearFocusMode(){
  focusMessageId='';focusOverlay.hidden=true;focusShell.replaceChildren();
- focusShell.removeAttribute('style');
+ focusShell.hidden=false;focusShell.removeAttribute('style');
+ $('g8mMessages')?.querySelectorAll('.g8m-discord-selected').forEach(node=>node.classList.remove('g8m-discord-selected'));
 }
+function isStudentDiscord(){return !teacher && root?.dataset.mode==='student' && root.dataset.chatStyle==='discord';}
+function isPhoneDiscord(){return isStudentDiscord() && window.matchMedia('(max-width:700px)').matches;}
+
 function closeReactionPicker(){
  reactionPicker.hidden=true;menuMessageId='';menuAnchor=null;
+ reactionPicker.removeAttribute('data-discord-mobile');
+ const discordSnippet=$('g8mDiscordPickerContext');if(discordSnippet)discordSnippet.hidden=true;
  clearFocusMode();
 }
 function actualBubbleAnchor(item){
@@ -1519,13 +1525,34 @@ function openReactionPicker(id,anchor,options={}){
  for(const b of reactionPicker.querySelectorAll('[data-g8m-emoji]'))b.classList.toggle('selected',b.dataset.g8mEmoji===emoji);
  const focus=options.focus===true;
  const item=messageNode(id);
- const selected=focus ? focusOnMessage(id) : null;
+ const discordMobile=isPhoneDiscord();
+ const discordView=isStudentDiscord();
+ const selected=(focus&&!discordView) ? focusOnMessage(id) : null;
  const realAnchor=(anchor && validAnchorRect(anchor) ? anchor : actualBubbleAnchor(item));
  menuAnchor=realAnchor;
  const tombstone=isDeletedMessage(messageById(id));
  $('g8mReactionOptions').hidden=tombstone;
  $('g8mPickerReply').hidden=tombstone;
  $('g8mPickerDelete').hidden=!messageById(id);
+ // Discord phone: a fixed bottom action sheet is predictable and doesn't
+ // overlap either long messages, the fixed composer, or a nearby photo.
+ const discordSnippet=$('g8mDiscordPickerContext');
+ if(discordSnippet){
+  discordSnippet.hidden=!discordMobile;
+  if(discordMobile){
+   discordSnippet.querySelector('span').textContent=short(messageReferenceText(messageById(id))||'Message',155);
+  }
+ }
+ if(discordMobile){
+  reactionPicker.dataset.discordMobile='true';
+  reactionPicker.dataset.focusMode='false';
+  focusOverlay.hidden=false;focusShell.hidden=true;focusMessageId=id;
+  item?.classList.add('g8m-discord-selected');
+  // CSS owns bottom placement. No competing pixel-based top coordinates.
+  reactionPicker.style.left='0px';reactionPicker.style.top='auto';
+  return;
+ }
+ reactionPicker.removeAttribute('data-discord-mobile');
  const r=selected||validAnchorRect(realAnchor)||{top:110,left:16,width:180,bottom:150,right:196};
  const width=reactionPicker.offsetWidth,height=reactionPicker.offsetHeight;
  const vw=innerWidth,vh=window.visualViewport?.height || innerHeight;
@@ -1709,7 +1736,7 @@ function installLongPress(item,id){
  };
  item.addEventListener('pointerdown',event=>{
   if(event.pointerType==='mouse'&&event.button!==0)return;
-  if(event.target.closest('.g8m-hover-actions,.g8m-msg-meta,.g8m-reaction-chip'))return;
+  if(event.target.closest('.g8m-hover-actions,.g8m-msg-meta,.g8m-reaction-chip,.g8m-discord-more'))return;
   x=event.clientX;y=event.clientY;longPressFired=false;pressPointer=event.pointerId;
   stopLongPressTimer();item.classList.add('g8m-longpress-armed');
   longPressTimer=setTimeout(()=>{
@@ -1727,7 +1754,7 @@ function installLongPress(item,id){
  });
  for(const evt of ['pointerup','pointercancel','pointerleave'])item.addEventListener(evt,endPress);
  item.addEventListener('contextmenu',event=>{
-  if(event.target.closest('.g8m-msg-meta,.g8m-hover-actions'))return;
+  if(event.target.closest('.g8m-msg-meta,.g8m-hover-actions,.g8m-discord-more'))return;
   event.preventDefault();stopLongPressTimer();item.classList.remove('g8m-longpress-armed');
   longPressFired=true;openReactionPicker(id,anchor(),{focus:true});
   setTimeout(()=>{longPressFired=false;},650);
@@ -1872,6 +1899,27 @@ function g8mCollectWaitingPhotos(row,msg,uid,photosToLoad,stackedPhotosToLoad){
   }
  }
 }
+// V5.1 Discord identity is real DOM, not CSS-generated pseudo content:
+// correct sender name, first-message avatar, time and keyboard-accessible tools.
+// It is visually hidden in the other four styles; no new RTDB listeners.
+function g8mAddDiscordIdentity(row,msg,mine,group,at,allowActions=true){
+ const head=textEl('div','g8m-discord-identity','');
+ const avatar=textEl('span','g8m-discord-avatar'+(mine?' is-mine':' is-teacher'),mine?'Y':g8mPeerInitial(msg));
+ avatar.setAttribute('aria-hidden','true');
+ const who=textEl('strong','g8m-discord-sender',mine?'You':'Your ICT Teacher');
+ const time=textEl('time','g8m-discord-time',formatTime(at));
+ time.dateTime=new Date(at).toISOString();
+ time.title=new Date(at).toLocaleString();
+ head.append(avatar,who,time);
+ row.insertBefore(head,row.firstChild);
+ if(allowActions&&!msg.__historical){
+  const more=textEl('button','g8m-discord-more','⋯');more.type='button';
+  more.setAttribute('aria-label','Message actions: react, reply or details');
+  more.title='Message actions';
+  more.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openReactionPicker(msg.id,row,{focus:true});});
+  row.append(more);
+ }
+}
 function renderMessages(){
  if(!openedUid)return;
  if(photoVisibilityObserver){photoVisibilityObserver.disconnect();photoVisibilityObserver=null;}
@@ -2014,6 +2062,7 @@ function renderMessages(){
     if(!mine&&group.last)g8mAddGroupAvatar(anchor,msg);
     item.append(anchor);
     item.append(textEl('div','g8m-msg-meta',formatTime(job.createdAtMs)));
+    g8mAddDiscordIdentity(item,msg,mine,group,at,false);
     content.append(item);
     continue;
    }
@@ -2161,6 +2210,7 @@ function renderMessages(){
     if(!isDeletedMessage(msg))updateOneReactionBadge(item,msg.id);
     installLongPress(item,msg.id);
    }
+   g8mAddDiscordIdentity(item,msg,mine,group,at,true);
    content.append(item);
   }catch(error){
    console.error('Could not render chat item:',msg?.id,error);

@@ -8,7 +8,7 @@
 <title>Messages · G8Code</title>
 <link rel="icon" href="favicon.png" />
 <link rel="stylesheet" href="messages.css?v=526-watermark-only-v4c21a" />
-<link rel="stylesheet" href="messages-chat-styles.css?v=5-0-20261107" />
+<link rel="stylesheet" href="messages-chat-styles.css?v=5-1-discord-actions-20261107" />
 <script src="firebase-config.js"></script>
 <script src="g8code-messages-drive-config.js?v=ik-default-20261105"></script>
 <style>
@@ -107,6 +107,7 @@
  <div id="g8mFocusShell" class="g8m-message g8m-focus-shell" aria-hidden="true"></div>
 </div>
 <div id="g8mReactionPicker" class="g8m-reaction-picker" role="group" aria-label="Message reactions and actions" hidden>
+ <div id="g8mDiscordPickerContext" class="g8m-discord-picker-context" hidden><strong>Message actions</strong><span></span></div>
  <div id="g8mReactionOptions" class="g8m-reaction-options">
   <button type="button" data-g8m-emoji="❤️" aria-label="React with heart">❤️</button>
   <button type="button" data-g8m-emoji="😂" aria-label="React with laugh">😂</button>
@@ -203,7 +204,7 @@
     <button type="button" class="g8m-style-option" role="radio" aria-checked="false" data-style="discord"><span class="g8m-style-emblem" aria-hidden="true">☷</span><span><strong>Discord</strong><small>Compact message rows and conversation groups</small></span><span class="g8m-style-check" aria-hidden="true">✓</span></button>
   </div>
 </section>
-<script defer src="messages.js?v=push-v2-watermark-v4c21a"></script>
+<script defer src="messages.js?v=discord-v5-1-20261107"></script>
 <script defer src="messages-chat-styles.js?v=5-0-20261107"></script>
 </body>
 </html>
