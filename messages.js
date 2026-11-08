@@ -67,6 +67,8 @@ const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const teacherEmails = (window.MCS_TEACHER_EMAILS || []).map(x => String(x).toLowerCase());
 let app, auth, rtdb, firestore, user, teacher = false, profile = null;
 let sections = [], students = new Map(), summaries = {}, openedUid = '', currentSection = '*';
+let g8mAdminUnreadNotificationWatcher=null;
+let g8mAdminViewedThread='';
 let filter = 'all', search = '', mobileView = 'sections', activeMessages = [], activeAcks = {}, seenAt = 0;
 let g8mScreenshotPolicy={uid:'',allowed:false,ready:false,error:'',saving:false};
 let activeUnsubs = [], rootUnsubs = [], sending = false, selections = [], reply = null, renderVersion = 0;
@@ -1070,6 +1072,8 @@ function openChat(uid){
  g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;g8mEarlierLoadError='';g8mHistoryCheckRunning=false;g8mInitialCurrentWarmDone=false;
  g8mAwaitingFirstSnapshotUid=uid;
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
+ if(g8mAdminUnreadNotificationWatcher){g8mAdminUnreadNotificationWatcher.dispose();g8mAdminUnreadNotificationWatcher=null;}
+ g8mAdminViewedThread='';
  clearUnsubs(activeUnsubs);g8mClearLinkedHistories();openedUid=uid;g8mResetScreenshotPolicy(uid);lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
@@ -1079,6 +1083,16 @@ function openChat(uid){
  if(activeMessages.length||olderMessages.length)renderMessages();
  else $('g8mMessages').replaceChildren(notice('Loading messages…'));
  switchMobile('chat');
+ if(teacher&&window.G8CodeAdminNotificationRead){
+  const opened=uid;
+  const watcher=window.G8CodeAdminNotificationRead.watchConversation(
+   {ref,onValue,update},rtdb,
+   ()=>groupForUid(opened)?.uids||[opened],
+   ()=>teacher&&user&&openedUid===opened&&g8mAdminViewedThread===opened&&document.visibilityState==='visible'
+  );
+  g8mAdminUnreadNotificationWatcher=watcher;
+  activeUnsubs.push(()=>{watcher.dispose();if(g8mAdminUnreadNotificationWatcher===watcher)g8mAdminUnreadNotificationWatcher=null;});
+ }
  g8mJumpLatest({settle:true});
  if(teacher&&g8mNotificationTarget&&!g8mNotificationJumpDone){
   g8mNotificationJumpDone=true;
@@ -1178,6 +1192,7 @@ async function markSeen(uid){
   await set(ref(rtdb,`${path}/seen/${role()}`),serverTimestamp());
   priorOwnSeenAt=at;
   await set(ref(rtdb,`${summaryPath(uid)}/${teacher?'unreadTeacher':'unreadStudent'}`),0);
+  if(teacher){g8mAdminViewedThread=uid;g8mAdminUnreadNotificationWatcher?.poke();}
  }catch(error){console.warn('Read receipt not yet confirmed:',error);}
  finally{seenSyncBusy=false;}
 }

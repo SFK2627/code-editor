@@ -465,6 +465,7 @@ function focusPushPost(){
  const card=[...document.querySelectorAll('[data-ga-post]')].find(el=>el.dataset.gaPost===gaTarget);
  if(!card)return;
  gaFocused=true;
+ gaMarkAdminPostNotificationsRead(gaTarget);
  requestAnimationFrame(()=>{
   if(gaLink.get('gaEngagement')==='comment'&&!state.commentExpanded.has(gaTarget))
    card.querySelector('.ga-reply-total')?.click();
@@ -512,9 +513,19 @@ function postBody(p){
  const rich=node('div','ga-post-rich');rich.innerHTML=sanitizeHtml(p.bodyHtml||'');b.append(rich);
  return b;
 }
+// A post is read only when its actual Admin engagement details are opened.
+// Reading one post never silently clears reactions/comments on other posts.
+function gaMarkAdminPostNotificationsRead(postId){
+ if(!state.teacher||!state.user||!state.posts[postId]||document.visibilityState!=='visible')return;
+ const reader=window.G8CodeAdminNotificationRead;
+ if(!reader)return;
+ void reader.markAnnouncement(state.sdk,state.db,postId,()=>state.teacher&&!!state.user&&!!state.posts[postId]&&document.visibilityState==='visible')
+  .catch(error=>console.warn('[G8Code] Announcement notification read-sync:',error?.code||error?.message||error));
+}
 function reactionLabel(emoji){return emoji==='❤️'?'Love':emoji==='🤗'?'Care':'Like';}
 function openReactorDialog(postId,filter='all'){
  if(!state.teacher||!state.posts[postId])return;
+ gaMarkAdminPostNotificationsRead(postId);
  state.reactorsPostId=postId;state.reactorsFilter=filter;state.reactorsSearch='';
  $('gaReactorsSearch').value='';$('gaReactorsModal').hidden=false;
  renderReactorDialog();$('gaReactorsClose').focus({preventScroll:true});
@@ -808,6 +819,7 @@ function renderCard(p,inPostModal=false){
   cbtn.addEventListener('click',()=>{
    if(!state.teacher&&!inPostModal){openPostDialog(p.id,true,cbtn);return;}
    if(inPostModal&&isMobilePostView()&&state.detailMode==='post'){goToMobileComments();return;}
+   if(state.teacher)gaMarkAdminPostNotificationsRead(p.id);
    state.commentOpen.add(p.id);state.commentExpanded.add(p.id);
    drawComments(p.id,card,p);
    const ta=inPostModal?$('gaPostCommentDock').querySelector('textarea'):card.querySelector('.ga-reply-form textarea');
@@ -844,7 +856,7 @@ function renderCard(p,inPostModal=false){
      return;
     }
     const willShow=!state.commentExpanded.has(p.id);
-    if(willShow){state.commentExpanded.add(p.id);state.commentOpen.add(p.id);}
+    if(willShow){if(state.teacher)gaMarkAdminPostNotificationsRead(p.id);state.commentExpanded.add(p.id);state.commentOpen.add(p.id);}
     else{state.commentExpanded.delete(p.id);state.commentOpen.delete(p.id);state.replyTargets[p.id]=null;}
     drawComments(p.id,card,p);updateTotals();
     if(willShow)card.querySelector('.ga-comments')?.scrollIntoView({block:'nearest',behavior:'smooth'});
