@@ -27900,11 +27900,11 @@ async function publishLessonFromAdmin() {
       deleteLessonDriveFile(existing.fileId).catch(error => console.warn('Old Drive lesson file was not deleted.', error));
     }
     resetLessonAdminEditor({ keepTerm: true });
-    const lessonAlertIssue=!lessonBadgeResult?.ok ? 'Lesson saved, but the NEW badge and phone alert could not be confirmed. Check the notification setup.'
+    const lessonAlertIssue=!lessonBadgeResult?.ok ? `Lesson saved, but NEW badge publication failed: ${lessonBadgeResult?.error || 'RTDB permission or connection unavailable'}. Check g8NotificationsV1 Rules. Phone push is separate.`
       : lessonBadgeResult.pending ? 'Lesson saved. NEW badge and notification sent for server verification.'
-      : (!existing&&lessonBadgeResult?.published&&!lessonBadgeResult.pushQueued) ? 'Lesson saved and NEW badge indexed, but phone push was NOT queued. Check push config and outbox Rules.'
+      : (!existing&&lessonBadgeResult?.published&&!lessonBadgeResult.pushQueued) ? 'Lesson saved and NEW badge confirmed, but phone push was not queued. Check push configuration/outbox Rules separately.'
       : lessonBadgeResult?.metadataSaved===false ? 'Lesson saved and push requested, but title metadata failed. Publish the learningMeta RTDB Rules for named alerts.' : '';
-    setLessonAdminStatus(lessonAlertIssue || (existing ? 'Lesson updated successfully.' : 'Lesson published successfully. NEW badge + phone alert queued.'), lessonAlertIssue ? 'warning' : 'success');
+    setLessonAdminStatus(lessonAlertIssue || (existing ? 'Lesson updated successfully.' : (lessonBadgeResult.pushQueued ? 'Lesson published. NEW badge confirmed; phone push queued.' : 'Lesson published. NEW badge confirmed.')), lessonAlertIssue ? 'warning' : 'success');
     setStatus(existing ? 'Lesson updated' : 'Lesson published');
   } catch (error) {
     console.error('Could not publish lesson.', error);
@@ -29426,11 +29426,11 @@ async function publishGivenActivityFromAdmin() {
     if (!activityBadgeResult?.ok) console.warn('Activity alert index not saved:',activityBadgeResult?.error);
     resetGivenActivityAdminEditor({ keepTerm: true });
     renderAdminGivenActivityList();
-    const activityAlertIssue=!activityBadgeResult?.ok ? 'Activity saved, but the NEW badge and phone alert could not be confirmed. Check the notification setup.'
+    const activityAlertIssue=!activityBadgeResult?.ok ? `Activity saved, but NEW badge publication failed: ${activityBadgeResult?.error || 'RTDB permission or connection unavailable'}. Check g8NotificationsV1 Rules. Phone push is separate.`
       : activityBadgeResult.pending ? 'Activity saved. NEW badge and notification have been sent for server verification; check the student view shortly.'
-      : record.published&&activityBadgeResult.published&&!activityBadgeResult.pushQueued ? 'Activity saved and NEW badge indexed, but phone push was NOT queued. Check push config and outbox Rules.'
+      : record.published&&activityBadgeResult.published&&!activityBadgeResult.pushQueued ? 'Activity saved and NEW badge confirmed, but phone push was not queued. Check push configuration/outbox Rules separately.'
       : record.published&&activityBadgeResult.metadataSaved===false ? 'Activity saved, but notification title metadata failed. Check the learningMeta permissions.' : '';
-    setGivenActivityAdminStatus(activityAlertIssue || `${record.title} saved ${record.published ? (existing ? 'and updated.' : 'and published. NEW badge + phone alert queued.') : 'as a draft.'}`, activityAlertIssue ? 'warning' : 'success');
+    setGivenActivityAdminStatus(activityAlertIssue || `${record.title} saved ${record.published ? (existing ? 'and updated.' : (activityBadgeResult.pushQueued ? 'and published. NEW badge confirmed; phone push queued.' : 'and published. NEW badge confirmed.')) : 'as a draft.'}`, activityAlertIssue ? 'warning' : 'success');
   } catch (error) {
     console.warn('Activity publish flow interrupted:', error);
     // Keep the SAME record ID for a retry. The online write may have finished

@@ -268,6 +268,14 @@ async function queueTeacherEvent(event){
   if(targetUid)record.targetUid=targetUid;
   if(audienceSection)record.audienceSection=audienceSection;
   if(recipientUids)record.recipientUids=recipientUids;
+  // Private teacher-authored learning title, protected by teacher-only outbox Rules.
+  // The sender validates catalog and audience before using it in an FCM alert.
+  if(type==='lessons'||type==='activities'){
+   const version=Number(event?.catalogVersion||0);
+   const title=String(event?.learningTitle||'').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
+   if(version>0)record.catalogVersion=version;
+   if(title)record.learningTitle=title;
+  }
   if(type==='messages'&&event?.notificationKind==='reaction'&&['heart','laugh','wow','sad','angry','like'].includes(event.reactionCode)){
    record.notificationKind='reaction';record.reactionCode=event.reactionCode;
   }

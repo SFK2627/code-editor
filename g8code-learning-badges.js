@@ -1,4 +1,4 @@
-/* G8Code Learning Notifications V1 — tiny RTDB publish index, account-scoped unread state.
+/* G8Code Learning Notifications V2 — confirmed RTDB publication + account-scoped NEW badges.
  * Reuses the existing Firebase app, auth, and Lessons/Activities source of truth.
  * Never reads full Firestore student records in a repeating poll.
  * Student cannot publish; admin can only publish after Firestore save succeeds.
@@ -10,9 +10,11 @@
  const $=id=>document.getElementById(id);
  const state={uid:'',isTeacher:false,section:'',catalog:{lessons:{},activities:{}},seen:{lessons:{},activities:{}},ready:{lessons:false,activities:false,seen:false},dirty:false,teardown:[],sdk:null,db:null,auth:null};
  const safeId=value=>/^[A-Za-z0-9_-]{1,128}$/.test(String(value||''))?String(value):'';
- const safeSection=value=>String(value||'').trim().toLowerCase().replace(/^(?:grade\s*8|g8|8)\s*(?:[-:|]\s*)?/,'').replace(/saint\b/g,'st').replace(/[^a-z0-9]/g,'');
+ const safeSection=value=>String(value||'').normalize('NFKC').trim().toLowerCase().replace(/[‐‑‒–—]/g,'-').replace(/\s+/g,' ');
  const stamp=()=>Date.now();
- let renderQueued=false;
+ let renderQueued=false, initPromise=null;
+ const errorName=error=>String(error?.code||error?.message||error||'unknown').slice(0,240);
+ const configUrl=()=>String(window.G8CODE_PUSH_IMMEDIATE_URL||'').trim();
  function studentProfile(){
   try{if(typeof appSession==='undefined'||appSession.mode!=='student'||!appSession.student)return null;
    if(appSession.student.uid!==state.uid)return null;
@@ -24,9 +26,8 @@
   if(!item||item.active!==true||!(Number(item.version)>0))return false;
   if(type==='lessons')return true;
   const section=safeSection(studentProfile()?.section);
-  const rawAudience=String(item.audienceSection||'all').trim().toLowerCase();
-  const audience=safeSection(rawAudience);
-  return rawAudience==='all'||Boolean(section&&audience===section);
+  const audience=safeSection(item.audienceSection||'all');
+  return audience==='all'||(section&&audience===section);
  }
  function unread(type,id,item){return isRelevant(type,item)&&Number(state.seen?.[type]?.[id]||0)!==Number(item.version||0);}
  function getCount(type){
@@ -43,7 +44,7 @@
   const selector=[`#studentHomeScreen [data-home-action="${type}"]`, `[data-learning-action="${type}"]`].join(',');
   document.querySelectorAll(selector).forEach(el=>{
    const badge=makeBadge(el);
-   badge.hidden=count===0;badge.textContent=el.classList.contains('sh-quick-card')?`${Math.min(count,99)}${count>99?'+':''} NEW`:(count>99?'99+':String(count));
+   badge.hidden=count===0;badge.textContent=count>99?'99+':String(count);
    const simple=type==='lessons'?'lesson':'activity';
    const text=count?`${count} new ${simple}${count===1?'':'s'}`:'';
    el.dataset.g8nTitle=text;
@@ -88,111 +89,96 @@
  }
  function bindStudent(uid){
   const {sdk,db}=state;if(!sdk||!db)return;
-  const subscribe=(path,fn)=>sdk.onValue(sdk.ref(db,path),snap=>{if(state.uid!==uid)return;fn(snap.val()||{});scheduleRender();},err=>{console.warn('Learning badge subscription denied at '+path+':',err.message);state.subscriptionError={path,message:err.message};scheduleRender();});
+  const subscribe=(path,fn)=>sdk.onValue(sdk.ref(db,path),snap=>{if(state.uid!==uid)return;fn(snap.val()||{});scheduleRender();},err=>{console.warn('Learning badge subscription',path+':',errorName(err));});
   for(const type of TYPES){state.teardown.push(subscribe(`${BASE}/catalog/${type}`,val=>{state.catalog[type]=val;state.ready[type]=true;localHydrate();}));}
   state.teardown.push(subscribe(`${BASE}/seen/${uid}`,val=>{
    for(const type of TYPES){const incoming=val?.[type]||{};for(const [id,version] of Object.entries(incoming)){const n=Number(version)||0;if(n>Number(state.seen[type]?.[id]||0))state.seen[type][id]=n;}}state.ready.seen=true;localHydrate();
   }));
  }
- async function publishViaVerifiedSender(type,record){
-  if(!window.G8CodePush?.publishLearningThroughSender)return {ok:false,error:'Secure notification sender is unavailable. Verify deployment and teacher login.'};
-  const requested=await window.G8CodePush.publishLearningThroughSender({type,
-   itemId:record.id,title:record.title,term:record.term||'term1',
-   audienceSection:type==='lessons'?'all':record.audienceSection||'all',
-   published:type==='lessons'||record.published===true,queueMissing:record.queueMissing===true});
-  // Cross-origin Apps Script replies are opaque. A request is NOT proof that
-  // the catalog or push was saved; report pending explicitly.
-  return requested?{ok:true,pending:true,published:record.published===true||type==='lessons',pushQueued:false,
-   metadataSaved:false}:{ok:false,error:'Learning badge RTDB write was denied and secure sender request was unavailable.'};
+ async function verifiedServerPublish(type,record,id,originalError){
+  // This optional fallback uses ONLY the existing verified teacher Apps Script.
+  // An opaque cross-origin response cannot be treated as delivery confirmation.
+  const endpoint=configUrl();
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(?:\?[^#]*)?$/.test(endpoint))
+   return {ok:false,published:Boolean(record?.published),error:'RTDB badge publish failed ('+errorName(originalError)+'). Check g8NotificationsV1 catalog Rules; verified push publisher URL is not configured.'};
+  const authUser=state.auth?.currentUser;
+  if(!authUser||!TEACHER_EMAILS().has(String(authUser.email||'').toLowerCase()))
+   return {ok:false,error:'Teacher Firebase sign-in is required.'};
+  try{
+   const token=await authUser.getIdToken();
+   const args=new URLSearchParams({action:'learningCatalog',idToken:token,type,itemId:id,
+    title:String(record?.title||'Untitled').trim().slice(0,160),term:String(record?.term||'term1').slice(0,20),
+    audienceSection:type==='lessons'?'all':String(record?.audienceSection||'all').slice(0,100),
+    published:String(record?.published===true||type==='lessons'),queueMissing:'true'});
+   await fetch(endpoint,{method:'POST',mode:'no-cors',credentials:'omit',body:args,redirect:'follow',cache:'no-store'});
+   // Do not say that RTDB is saved or phone was notified. Server verification is pending.
+   return {ok:true,pending:true,published:true,metadataSaved:null,pushQueued:false};
+  }catch(error){
+   return {ok:false,published:true,error:'RTDB publish: '+errorName(originalError)+'; secure publisher: '+errorName(error)};
+  }
  }
  async function publish(type,record){
-  if(!TYPES.includes(type)||!record)return {ok:false,error:'Invalid Lesson or Activity'};
-  // If RTDB initialization is blocked or delayed, the verified teacher-only
-  // immediate endpoint can still create the badge and queued notification.
-  if(!state.sdk||!state.db)return publishViaVerifiedSender(type,record);
-  const user=state.auth?.currentUser;
-  if(!user||!TEACHER_EMAILS().has(String(user.email||'').toLowerCase()))return {ok:false,error:'Teacher authentication required'};
+  if(!TYPES.includes(type)||!record)return {ok:false,error:'Invalid learning item'};
+  try{await (initPromise||init());}catch(error){return {ok:false,error:'Notification service startup: '+errorName(error)};}
+  if(!state.sdk||!state.db||!state.auth)return {ok:false,error:'Notification RTDB connection unavailable. Verify firebase-config.js and g8code-learning-badges.js.'};
+  try{if(typeof state.auth.authStateReady==='function')await state.auth.authStateReady();}catch(_){}
+  const user=state.auth.currentUser;
+  if(!user||!TEACHER_EMAILS().has(String(user.email||'').toLowerCase()))return {ok:false,error:'Teacher Firebase authentication is not ready. Sign in again as the teacher.'};
   const id=safeId(record.id);if(!id)return {ok:false,error:'Invalid item ID'};
-  const path=state.sdk.ref(state.db,`${BASE}/catalog/${type}/${id}`);
+  const sdk=state.sdk, db=state.db;
+  const path=sdk.ref(db,`${BASE}/catalog/${type}/${id}`);
+  const published=type==='lessons'||record.published===true;
+  const audience=type==='lessons'?'all':String(record.audienceSection||'all').trim().slice(0,100)||'all';
+  const title=String(record.title||'Untitled').replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
+  const term=String(record.term||'term1').slice(0,20);
+  if(!published){
+   try{
+    await sdk.remove(path);
+    try{await sdk.remove(sdk.ref(db,`g8PushV1/learningMeta/${type}/${id}`));}catch(error){console.warn('Learning metadata unpublish cleanup:',errorName(error));}
+    return {ok:true,published:false,metadataSaved:true,pushQueued:false};
+   }catch(error){return {ok:false,error:'Could not remove unpublished badge: '+errorName(error)};}
+  }
+  let prior=null;
   try{
-   const dbRoot=state.sdk.ref(state.db);
-   const metadataPath=`g8PushV1/learningMeta/${type}/${id}`;
-   if(type==='activities'&&record.published!==true){
-    try{await state.sdk.remove(path);}
-    catch(error){console.warn('Learning draft cleanup needs verified sender:',error?.message||error);return publishViaVerifiedSender(type,record);}
-    try{await state.sdk.remove(state.sdk.ref(state.db,metadataPath));}
-    catch(metaError){console.warn('Old learning title cleanup pending:',metaError?.message||metaError);}
-    return {ok:true,published:false};
-   }
-   // A published record already in this catalog is an EDIT, not a new post.
-   // Preserve its version (and students' seen badges); do NOT re-notify.
-   let prior;
-   try{prior=(await state.sdk.get(path)).val();}
-   catch(error){
-    console.warn('Learning catalog read denied; using verified teacher sender:',error?.message||error);
-    return publishViaVerifiedSender(type,record);
-   }
-   const newlyPublished=!prior||prior.active!==true;
-   const version=newlyPublished?stamp():Number(prior.version||stamp());
-   const audienceSection=type==='lessons'?'all':String(record.audienceSection||'all').trim().slice(0,100)||'all';
-   const term=String(record.term||'term1').slice(0,20);
-   const title=String(record.title|| (type==='lessons'?'Lesson':'Activity'))
-    .replace(/[\u0000-\u001f\u007f-\u009f]/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
-   if(!title)return {ok:false,error:'Learning notification title missing'};
-   // Save the student-readable badge catalog FIRST. If private learningMeta
-   // rules were not deployed, badge visibility must not fail with the title.
-   try{await state.sdk.set(path,{active:true,version,term,audienceSection});}
-   catch(error){
-    console.warn('Learning catalog write denied; using verified teacher sender:',error?.message||error);
-    return publishViaVerifiedSender(type,record);
-   }
+   const snap=await sdk.get(path);prior=snap.val();
+   const fresh=prior?.active!==true||!(Number(prior.version)>0);
+   // Editing an existing published item must NEVER reset every student's read badge.
+   const version=fresh?stamp():Number(prior.version);
+   await sdk.set(path,{active:true,version,term,audienceSection:audience});
+   // Confirm the saved catalog directly. Badges do NOT depend on FCM deliveries.
+   const confirmation=(await sdk.get(path)).val();
+   if(!confirmation||confirmation.active!==true||Number(confirmation.version)!==version)
+    return {ok:false,error:'RTDB catalog could not be verified after writing; check database access.'};
    let metadataSaved=true;
    try{
-    await state.sdk.set(state.sdk.ref(state.db,metadataPath),
-      {title,version,term,audienceSection,updatedAtMs:stamp()});
-   }catch(metaError){
-    metadataSaved=false;
-    console.warn('Lesson/activity title metadata not saved; install the V3.7 learningMeta RTDB rule:',metaError?.message||metaError);
+    await sdk.set(sdk.ref(db,`g8PushV1/learningMeta/${type}/${id}`),{title,version,term,audienceSection:audience,updatedAtMs:stamp()});
+   }catch(error){metadataSaved=false;console.warn('Teacher-only learning title metadata:',errorName(error));}
+   let pushQueued=false;
+   if(fresh&&typeof window.G8CodePush?.queueTeacherEvent==='function'){
+    try{
+     pushQueued=Boolean(await window.G8CodePush.queueTeacherEvent({type,itemId:id,audienceSection:audience,learningTitle:title,catalogVersion:version}));
+    }catch(error){console.warn('Learning phone push queue unavailable:',errorName(error));}
    }
-   // Only after the main item and badge catalog are saved.
-   if(newlyPublished){
-    // The teacher-authenticated, private outbox event carries the actual title.
-    // Queue it directly even if a separate learningMeta write was denied:
-    // the sender validates the exact catalog version and target audience.
-    // Avoid treating an opaque no-cors recovery request as confirmed success.
-    let queued=false;
-    try{queued=Boolean(await window.G8CodePush?.queueTeacherEvent?.({type,itemId:id,audienceSection,catalogVersion:version,title}));}
-    catch(pushError){console.warn('Learning push queue error:',pushError);}
-    if(!queued){
-     const server=await publishViaVerifiedSender(type,{...record,queueMissing:true});
-     if(server.ok)return {...server,metadataSaved};
-     console.warn('Learning badge indexed; notification queue not confirmed:',server.error);
-    }
-    return {ok:true,published:true,pushQueued:queued,metadataSaved};
-   }
-   return {ok:true,published:false,pushQueued:false,metadataSaved};
-  }catch(err){return {ok:false,error:err?.message||'RTDB notification write failed'};}
+   return {ok:true,published:true,newPublication:fresh,metadataSaved,pushQueued,version};
+  }catch(error){
+   console.warn('Direct NEW badge catalog publish denied or unavailable:',errorName(error));
+   // Only use fallback if direct catalog publication failed, never for a phone-only failure.
+   return verifiedServerPublish(type,record,id,error);
+  }
  }
  async function remove(type,itemId){
   const id=safeId(itemId),user=state.auth?.currentUser;
   if(!TYPES.includes(type)||!id||!state.db||!state.sdk||!user||!TEACHER_EMAILS().has(String(user.email||'').toLowerCase()))return {ok:false};
-  try{
-   await state.sdk.remove(state.sdk.ref(state.db,`${BASE}/catalog/${type}/${id}`));
-   try{await state.sdk.remove(state.sdk.ref(state.db,`g8PushV1/learningMeta/${type}/${id}`));}
-   catch(metaError){console.warn('Old title metadata cleanup pending:',metaError?.message||metaError);}
-   return {ok:true};
-  }catch(err){
-   console.warn('Notification removal needs verified teacher sender:',err.message);
-   return publishViaVerifiedSender(type,{id,title:type==='lessons'?'Lesson':'Activity',published:false});
-  }
+  try{await state.sdk.remove(state.sdk.ref(state.db,`${BASE}/catalog/${type}/${id}`));return {ok:true};}catch(err){console.warn('Notification removal:',err.message);return {ok:false};}
  }
- window.G8CodeLearningBadges=Object.freeze({publish,remove,markViewed,refresh:scheduleRender,getCount,diagnostics:()=>({connected:Boolean(state.sdk&&state.db),uidPresent:Boolean(state.uid),teacher:state.isTeacher,ready:{...state.ready},subscriptionError:state.subscriptionError||null,counts:{lessons:getCount('lessons'),activities:getCount('activities')}})});
+ window.G8CodeLearningBadges=Object.freeze({publish,remove,markViewed,refresh:scheduleRender,getCount});
  // Handle lesson/activity rerender without observing subtree changes caused by our own badges.
  const grids=['lessonLibraryGrid','givenActivitiesGrid'];
  function observeCards(){for(const id of grids){const el=$(id);if(el)new MutationObserver(mutations=>{
   if(mutations.some(m=>[...m.addedNodes,...m.removedNodes].some(n=>n.nodeType===1&&(n.matches?.('.lesson-library-card,.given-activity-card')||n.querySelector?.('.lesson-library-card,.given-activity-card')))))scheduleRender();
  }).observe(el,{childList:true});}}
  async function init(){
+  if(initPromise)return initPromise;
   observeCards();
   const config=window.MCS_FIREBASE_CONFIG,url=window.MCS_FIREBASE_DATABASE_URL;
   if(!config||!url)return;
@@ -212,5 +198,5 @@
    document.addEventListener('click',event=>{if(event.target.closest?.('[data-home-action="lessons"],[data-home-action="activities"],[data-learning-action="lessons"],[data-learning-action="activities"]'))scheduleRender();});
   }catch(error){console.warn('G8Code learning badges unavailable:',error);}
  }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else void init();
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{initPromise=init();},{once:true});else initPromise=init();
 })();
