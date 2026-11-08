@@ -51,7 +51,10 @@ const BASE = 'g8MessagesV1';
 // from=login: learn shortcut (teacher-only). from=admin: Admin V2.
 const g8mEntrySource = new URLSearchParams(location.search).get('from');
 const g8mTeacherShortcut = g8mEntrySource === 'login';
-const g8mTeacherEntry = g8mEntrySource === 'admin' || g8mTeacherShortcut;
+const g8mTeacherEntry = ['admin','notifications'].includes(g8mEntrySource) || g8mTeacherShortcut;
+// Preserve exact-message notifications: a push-only update must not erase this route.
+const g8mNotificationTarget=(new URLSearchParams(location.search).get('message')||'').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,128);
+let g8mNotificationJumpDone=false;
 // Accept original images up to 30 MB; optimize large photos client-side before
 // transport so Apps Script receives a much smaller image and chats load quickly.
 const MAX_FILES = 3, MAX_SIZE = 30 * 1024 * 1024;
@@ -71,13 +74,39 @@ let olderMessages=[], hasOlder=false, olderLoading=false, historyExhausted=false
 let g8mAdminFocusedMessages=[]; // Ephemeral jump context, never changes the history pagination cursor.
 let g8mEarlierLoadError=''; // Do not disguise history-query failures as an empty history.
 let g8mHistoryCheckRunning=false;
+// V5.7: A separate, read-only administrator history audit uses Firebase keys,
+// not createdAtMs, to reach older/legacy records regardless of timestamp type.
+// Each scan is scoped to the current verified student UID group and cancelled
+// when switching students. No RTDB writes or Firestore requests are added.
+let g8mKeyHistory=null;
+let g8mKeyHistoryToken=0;
+const G8M_KEY_HISTORY_PAGE=120;
+const G8M_KEY_HISTORY_OPEN_PAGES=6; // At most 720 records per verified UID on open.
+const G8M_KEY_HISTORY_SCROLL_PAGES=2;
+
 const G8M_HISTORY_RECONCILE_LIMIT=250; // Only inspect a bounded tail; never download an unlimited chat.
 // V4C-11: Admin-only unified timeline for prior account UIDs verified by the
 // existing student-ID inbox grouping. Original messages stay at their RTDB
 // paths; their snapshots are merged only for display and chronological paging.
 const g8mLinkedHistories=new Map();
+// Keep already-read pages from old account UIDs when switching conversations.
+// In-memory only, bounded, teacher-only; no extra persistent storage or writes.
+const g8mLinkedHistoryWarm=new Map();
+function g8mRememberLinkedEntry(entry){
+ if(!teacher||!entry?.uid)return;
+ const older=(entry.older||[]).slice(-350);
+ const trimmed=(entry.older||[]).length>older.length;
+ g8mLinkedHistoryWarm.delete(entry.uid);
+ g8mLinkedHistoryWarm.set(entry.uid,{
+  recent:(entry.recent||[]).slice(-100),older,
+  hasOlder:entry.hasOlder||trimmed,exhausted:!!entry.exhausted&&!trimmed
+ });
+ if(g8mLinkedHistoryWarm.size>24)g8mLinkedHistoryWarm.delete(g8mLinkedHistoryWarm.keys().next().value);
+}
 function g8mClearLinkedHistories(){
- for(const entry of g8mLinkedHistories.values())clearUnsubs(entry.unsubs||[]);
+ for(const entry of g8mLinkedHistories.values()){
+  g8mRememberLinkedEntry(entry);clearUnsubs(entry.unsubs||[]);
+ }
  g8mLinkedHistories.clear();
 }
 function g8mHistoricMessages(){
@@ -85,19 +114,45 @@ function g8mHistoricMessages(){
  for(const entry of g8mLinkedHistories.values())items.push(...entry.older,...entry.recent);
  return items;
 }
-function g8mHasMoreHistory(){return hasOlder||[...g8mLinkedHistories.values()].some(entry=>entry.hasOlder);}
+function g8mHasMoreHistory(){
+ if(g8mKeyHistory?.uid===openedUid){
+  return [...g8mKeyHistory.threads.values()].some(entry=>!entry.complete);
+ }
+ return hasOlder||[...g8mLinkedHistories.values()].some(entry=>entry.hasOlder);
+}
 function g8mHistoryMessageCount(){
  const keys=new Set([...activeMessages,...olderMessages,...g8mHistoricMessages()].map(msg=>`${msg.__threadUid||openedUid}/${msg.id}`));
  return keys.size;
 }
 function g8mUpdateLoadedStatus(){
  if(!openedUid)return;
- // Keep the complete V4C-15 reconciliation and earlier-message paging,
- // but do not expose implementation counts, thread IDs, or audit text in chat.
- const failed=[...g8mLinkedHistories.values()].some(entry=>entry.error);
- if(failed||g8mEarlierLoadError){
-  updateChatFeedState('Couldn’t load older messages. Tap refresh to try again.',true);
- }else updateChatFeedState('');
+ const linkedFailure=[...g8mLinkedHistories.values()].some(entry=>entry.error);
+ const state=g8mKeyHistory?.uid===openedUid?g8mKeyHistory:null;
+ if(state){
+  const pages=[...state.threads.values()];
+  const checked=pages.reduce((sum,part)=>sum+part.scanned,0);
+  const incomplete=pages.some(part=>!part.complete);
+  const failed=pages.some(part=>part.error);
+  if(!teacher){
+   if(failed)updateChatFeedState('Some earlier messages could not load. Tap Refresh Chat to retry.',true);
+   else if(state.running)updateChatFeedState('Loading earlier conversation history…');
+   else if(incomplete)updateChatFeedState('More history is available. Scroll up or tap Load earlier messages.');
+   else updateChatFeedState('');
+   return;
+  }
+  if(failed||linkedFailure){
+   updateChatFeedState('Some older conversations could not be checked. Tap Load earlier messages or Refresh Chat to retry.',true);
+  }else if(state.running){
+   updateChatFeedState(`Checking saved message history… ${checked} records reviewed across ${pages.length} verified account${pages.length===1?'':'s'}.`);
+  }else if(incomplete){
+   updateChatFeedState(`Earlier history is still available. ${checked} records checked; scroll up or tap Load earlier messages.`);
+  }else if(pages.length){
+   updateChatFeedState('');
+  }else updateChatFeedState('Checking linked message history…');
+  return;
+ }
+ if(linkedFailure||g8mEarlierLoadError)updateChatFeedState('Couldn’t load older messages. Tap refresh to try again.',true);
+ else updateChatFeedState('');
 }
 
 let imageCache = new Map(), imageCacheFileIds = new Map(), photoQueue = new Map(), lastSnapshotKey = '';
@@ -227,19 +282,62 @@ const g8mReconcileQuery = uid => query(ref(rtdb,`${studentPath(uid)}/messages`),
 const recentMessageQuery = uid => query(ref(rtdb,`${studentPath(uid)}/messages`),orderByChild('createdAtMs'),limitToLast(G8M_RECENT_MESSAGES));
 // Push IDs can be out of chronological order when different devices have different clocks.
 // Use the server-resolved creation time as the primary conversation order.
+function g8mPushKeyTime(key){
+ // Firebase's push key encodes client time in the first 8 base64-like chars.
+ // Never infer an identity from a key. This is display-only fallback if the
+ // message has no usable recorded timestamp, not a trusted server timestamp.
+ const alphabet='-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+ const text=String(key||'');
+ if(text.length!==20)return 0;
+ let ms=0;
+ for(const ch of text.slice(0,8)){
+  const n=alphabet.indexOf(ch);
+  if(n<0)return 0;
+  ms=ms*64+n;
+ }
+ return ms>=946684800000 && ms<=4102444800000?ms:0;
+}
 function messageTime(message){
- const raw=message?.createdAtMs;
- const numeric=typeof raw==='number'?raw:Number(raw);
- if(Number.isFinite(numeric)&&numeric>0&&numeric<8640000000000000)return numeric;
- if(typeof raw==='string'){const parsed=Date.parse(raw);if(Number.isFinite(parsed))return parsed;}
- return 0;
+ for(const raw of [message?.createdAtMs,message?.createdAt,message?.sentAtMs,message?.timestamp]){
+  if(raw===null||raw===undefined||raw==='')continue;
+  const numeric=typeof raw==='number'?raw:Number(raw);
+  if(Number.isFinite(numeric)&&numeric>=946684800000&&numeric<4102444800000)return numeric;
+  if(typeof raw==='string'){const parsed=Date.parse(raw);if(Number.isFinite(parsed)&&parsed>=946684800000&&parsed<4102444800000)return parsed;}
+ }
+ return g8mPushKeyTime(message?.id);
 }
 function compareMessages(a,b){
  const ta=messageTime(a),tb=messageTime(b);
  if(ta!==tb)return ta-tb;
  // Match RTDB's lexicographic key tie-breaker (localeCompare can reorder keys).
  const ka=String(a.id||''),kb=String(b.id||'');
+ if(ka!==kb)return ka<kb?-1:1;
+ const ua=String(a.__threadUid||''),ub=String(b.__threadUid||'');
+ return ua<ub?-1:ua>ub?1:0;
+}
+// endBefore() follows RTDB orderByChild's type ordering, not UI's display
+// timestamp sorting. A mixed legacy timestamp can otherwise skip whole pages.
+function g8mFirebaseRank(v){
+ if(v===null||v===undefined)return 0;
+ if(v===false)return 1;
+ if(v===true)return 2;
+ if(typeof v==='number')return 3;
+ if(typeof v==='string')return 4;
+ return 5;
+}
+function g8mCompareFirebaseOrder(a,b){
+ const av=a?.createdAtMs??null,bv=b?.createdAtMs??null;
+ const ar=g8mFirebaseRank(av),br=g8mFirebaseRank(bv);
+ if(ar!==br)return ar-br;
+ if(ar===3 && av!==bv)return av<bv?-1:1;
+ if(ar===4 && av!==bv)return av<bv?-1:1;
+ const ka=String(a?.id||''),kb=String(b?.id||'');
  return ka<kb?-1:ka>kb?1:0;
+}
+function g8mOldestFirebaseRecord(items){
+ let oldest=null;
+ for(const m of items)if(!oldest||g8mCompareFirebaseOrder(m,oldest)<0)oldest=m;
+ return oldest;
 }
 function normalizeMessageSnapshot(snapshot){
  const list=[];
@@ -338,10 +436,36 @@ function displayMessagesFromSnapshot(snapshot,uid){
   if(g8mFollowLatest)g8mJumpLatest({settle:true});
  }
  g8mUpdateLoadedStatus();
+ if(!g8mKeyHistory && teacher && !g8mInitialCurrentWarmDone && incoming.length>=G8M_RECENT_MESSAGES && !olderMessages.length){
+  g8mInitialCurrentWarmDone=true;
+  void g8mWarmCurrentHistory(uid);
+ }
+}
+let g8mInitialCurrentWarmDone=false;
+async function g8mWarmCurrentHistory(uid){
+ if(uid!==openedUid||olderLoading)return;
+ const oldest=g8mOldestFirebaseRecord(activeMessages);
+ if(!oldest)return;
+ olderLoading=true;
+ try{
+  const snap=await get(query(ref(rtdb,`${studentPath(uid)}/messages`),orderByChild('createdAtMs'),
+   endBefore(oldest.createdAtMs??null,oldest.id),limitToLast(100)));
+  if(uid!==openedUid)return;
+  const found=normalizeMessageSnapshot(snap);
+  const ids=new Set([...activeMessages,...olderMessages].map(m=>m.id));
+  olderMessages=[...found.filter(m=>!ids.has(m.id)),...olderMessages].sort(compareMessages);
+  historyExhausted=found.length<100;hasOlder=!historyExhausted;
+  rememberConversation(uid);renderMessages();g8mUpdateLoadedStatus();
+ }catch(error){
+  if(uid===openedUid){g8mEarlierLoadError=friendlyError(error);g8mUpdateLoadedStatus();}
+ }finally{
+  if(uid===openedUid){olderLoading=false;renderMessages();g8mUpdateLoadedStatus();}
+ }
 }
 async function refreshConversation(manual=false){
  const uid=openedUid;if(!uid)return;
  if(manual){
+  g8mEarlierLoadError='';g8mInitialCurrentWarmDone=false;
   updateChatFeedState('Refreshing conversation…');
   if(teacher){
    for(const [id,entry] of [...g8mLinkedHistories])if(entry.error){
@@ -470,6 +594,7 @@ $('g8mAdminScreenshotToggle')?.addEventListener('change',e=>{void g8mSaveScreens
 const summaryPath = uid => `${BASE}/summary/${uid}`;
 function role(){return teacher?'teacher':'student';}
 function roleDestination(){
+ if(teacher&&g8mEntrySource==='notifications')return 'admin-notifications.html';
  if(g8mTeacherShortcut) return 'index.html';
  return teacher?'admin-v2.html?g8mBack=overview':'index.html?g8mBack=student';
 }
@@ -523,7 +648,7 @@ async function boot(){
     g8mIkCorsBlobAllowed=null;
     void prunePhotoDiskCache(nextPhotoOwner);
    }
-   g8mAdminReset();conversationMemory.clear();user=account;openedUid='';students.clear();summaries={};g8mResetScreenshotPolicy();
+   g8mAdminReset();g8mKeyHistoryToken++;g8mKeyHistory=null;conversationMemory.clear();g8mLinkedHistoryWarm.clear();user=account;openedUid='';students.clear();summaries={};g8mResetScreenshotPolicy();
    if(!account){
     if(g8mTeacherShortcut){showGate('Teacher Messages · Admin Code','Enter your existing teacher account password (Admin Code). Your Admin Dashboard will not open.',true);}
     else {showGate('Sign in to Messages',location.protocol==='file:'?'Local HTML files may not share Firebase login. Sign in here using your existing G8Code account, or use the deployed website.':'Your G8Code account is not signed in on this page. Use the same student or teacher credentials to continue.',true);}
@@ -836,8 +961,10 @@ function showRelatedAccountThreads(uid){
  }
  for(const id of linked){
   if(g8mLinkedHistories.has(id))continue;
-  const entry={uid:id,recent:[],older:[],hasOlder:false,loading:false,
-   exhausted:false,ready:false,error:false,hidden:{},unsubs:[]};
+  const warm=g8mLinkedHistoryWarm.get(id);
+  const entry={uid:id,recent:warm?.recent?.slice()||[],older:warm?.older?.slice()||[],
+   hasOlder:!!warm?.hasOlder,loading:false,exhausted:!!warm?.exhausted,
+   ready:false,error:false,hidden:{},unsubs:[]};
   g8mLinkedHistories.set(id,entry);changed=true;
   const stillHere=()=>teacher&&uid===openedUid&&g8mLinkedHistories.get(id)===entry;
   // The existing indexed recent query is real-time; older pages load only as
@@ -850,12 +977,29 @@ function showRelatedAccountThreads(uid){
     const previous=[...entry.recent,...entry.older].find(msg=>msg.id===incoming.id&&!isDeletedMessage(msg));
     if(previous)g8mRemoveDeletedPhotoCache(previous);
    }
+   // A 100-message live-window rollover must never erase a previously
+   // visible older message from this linked UID's merged timeline.
+   const incomingIds=new Set(nextRecent.map(m=>m.id));
+   const olderIds=new Set(entry.older.map(m=>m.id));
+   for(const old of entry.recent){
+    if(!incomingIds.has(old.id)&&!olderIds.has(old.id)){
+     entry.older.push(old);olderIds.add(old.id);
+    }
+   }
+   entry.older.sort(compareMessages);
    entry.recent=nextRecent;
    g8mPurgeHiddenPhotoCache(id,entry.hidden,entry);
    entry.ready=true;entry.error=false;
    if(!entry.exhausted && entry.recent.length>=G8M_RECENT_MESSAGES)entry.hasOlder=true;
+   g8mRememberLinkedEntry(entry);
    renderMessages();g8mUpdateLoadedStatus();
    if(g8mFollowLatest)g8mScheduleBottomIfFollowing();
+   // Preload one bounded older page for each linked account on opening, so
+   // older replies do not appear to vanish after a UID/account switch.
+   if(!g8mKeyHistory && !entry.warmedOnce && entry.hasOlder && !entry.loading){
+    entry.warmedOnce=true;
+    void g8mWarmLinkedHistory(uid,id,entry);
+   }
    // Mark a previously unread old-account chat as seen once it is displayed,
    // without altering any message or accidentally creating a new chat.
    if(unread(summaries[id])>0&&document.visibilityState==='visible'){
@@ -878,6 +1022,30 @@ function showRelatedAccountThreads(uid){
   },error=>console.warn('Prior account hidden messages:',error)));
  }
  if(changed){renderMessages();g8mUpdateLoadedStatus();}
+ if(teacher&&g8mKeyHistory?.uid===uid)g8mAddNewLinkedScanThreads(uid);
+}
+async function g8mWarmLinkedHistory(uid,threadUid,entry){
+ if(g8mKeyHistory?.uid===uid)return;
+ if(!teacher||uid!==openedUid||g8mLinkedHistories.get(threadUid)!==entry)return;
+ if(entry.older.length>=75 || !entry.recent.length)return;
+ const oldest=g8mOldestFirebaseRecord([...entry.recent,...entry.older]);
+ if(!oldest)return;
+ entry.loading=true;
+ try{
+  const snap=await get(query(ref(rtdb,`${studentPath(threadUid)}/messages`),
+   orderByChild('createdAtMs'),endBefore(oldest.createdAtMs??null,oldest.id),limitToLast(100)));
+  if(uid!==openedUid||g8mLinkedHistories.get(threadUid)!==entry)return;
+  const found=normalizeMessageSnapshot(snap).map(msg=>({...msg,__threadUid:threadUid,__historical:true}));
+  const ids=new Set([...entry.recent,...entry.older].map(m=>m.id));
+  entry.older=[...found.filter(m=>!ids.has(m.id)),...entry.older].sort(compareMessages);
+  entry.exhausted=found.length<100;entry.hasOlder=!entry.exhausted;
+  g8mRememberLinkedEntry(entry);renderMessages();g8mUpdateLoadedStatus();
+ }catch(error){
+  if(uid===openedUid&&g8mLinkedHistories.get(threadUid)===entry){
+   entry.error=true;g8mUpdateLoadedStatus();
+   console.warn('Previous-account history prefetch failed:',error);
+  }
+ }finally{entry.loading=false;}
 }
 function switchMobile(view){stopLongPressTimer();mobileView=view;workspace.dataset.mobileView=view;root.dataset.mobileChat=(view==='chat'?'true':'false');closeReactionPicker();}
 $('g8mSectionBack').addEventListener('click',()=>{if(!sending)switchMobile('sections');});
@@ -893,23 +1061,39 @@ function openChat(uid){
  if(teacher){const group=groupForUid(uid);if(group)uid=selectGroupThread(group);}
  if(uid===openedUid && activeUnsubs.length){switchMobile('chat');g8mJumpLatest({settle:true});return;}
  g8mAdminReset();
+ g8mKeyHistoryToken++;g8mKeyHistory=null;
  stopTyping();closeReactionPicker();
  if(openedUid && activeMessages.length){
   rememberConversation(openedUid);
  }
  selectedMobileMetaMessageId='';
- g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;g8mEarlierLoadError='';g8mHistoryCheckRunning=false;
+ g8mHadLiveSnapshot=false;g8mNewIncomingWhileAway=0;g8mHistoryGesture=false;g8mEarlierLoadError='';g8mHistoryCheckRunning=false;g8mInitialCurrentWarmDone=false;
  g8mAwaitingFirstSnapshotUid=uid;
  g8mFollowLatest=true;g8mSmoothLatest=false;++g8mOpenScrollToken;
  clearUnsubs(activeUnsubs);g8mClearLinkedHistories();openedUid=uid;g8mResetScreenshotPolicy(uid);lastSnapshotKey='';activeReactions={};activeReadReceipts={};deletedMessageIndex={};hiddenMessageIds={};peerPresence=null;peerTyping=null;priorOwnSeenAt=null;seenSyncBusy=false;receiptCacheReady=false;updateTypingIndicator();updatePresenceLine();
  const warm=conversationMemory.get(uid);
  activeMessages=warm?.messages?.slice()||[];olderMessages=warm?.older?.slice()||[];
  hasOlder=warm?.hasOlder||false;historyExhausted=warm?.historyExhausted===true;olderLoading=false;activeAcks=warm?.acks||{};seenAt=warm?.seenAt||0;reply=null;renderReply();
- if(teacher){const p=person(uid),group=groupForUid(uid);$('g8mChatName').textContent=group?.name||p.name;$('g8mChatMeta').textContent=[group?.section||p.section,group?.studentId||p.studentId].filter(Boolean).join(' · ');$('g8mChatAvatar').textContent=iconLetter(group||p);$('g8mComposer').hidden=false;renderStudents();showRelatedAccountThreads(uid);}
+ if(teacher){g8mStartKeyHistory(uid);const p=person(uid),group=groupForUid(uid);$('g8mChatName').textContent=group?.name||p.name;$('g8mChatMeta').textContent=[group?.section||p.section,group?.studentId||p.studentId].filter(Boolean).join(' · ');$('g8mChatAvatar').textContent=iconLetter(group||p);$('g8mComposer').hidden=false;renderStudents();showRelatedAccountThreads(uid);}
+ if(!teacher)g8mStartKeyHistory(uid);
  if(activeMessages.length||olderMessages.length)renderMessages();
  else $('g8mMessages').replaceChildren(notice('Loading messages…'));
  switchMobile('chat');
  g8mJumpLatest({settle:true});
+ if(teacher&&g8mNotificationTarget&&!g8mNotificationJumpDone){
+  g8mNotificationJumpDone=true;
+  const requested=String(new URLSearchParams(location.search).get('student')||uid).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,128);
+  get(ref(rtdb,`${studentPath(requested)}/messages/${g8mNotificationTarget}`)).then(snapshot=>{
+   if(!snapshot.exists()||!teacher||!openedUid)return;
+   const msg={...snapshot.val(),id:g8mNotificationTarget,__threadUid:requested,__historical:requested!==openedUid};
+   g8mAdminFocusedMessages=[msg];g8mFollowLatest=false;renderMessages();switchMobile('chat');
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const row=[...$('g8mMessages').querySelectorAll('.g8m-message[data-chat-key]')].find(el=>el.dataset.chatKey===`message:${requested}:${g8mNotificationTarget}`);
+    if(!row)return;row.scrollIntoView({block:'center',behavior:'smooth'});
+    row.classList.add('g8m-jump-focus');setTimeout(()=>row.classList.remove('g8m-jump-focus'),2600);
+   }));
+  }).catch(error=>console.warn('Notification message lookup:',error));
+ }
  status('');
  updateChatFeedState(warm?'Showing recent messages · Syncing…':'Loading conversation…');
  // A single per-conversation listener is enough for instant student updates.
@@ -1956,14 +2140,14 @@ function renderMessages(){
  const optimistic = [...pendingPhotoJobs.values()]
   .filter(job=>job.uid===openedUid)
   .map(job=>({id:job.id,senderUid:job.senderUid,createdAtMs:job.createdAtMs,__photoPending:job}));
- const seenMessageKeys=new Set();
- const shown=[...g8mHistoricMessages(),...olderMessages,...activeMessages,...g8mAdminFocusedMessages,...optimistic]
-  .filter(x=>{
-   if(!x?.id||(x.__historical?g8mLinkedHistories.get(x.__threadUid)?.hidden[x.id]:hiddenMessageIds[x.id]))return false;
-   const key=`${x.__threadUid||openedUid}/${x.id}`;
-   if(seenMessageKeys.has(key))return false;
-   seenMessageKeys.add(key);return true;
-  }).sort(compareMessages);
+ // Latest live records must supersede any historical snapshot of the same
+ // thread/message (not the other way around). This also preserves deletions.
+ const unifiedMessages=new Map();
+ for(const x of [...g8mHistoricMessages(),...olderMessages,...activeMessages,...g8mAdminFocusedMessages,...optimistic]){
+  if(!x?.id||(x.__historical?g8mLinkedHistories.get(x.__threadUid)?.hidden[x.id]:hiddenMessageIds[x.id]))continue;
+  unifiedMessages.set(`${x.__threadUid||openedUid}/${x.id}`,x);
+ }
+ const shown=[...unifiedMessages.values()].sort(compareMessages);
  const content=document.createDocumentFragment();
  // Compute group neighbors from the exact rendered order (including local
  // Sending photos), respecting deleted/hidden messages and date boundaries.
@@ -1986,14 +2170,16 @@ function renderMessages(){
  let currentDay='';
  for(const msg of shown){
   try{
-   const at=safeStamp(msg.createdAtMs);
-   const date=localDayKey(at);
+   const recordedAt=messageTime(msg);
+   const at=recordedAt||946684800000;
+   const date=recordedAt?localDayKey(at):'undated';
    if(date!==currentDay){
     currentDay=date;
     const divider=textEl('div','g8m-date','');
     divider.setAttribute('role','separator');
-    divider.setAttribute('aria-label',chatDayDividerLabel(at));
-    divider.append(textEl('span','g8m-date-label',chatDayDividerLabel(at)));divider.dataset.chatKey='day:'+date;divider.dataset.renderRevision=chatDayDividerLabel(at);
+    const dividerLabel=recordedAt?chatDayDividerLabel(at):'Older message · Time unavailable';
+    divider.setAttribute('aria-label',dividerLabel);
+    divider.append(textEl('span','g8m-date-label',dividerLabel));divider.dataset.chatKey='day:'+date;divider.dataset.renderRevision=dividerLabel;
     content.append(divider);
    }
    const mine=msg.senderUid===user?.uid;
@@ -2319,10 +2505,112 @@ async function g8mVerifyFinishedHistory(uid){
  }
 }
 
-// Chronological pagination for CURRENT + previous student accounts. Each UID
-// has its own Firebase cursor; page them together and merge by createdAtMs.
-// This prevents skipped pages when old/new account timelines overlap.
+// V5.7: Key-ordered RTDB history recovery. Unlike orderByChild('createdAtMs')
+// this reaches old records even if their timestamps are missing, strings, or
+// stored using a different legacy field. Each verified UID keeps its own key
+// cursor. Never infer/merge identity from matching names or sections.
+function g8mStartKeyHistory(uid){
+ if(uid!==openedUid)return;
+ g8mKeyHistory={uid,token:++g8mKeyHistoryToken,running:false,threads:new Map(),requestAgain:0,scanScheduled:false,schedulePages:0};
+ g8mKeyHistoryAddThreads(uid);
+ g8mScheduleKeyHistory(uid,G8M_KEY_HISTORY_OPEN_PAGES);
+}
+function g8mScheduleKeyHistory(uid,pages){
+ const state=g8mKeyHistory;
+ if(!state||state.uid!==uid)return;
+ if(state.running){state.requestAgain=Math.max(state.requestAgain,pages);return;}
+ state.schedulePages=Math.max(state.schedulePages,pages);
+ if(state.scanScheduled)return;
+ state.scanScheduled=true;
+ queueMicrotask(()=>{
+  if(g8mKeyHistory!==state||state.uid!==openedUid)return;
+  state.scanScheduled=false;
+  const budget=state.schedulePages;state.schedulePages=0;
+  void g8mScanKeyHistory(uid,budget);
+ });
+}
+function g8mKeyHistoryAddThreads(uid){
+ const state=g8mKeyHistory;
+ if(!state||state.uid!==uid)return 0;
+ let added=0;
+ // Do not retain a previous UID if the verified account linkage changes.
+ const verified=new Set([uid,...(teacher?[...g8mLinkedHistories.keys()]:[])]);
+ for(const threadUid of [...state.threads.keys()])if(!verified.has(threadUid))state.threads.delete(threadUid);
+ for(const threadUid of verified){
+  if(!/^[A-Za-z0-9_-]{5,128}$/.test(threadUid)||state.threads.has(threadUid))continue;
+  state.threads.set(threadUid,{uid:threadUid,beforeKey:null,scanned:0,complete:false,error:null});added++;
+ }
+ return added;
+}
+function g8mAddNewLinkedScanThreads(uid){
+ if(!g8mKeyHistoryAddThreads(uid))return;
+ g8mScheduleKeyHistory(uid,G8M_KEY_HISTORY_OPEN_PAGES);
+}
+async function g8mScanKeyHistory(uid,pageBudget=G8M_KEY_HISTORY_SCROLL_PAGES){
+ const state=g8mKeyHistory;
+ if(!state||state.uid!==uid||uid!==openedUid)return;
+ if(state.running){state.requestAgain=Math.max(state.requestAgain,pageBudget);return;}
+ state.running=true;olderLoading=true;
+ g8mUpdateLoadedStatus();
+ const valid=()=>g8mKeyHistory===state&&state.token===g8mKeyHistoryToken&&uid===openedUid;
+ try{
+  const targets=[...state.threads.values()].filter(part=>!part.complete);
+  const results=await Promise.allSettled(targets.map(async part=>{
+   const threadUid=part.uid;
+   for(let i=0;i<pageBudget&&valid()&&!part.complete;i++){
+    const clauses=[orderByKey()];
+    if(part.beforeKey!==null)clauses.push(endBefore(part.beforeKey));
+    clauses.push(limitToLast(G8M_KEY_HISTORY_PAGE));
+    const snap=await get(query(ref(rtdb,`${studentPath(threadUid)}/messages`),...clauses));
+    if(!valid()||state.threads.get(threadUid)!==part)return;
+    const page=[];
+    snap.forEach(child=>{const raw=child.val();if(child.key&&raw&&typeof raw==='object')page.push({...raw,id:String(child.key)});});
+    if(!page.length){part.complete=true;break;}
+    const nextKey=page[0].id;
+    if(nextKey===part.beforeKey)throw new Error('History cursor did not advance.');
+    part.beforeKey=nextKey;part.scanned+=page.length;
+    part.complete=page.length<G8M_KEY_HISTORY_PAGE;
+    if(threadUid===openedUid){
+     const liveIds=new Set(activeMessages.map(x=>x.id));
+     const known=new Map(olderMessages.map(x=>[x.id,x]));
+     for(const msg of page)if(!liveIds.has(msg.id))known.set(msg.id,msg);
+     olderMessages=[...known.values()].sort(compareMessages);
+     rememberConversation(uid);
+    }else{
+     const linked=g8mLinkedHistories.get(threadUid);
+     if(!linked){part.complete=true;break;}
+     const liveIds=new Set(linked.recent.map(x=>x.id));
+     const known=new Map(linked.older.map(x=>[x.id,x]));
+     for(const msg of page)if(!liveIds.has(msg.id))known.set(msg.id,{...msg,__threadUid:threadUid,__historical:true});
+     linked.older=[...known.values()].sort(compareMessages);
+     g8mRememberLinkedEntry(linked);
+    }
+    // Yield after each page: keep phone scrolling and the composer responsive.
+    await Promise.resolve();
+   }
+   part.error=null;
+  }));
+  if(!valid())return;
+  results.forEach((result,i)=>{
+   if(result.status==='rejected'){
+    targets[i].error=friendlyError(result.reason);
+    console.warn('Historical message key-page read failed:',targets[i].uid,result.reason);
+   }
+  });
+ }finally{
+  if(valid()){
+   state.running=false;olderLoading=false;
+   renderMessages();g8mUpdateLoadedStatus();
+   if(state.requestAgain){const budget=state.requestAgain;state.requestAgain=0;g8mScheduleKeyHistory(uid,budget);}
+  }
+ }
+}
+// Student chronological pagination is unchanged. Administrator pages use the
+// independent Firebase-key scan above, including on-screen scroll-to-top.
 async function loadOlder(){
+ if(g8mKeyHistory?.uid===openedUid){
+  return g8mScanKeyHistory(openedUid,G8M_KEY_HISTORY_SCROLL_PAGES);
+ }
  if(olderLoading||!g8mHasMoreHistory()||!openedUid)return;
  g8mHistoryGesture=false;g8mCancelAutoScroll();
  const uid=openedUid;
@@ -2332,7 +2620,7 @@ async function loadOlder(){
  g8mUpdateLoadedStatus();
  const fetches=[];
  if(hasOlder){
-  const oldest=[...olderMessages,...activeMessages].sort(compareMessages)[0];
+  const oldest=g8mOldestFirebaseRecord([...olderMessages,...activeMessages]);
   if(oldest)fetches.push((async()=>{
    const cursor=oldest.createdAtMs??null;
    const page=query(ref(rtdb,`${studentPath(uid)}/messages`),orderByChild('createdAtMs'),endBefore(cursor,oldest.id),limitToLast(G8M_HISTORY_PAGE_SIZE));
@@ -2347,7 +2635,7 @@ async function loadOlder(){
  }
  for(const [threadUid,entry] of g8mLinkedHistories){
   if(!entry.ready||!entry.hasOlder||entry.loading)continue;
-  const oldest=[...entry.older,...entry.recent].sort(compareMessages)[0];
+  const oldest=g8mOldestFirebaseRecord([...entry.older,...entry.recent]);
   if(!oldest)continue;
   entry.loading=true;
   fetches.push((async()=>{
