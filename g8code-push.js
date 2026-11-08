@@ -1,4 +1,4 @@
-/* G8Code Push V5.2 — two-way opt-in Web Push, authenticated student + teacher devices.
+/* G8Code Push V5.4 — two-way opt-in Web Push, authenticated student + teacher devices.
  * Zero credentials are embedded: PUBLIC VAPID key is loaded from g8code-push-config.js.
  * The private server credential belongs exclusively in Google Apps Script Properties.
  */
@@ -128,8 +128,11 @@ async function checkBackground(){
    const fresh=Number(saved?.updatedAtMs||0)>Date.now()-90*24*60*60*1000;
    serverText=saved?.enabled===true&&fresh?' Server registration: found.':' Server registration: MISSING or expired. Tap Disable then Enable.';
   }catch(err){serverText=' Server registration could not be checked: '+(err?.code||err?.message||'permission issue')+'.';}
-  const lastText=last?.atMs?` Last worker event: ${readablePushTime(last.receivedAtMs||last.atMs)}; ${last.status||'received'}.`:' No worker push received yet.';
-  el.textContent='Browser and worker: ready.'+serverText+lastText+' If local test works but no real alert arrives, check the sender scheduled trigger and outbox FCM statuses.';
+  const lastText=last?.atMs?` Last REMOTE worker event: ${readablePushTime(last.receivedAtMs||last.atMs)}; ${last.status||'received'}.`:' No REMOTE FCM push received by this worker yet.';
+  const local=result?.lastLocalTest;
+  const localText=local?.atMs?` Last LOCAL test: ${readablePushTime(local.atMs)}; ${local.status||'unknown'}.`:'';
+  el.textContent='Browser and worker: ready.'+serverText+lastText+localText+
+   ' FCM accepted ≠ phone displayed. If remote is missing, inspect Apps Script delivery and account registration. If remote says notification-shown but Android is blank, inspect Android app/site notification channels.';
  }catch(err){el.textContent='Background check unavailable: '+(err?.message||err);}
 }
 
@@ -144,8 +147,10 @@ async function testLocalNotification(){
  try{
   const result=await workerRequest({type:'G8PUSH_LOCAL_TEST',uid:state.uid},7000);
   if(el)el.textContent=result?.ok?
-   'Local panel test sent. Look in the Android notifications panel. This does NOT prove that an FCM alert reached the phone.':
-   'Local panel test failed: '+String(result?.status||'worker did not confirm')+'.';
+   (result.status==='browser-record-missing'?
+    'The notification API returned success, but the browser did not retain the test notification. Check Android app/site notification settings and channels.':
+    'Local notification created in the browser ('+String(result.status||'accepted')+'). Check the Android panel. This is NOT an FCM delivery test and cannot prove Android displayed it.'):
+   'Local test FAILED: '+String(result?.status||'worker did not confirm')+'.';
   return Boolean(result?.ok);
  }catch(err){if(el)el.textContent='Local test failed: '+(err?.message||err);return false;}
 }

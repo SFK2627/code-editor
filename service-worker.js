@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v753-push-delivery-health';
+const CACHE_NAME = 'ict8-connect-v760-push-status-queue';
 const APP_SHELL = [
   './',
   './index.html',
@@ -111,11 +111,17 @@ function openPushIdb(){return new Promise((resolve,reject)=>{
 async function pushIdentity(writeUid){
  const db=await openPushIdb();
  try{return await new Promise((resolve,reject)=>{
-  const tx=db.transaction('prefs',writeUid===undefined?'readonly':'readwrite');
-  const request=writeUid===undefined?tx.objectStore('prefs').get('activeUid'):
-    tx.objectStore('prefs').put(String(writeUid||''),'activeUid');
-  request.onsuccess=()=>resolve(writeUid===undefined?request.result||'':true);
-  request.onerror=()=>reject(request.error);
+  const writing=writeUid!==undefined;
+  const tx=db.transaction('prefs',writing?'readwrite':'readonly');
+  const request=writing?tx.objectStore('prefs').put(String(writeUid||''),'activeUid'):
+   tx.objectStore('prefs').get('activeUid');
+  let value='';
+  request.onsuccess=()=>{if(!writing)value=request.result||'';};
+  // Only acknowledge AFTER the identity transaction commits, not merely
+  // after its put() request resolves. This avoids false readiness on phones.
+  tx.oncomplete=()=>resolve(writing?true:value);
+  tx.onabort=()=>reject(tx.error||Error('Worker identity transaction aborted'));
+  tx.onerror=()=>reject(tx.error||Error('Worker identity transaction failed'));
  });}finally{db.close();}
 }
 async function writePushAudit(status,receiptMs){
@@ -125,17 +131,19 @@ async function writePushAudit(status,receiptMs){
    await new Promise((resolve,reject)=>{
     const tx=db.transaction('prefs','readwrite');
     const now=Date.now();
-    tx.objectStore('prefs').put({atMs:now,receivedAtMs:Number(receiptMs||now),status:String(status||'unknown').slice(0,40)},'lastPush');
+    const label=String(status||'unknown').slice(0,40);
+    const key=label.startsWith('local-')?'lastLocalTest':'lastPush';
+    tx.objectStore('prefs').put({atMs:now,receivedAtMs:Number(receiptMs||now),status:label},key);
     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
    });
   }finally{db.close();}
  }catch(_){}
 }
-async function readPushAudit(){
+async function readPushAudit(key='lastPush'){
  try{
   const db=await openPushIdb();
   try{return await new Promise((resolve,reject)=>{
-   const tx=db.transaction('prefs','readonly'),req=tx.objectStore('prefs').get('lastPush');
+   const tx=db.transaction('prefs','readonly'),req=tx.objectStore('prefs').get(key);
    req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);
   });}finally{db.close();}
  }catch(_){return null;}
@@ -164,12 +172,18 @@ self.addEventListener('message',event=>{
    if(uid&&expectedUid===uid){
     try{
      await self.registration.showNotification('G8Code · Local panel test',{
-      body:'This local test confirms that the phone can display G8Code notifications. It does not test Firebase delivery.',
+      body:'Local browser test only. It does not confirm FCM delivery or Android notification visibility.',
       icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
       tag:'g8code-local-notification-check',silent:false,
       data:{targetUid:uid,destination:'./index.html'}
-     });ok=true;reason='shown';
-    }catch(_){reason='notification-blocked';}
+     });
+     // getNotifications confirms the browser retained the notification,
+     // NOT that Android's system channel actually displayed a banner.
+     const found=typeof self.registration.getNotifications==='function'
+      ?await self.registration.getNotifications({tag:'g8code-local-notification-check'}) :null;
+     ok=true;reason=found?(found.length?'browser-record-present':'browser-record-missing'):'browser-api-accepted';
+     await writePushAudit('local-'+reason,Date.now());
+    }catch(_){reason='notification-api-error';await writePushAudit('local-'+reason,Date.now());}
    }
    try{event.ports?.[0]?.postMessage({ok,status:reason});}catch(_){}
   })());
@@ -177,9 +191,10 @@ self.addEventListener('message',event=>{
   event.waitUntil((async()=>{
    const uid=await pushIdentity().catch(()=>null);
    const lastPush=await readPushAudit();
+   const lastLocalTest=await readPushAudit('lastLocalTest');
    // No sensitive identifiers or registration tokens returned to UI.
    const expectedUid=String(request.uid||'');
-   try{event.ports?.[0]?.postMessage({ok:true,hasIdentity:Boolean(uid),identityMatchesUid:Boolean(uid&&expectedUid===uid),lastPush});}catch(_){}
+   try{event.ports?.[0]?.postMessage({ok:true,hasIdentity:Boolean(uid),identityMatchesUid:Boolean(uid&&expectedUid===uid),lastPush,lastLocalTest});}catch(_){}
   })());
  }
 });
@@ -354,8 +369,13 @@ async function handleG8PushPayload(raw,receivedAtMs=Date.now()){
 }
 self.addEventListener('push',event=>{
  event.waitUntil((async()=>{
-  let raw={};try{raw=event.data?.json()||{};}catch(_){await writePushAudit('invalid-payload',Date.now());return;}
-  await handleG8PushPayload(raw,Date.now());
+  const received=Date.now();
+  try{
+   if(!event.data){await writePushAudit('empty-push',received);return;}
+   let raw={};try{raw=event.data.json()||{};}
+   catch(_){await writePushAudit('invalid-json-push',received);return;}
+   await handleG8PushPayload(raw,received);
+  }catch(_){await writePushAudit('worker-processing-error',received);}
  })());
 });
 self.addEventListener('notificationclick',event=>{
