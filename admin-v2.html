@@ -2663,12 +2663,20 @@ html.g8-admin-next #adminOverlay .adm-shell .adm-bottom-btn.g8-messages-more > .
   }
 }
 </style>
-<style id="g8push-admin-controls-css">
- .adm-phone-push-controls{display:flex;align-items:center;gap:10px;margin:8px 12px;padding:8px;border:1px solid #6f7e9d50;border-radius:12px;min-width:0;box-sizing:border-box}
- .adm-phone-push-controls #g8pushAdminToggle{border:1px solid #7289ca66;background:#6478ff18;color:inherit;border-radius:9px;padding:7px 10px;min-width:54px;min-height:40px;font-size:13px;line-height:1.15;display:flex;justify-content:center;align-items:center;flex-shrink:0;white-space:normal;overflow-wrap:anywhere}
- .adm-phone-push-controls #g8pushAdminToggle:disabled{opacity:.48}
- .adm-phone-push-status{min-width:0;flex:1;display:block;overflow-wrap:anywhere;font-size:11px;line-height:1.35;color:inherit;opacity:.8}
- @media(max-width:520px){.adm-phone-push-controls{margin:5px 10px;padding:6px;gap:6px}.adm-phone-push-controls #g8pushAdminToggle{min-width:52px;padding:6px;font-size:11px}.adm-phone-push-status{font-size:10px}}
+<style id="g8-admin-sidebar-compact-css">
+/* Keep the Advanced Control Center sidebar navigation as the primary content.
+   Only a mobile Appearance picker is hosted below it, without promo/push cards. */
+@media(min-width:481px){
+ html.g8-admin-next #adminOverlay .adm-sidebar-bottom{display:none!important}
+}
+@media(max-width:480px){
+ html.g8-admin-next #adminOverlay .adm-sidebar-bottom{
+  flex:0 0 auto!important;min-width:0!important;max-width:100%!important;
+  padding:5px 12px 8px!important;overflow-x:hidden!important;
+ }
+ html.g8-admin-next #adminOverlay .adm-sidebar-bottom .adm3-mobile-theme-slot{margin:0!important;padding:8px!important} 
+ html.g8-admin-next #adminOverlay .adm-sidebar-bottom .adm3-mobile-theme-title{margin-bottom:4px!important}
+}
 </style>
 </head>
 <body class="entry-gate-active admin-v2-standalone">
@@ -8314,10 +8322,10 @@ try {
     navMap.set(p.id,b);nav.append(b);
   });
   sidebarScroll.append(nav);
+  // Keep a minimal footer solely for the mobile Appearance selector.
+  // The old Full Admin toolkit and Open original G8Code promo cards are removed:
+  // the actual navigation and the header Exit button remain intact.
   const sideBottom=el('div','adm-sidebar-bottom');
-  sideBottom.innerHTML=`<div class="adm-side-note"><span class="adm-side-note-icon">${ico('layers',17)}</span><div><b>Full Admin toolkit</b><p>Original authenticated actions preserved.</p></div></div>`;
-  const ogLink=el('a','adm-original-link');ogLink.href='index.html';ogLink.innerHTML=ico('external',16)+'<span>Open original G8Code</span>';
-  sideBottom.append(ogLink);
   sidebar.append(sidebarBrand,sidebarScroll,sideBottom);
   const frame=el('div','adm-frame');
   const bar=el('header','adm-topbar');
@@ -8339,17 +8347,10 @@ try {
   const notificationsLink=btn('Notifications','adm-icon-btn adm-notifications-trigger',()=>navigate('notifications'),'bell');
   notificationsLink.title='Open Notification Center';notificationsLink.setAttribute('aria-label','Notification Center');
   const notificationBadge=el('b','g8-admin-msg-badge');notificationBadge.dataset.adminActivityBadge='';notificationBadge.hidden=true;notificationsLink.append(notificationBadge);
-  const pushToggle=el('button','adm-icon-btn adm-phone-push-toggle');
-  pushToggle.type='button';pushToggle.id='g8pushAdminToggle';pushToggle.title='Enable or disable Admin phone notifications';
-  pushToggle.setAttribute('aria-label','Enable Admin Phone Alerts');
-  pushToggle.textContent='🔔';
-  const pushStatus=el('span','adm-phone-push-status');pushStatus.id='g8pushAdminStatus';pushStatus.setAttribute('role','status');
-  pushStatus.textContent='Configure phone alerts';
   topActions.append(mobileSearch,notificationsLink,themeWrap,identity,exitLink);
-  // Separate sidebar control: does not compete for space with mobile bell/X.
-  const pushControls=el('div','adm-phone-push-controls');pushControls.append(pushToggle,pushStatus);
-  pushControls.title='Enable this phone to receive messages, replies, reactions and announcements';
-  sideBottom.insertBefore(pushControls,ogLink);
+  // Admin phone notification setup is still available at
+  // Notification Center → Phone alerts settings (admin-notifications.html).
+  // Its existing g8pushAdminToggle/g8pushAdminStatus bindings remain there.
   bar.append(menuBtn,crumb,globalSearch,topActions);
   const workspace=el('div','adm-workspace');
   const stage=el('main','adm-content');stage.id='admV2Content';
