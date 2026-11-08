@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ict8-connect-v752-two-way-notifications';
+const CACHE_NAME = 'ict8-connect-v753-push-delivery-health';
 const APP_SHELL = [
   './',
   './index.html',
@@ -80,7 +80,9 @@ self.addEventListener('fetch', event => {
   // Heavy game content and media stay cache-first to control bandwidth.
   const criticalShellPaths = [
     'script.js', 'style.css', 'firebase-config.js', 'manifest.webmanifest',
-    'g8code-push.js', 'g8code-push-config.js', 'g8code-learning-badges.js'
+    'g8code-push.js', 'g8code-push-config.js', 'g8code-learning-badges.js',
+    'messages.js', 'messages-chat-styles.js', 'announcements.js',
+    'admin-notifications.js', 'admin-notifications-badge.js'
   ]
     .map(file => new URL(file, self.registration.scope).pathname);
   if (criticalShellPaths.includes(url.pathname)) {
@@ -154,6 +156,23 @@ self.addEventListener('message',event=>{
   // FCM onMessage() handoff: same identity check, exact same server-sourced
   // titles and deep links as the background notification handler.
   event.waitUntil(handleG8PushPayload(request.payload||{},Date.now()));
+ }else if(request.type==='G8PUSH_LOCAL_TEST'){
+  event.waitUntil((async()=>{
+   const expectedUid=String(request.uid||'');
+   const uid=await pushIdentity().catch(()=>null);
+   let ok=false,reason='wrong-account';
+   if(uid&&expectedUid===uid){
+    try{
+     await self.registration.showNotification('G8Code · Local panel test',{
+      body:'This local test confirms that the phone can display G8Code notifications. It does not test Firebase delivery.',
+      icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
+      tag:'g8code-local-notification-check',silent:false,
+      data:{targetUid:uid,destination:'./index.html'}
+     });ok=true;reason='shown';
+    }catch(_){reason='notification-blocked';}
+   }
+   try{event.ports?.[0]?.postMessage({ok,status:reason});}catch(_){}
+  })());
  }else if(request.type==='G8PUSH_INSPECT'){
   event.waitUntil((async()=>{
    const uid=await pushIdentity().catch(()=>null);
@@ -164,11 +183,23 @@ self.addEventListener('message',event=>{
   })());
  }
 });
-const pushLabels={messages:'You have a new private message.',announcements:'A new announcement is available.',lessons:'A new lesson is available.',activities:'A new activity is available.'};
+const pushLabels={messages:'You have a new private message.',announcements:'A new announcement is available.',lessons:'A new lesson is available.',activities:'A new activity is available.',system:'Notification delivery test.'};
+// One FCM delivery can be observed through both an SDK foreground callback
+// and the native push event. Keep a short per-worker dedupe keyed by recipient.
+const shownG8PushEvents=new Map();
+function g8PushClaimOnce(uid,eventId){
+ const key=uid+'|'+eventId,now=Date.now();
+ for(const [id,stamp] of shownG8PushEvents)if(now-stamp>180000)shownG8PushEvents.delete(id);
+ if(shownG8PushEvents.has(key))return false;
+ shownG8PushEvents.set(key,now);return true;
+}
 async function handleG8PushPayload(raw,receivedAtMs=Date.now()){
   const data=raw?.data||raw?.message?.data||raw;
   const type=String(data.type||'').toLowerCase();
   const targetUid=String(data.targetUid||'');
+  if(type==='system'&&String(data.testNotice||'')!=='1'){
+   await writePushAudit('invalid-test',receivedAtMs);return;
+  }
   if(!pushLabels[type]||!/^[A-Za-z0-9_-]{1,128}$/.test(targetUid)){await writePushAudit('unknown-payload',receivedAtMs);return;}
   let activeUid='';try{activeUid=await pushIdentity();}catch(_){await writePushAudit('identity-read-error',receivedAtMs);return;}
   if(!activeUid||activeUid!==targetUid){await writePushAudit('account-mismatch',receivedAtMs);return;}
@@ -179,7 +210,7 @@ async function handleG8PushPayload(raw,receivedAtMs=Date.now()){
   if(!['teacher','student'].includes(recipientRole)){
    await writePushAudit('unknown-role',receivedAtMs);return;
   }
-  if(recipientRole==='teacher' && !(type==='announcements'||(type==='messages'&&/^[A-Za-z0-9_-]{1,128}$/.test(chatUid)))){
+  if(recipientRole==='teacher' && !(type==='system'||type==='announcements'||(type==='messages'&&/^[A-Za-z0-9_-]{1,128}$/.test(chatUid)))){
    await writePushAudit('unknown-chat',receivedAtMs);return;
   }
   // Requested: keep OS notification visible even while G8Code is open.
@@ -200,10 +231,11 @@ async function handleG8PushPayload(raw,receivedAtMs=Date.now()){
   const engagementType=String(data.engagementType||'');
   const postCommentId=/^[A-Za-z0-9_-]{1,128}$/.test(String(data.commentId||''))?String(data.commentId):'';
   const commentQuery=postCommentId?'&gaComment='+encodeURIComponent(postCommentId):'';
-  const destination=recipientRole==='teacher'&&type==='announcements'?`./announcements.html?from=admin&gaPost=${encodeURIComponent(itemId)}&gaEngagement=${['comment','comment_reply','comment_reaction'].includes(engagementType)?'comment':'reaction'}${commentQuery}`
+  const destination=type==='system'?(recipientRole==='teacher'?'./admin-notifications.html?from=admin':'./index.html')
+    :recipientRole==='teacher'&&type==='announcements'?`./announcements.html?from=admin&gaPost=${encodeURIComponent(itemId)}&gaEngagement=${['comment','comment_reply','comment_reaction'].includes(engagementType)?'comment':'reaction'}${commentQuery}`
     :recipientRole==='teacher'?`./messages.html?from=admin&student=${encodeURIComponent(chatUid)}${focusQuery}`
-    :type==='messages'?`./messages.html?from=student${focusQuery?'?'+focusQuery.slice(1):''}`
-    :type==='announcements'?'./announcements.html?from=student'
+    :type==='messages'?`./messages.html?from=student${focusQuery}`
+    :type==='announcements'?`./announcements.html?from=student&gaPost=${encodeURIComponent(itemId)}`
     :validItem?`./index.html?g8mBack=student&gaOpen=${type==='lessons'?'lesson':'activity'}&gaItem=${encodeURIComponent(itemId)}`
     :'./index.html';
   const eventId=String(data.eventId||'latest').slice(0,80).replace(/[^A-Za-z0-9_-]/g,'');
@@ -297,16 +329,20 @@ async function handleG8PushPayload(raw,receivedAtMs=Date.now()){
      :`Your teacher reacted to your ${reactedLabel}.`)
    :eventKind==='reply'?`Your teacher replied to your ${kindObject(replyObject)}.`
    :studentMessageBody;
-  const noticeTitle=recipientRole==='teacher'?adviserTitle:
+  const noticeTitle=type==='system'?'G8Code · Phone notifications working':recipientRole==='teacher'?adviserTitle:
    learningAlert?(type==='lessons'?'New Lesson Available!':'New Activity Posted!'):
    type==='announcements'?'New Announcement Posted!':eventKind==='ack'?(verifiedAckTitle||ackTitle):
    eventKind==='reaction'?`Teacher reacted ${reactionEmoji||'💬'}`:
    eventKind==='reply'?'Teacher replied to you':
    studentKind==='photo'?'Photo from your teacher':studentKind==='project'?'Project shared by your teacher':'New message from your teacher';
-  const noticeBody=recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):
+  const noticeBody=type==='system'?'This phone received a test from the G8Code push sender.':recipientRole==='teacher'?(type==='announcements'?announcementBody:adviserBody):
    learningAlert?learningTitle:
    type==='announcements'?(studentAnnouncementTitle||pushLabels.announcements):
    eventKind==='ack'?(verifiedAckBody||studentAckBody):studentEventBody;
+  // The event ID comes from a server-sent FCM payload, not a chat message.
+  if(!g8PushClaimOnce(targetUid,eventId)){
+   await writePushAudit('duplicate-suppressed',receivedAtMs);return;
+  }
   try{
   await self.registration.showNotification(noticeTitle,{
    body:noticeBody,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
@@ -314,7 +350,7 @@ async function handleG8PushPayload(raw,receivedAtMs=Date.now()){
    data:{destination,type,targetUid},silent:false
   });
    await writePushAudit('notification-shown',receivedAtMs);
-  }catch(_){await writePushAudit('notification-error',receivedAtMs);}
+  }catch(_){shownG8PushEvents.delete(targetUid+'|'+eventId);await writePushAudit('notification-error',receivedAtMs);}
 }
 self.addEventListener('push',event=>{
  event.waitUntil((async()=>{

@@ -3,7 +3,7 @@
  * The private server credential belongs exclusively in Google Apps Script Properties.
  */
 (()=>{'use strict';
-const ROOT='g8PushV1';
+const ROOT='g8PushV1'; // V5.3: registration and push delivery diagnostics
 const TYPES=new Set(['messages','announcements','lessons','activities']);
 const $=id=>document.getElementById(id);
 const teacherEmails=()=>new Set((window.MCS_TEACHER_EMAILS||[]).map(v=>String(v).toLowerCase()));
@@ -118,11 +118,37 @@ async function checkBackground(){
    el.textContent='Background status: Not ready. '+(!allowed?'Allow browser notifications. ':!subscription?'Enable Phone Notifications again. ':'Reopen Account Settings and re-enable Phone Notifications to sync this account. ');
    return;
   }
-  const lastText=last?.atMs?` Last push event: ${readablePushTime(last.receivedAtMs||last.atMs)}. Result: ${last.status||'received'}.`:' No background push event recorded on this browser yet.';
-  el.textContent='Background status: Registered and linked to this account.'+lastText;
+  let serverText='';
+  try{
+   await sdk();
+   const role=state.teacher?'teacherDevices':'devices';
+   const deviceId=state.deviceId||getDeviceId();
+   const path=state.database.ref(state.db,`${ROOT}/${role}/${state.uid}/${deviceId}`);
+   const saved=(await state.database.get(path)).val();
+   const fresh=Number(saved?.updatedAtMs||0)>Date.now()-90*24*60*60*1000;
+   serverText=saved?.enabled===true&&fresh?' Server registration: found.':' Server registration: MISSING or expired. Tap Disable then Enable.';
+  }catch(err){serverText=' Server registration could not be checked: '+(err?.code||err?.message||'permission issue')+'.';}
+  const lastText=last?.atMs?` Last worker event: ${readablePushTime(last.receivedAtMs||last.atMs)}; ${last.status||'received'}.`:' No worker push received yet.';
+  el.textContent='Browser and worker: ready.'+serverText+lastText+' If local test works but no real alert arrives, check the sender scheduled trigger and outbox FCM statuses.';
  }catch(err){el.textContent='Background check unavailable: '+(err?.message||err);}
 }
 
+async function testLocalNotification(){
+ const el=$('g8pushCheckResult')||$('g8pushAdminCheckResult');
+ if(!state.uid||safeGet(optKey(state.uid))!=='yes'){
+  if(el)el.textContent='Enable notifications for this account first.';return false;
+ }
+ if(Notification.permission!=='granted'){
+  if(el)el.textContent='Allow notifications for this website in Android/browser settings first.';return false;
+ }
+ try{
+  const result=await workerRequest({type:'G8PUSH_LOCAL_TEST',uid:state.uid},7000);
+  if(el)el.textContent=result?.ok?
+   'Local panel test sent. Look in the Android notifications panel. This does NOT prove that an FCM alert reached the phone.':
+   'Local panel test failed: '+String(result?.status||'worker did not confirm')+'.';
+  return Boolean(result?.ok);
+ }catch(err){if(el)el.textContent='Local test failed: '+(err?.message||err);return false;}
+}
 async function loadSection(uid){
  try{
   const ownSection=(()=>{try{return typeof appSession!=='undefined'&&appSession?.student?.uid===uid?appSession.student.section:'';}catch(_){return '';}})();
@@ -345,13 +371,14 @@ async function init(){
   document.addEventListener('click',event=>{
    const btn=event.target.closest?.('#g8pushToggle,#g8pushAdminToggle');
    if(btn){event.preventDefault();if(btn.disabled)return;void (safeGet(optKey(state.uid))==='yes'?disable():enable());return;}
-   if(event.target.closest?.('#g8pushCheck,#g8pushAdminCheck')){event.preventDefault();void checkBackground();}
+   if(event.target.closest?.('#g8pushCheck,#g8pushAdminCheck')){event.preventDefault();void checkBackground();return;}
+   if(event.target.closest?.('#g8pushLocalTest,#g8pushAdminLocalTest')){event.preventDefault();void testLocalNotification();}
   });
   window.addEventListener('focus',render,{passive:true});
   render();
  })().catch(err=>{state.lastError=err?.message||'Push setup unavailable';render();});
  return state.ready;
 }
-window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,queueMessageReaction,queueAnnouncementEngagement,queueTeacherAck,checkBackground,refresh:render});
+window.G8CodePush=Object.freeze({enable,disable,queueTeacherEvent,queueStudentMessage,queueMessageReaction,queueAnnouncementEngagement,queueTeacherAck,checkBackground,testLocalNotification,refresh:render});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{void init();},{once:true});else void init();
 })();
